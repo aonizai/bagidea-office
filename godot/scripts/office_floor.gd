@@ -82,7 +82,7 @@ func _apply_daylight() -> void:
 		world.sky_mat.emission = sky_col
 		world.sky_mat.albedo_color = sky_col
 	for bm in world.beam_mats:
-		bm.set_shader_parameter("strength", 0.3 * clampf(energy / 2.6, 0.0, 1.0))
+		bm.set_shader_parameter("strength", 0.18 * clampf(energy / 2.6, 0.0, 1.0))
 		bm.set_shader_parameter("tint", Color(sun_col.r, sun_col.g, sun_col.b * 0.8))
 
 func _take_shot() -> void:

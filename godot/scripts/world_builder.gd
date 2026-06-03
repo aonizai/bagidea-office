@@ -444,7 +444,7 @@ func _build_geometry() -> void:
 	_box(Vector3(-4.75, 2.0, -9.96), Vector3(1.7, 1.15, 0.05), map_mat)
 	_bookshelf(Vector3(-9.75, 0, -6.2))
 	_omni(Vector3(-6, 1.7, -8.6), Color(0.6, 0.85, 1.0), 1.8, 4.5)
-	_omni(Vector3(-6, 2.5, -5.2), Color(1.0, 0.8, 0.6), 2.2, 7.0)
+	_omni(Vector3(-6, 2.5, -5.2), Color(1.0, 0.8, 0.6), 1.4, 7.0)
 
 	# ---- Ops Floor: 4 desk pods
 	for d in [Vector3(1, 0, -8), Vector3(5, 0, -8), Vector3(1, 0, -5.5), Vector3(5, 0, -5.5)]:
@@ -459,7 +459,7 @@ func _build_geometry() -> void:
 			_box(Vector3(d.x, 0.83, d.z - 0.22), Vector3(0.5, 0.03, 0.18), _mat(Color(0.1, 0.1, 0.12), 0.4))
 	_pendant(Vector3(3, 0, -8), Color(0.8, 0.88, 1.0))
 	_pendant(Vector3(3, 0, -5.5), Color(0.8, 0.88, 1.0))
-	_omni(Vector3(3, 2.8, -6.5), Color(0.7, 0.8, 1.0), 3.0, 11.0)
+	_omni(Vector3(3, 2.8, -6.5), Color(0.7, 0.8, 1.0), 1.8, 11.0)
 
 	# ---- Mission Control board
 	if kit:
@@ -493,7 +493,7 @@ func _build_geometry() -> void:
 	_box(Vector3(-1, 0.015, 4.9), Vector3(1.7, 0.03, 0.8), _mat(Color(0.32, 0.1, 0.1)))  # mat
 	_box(Vector3(-3.6, 0.3, 1.0), Vector3(0.8, 0.6, 0.8), _mat(Color(0.2, 0.26, 0.34)))  # armchair
 	_box(Vector3(-3.95, 0.7, 1.0), Vector3(0.18, 0.9, 0.8), _mat(Color(0.2, 0.26, 0.34)))
-	_omni(Vector3(-1, 2.6, 2), Color(1.0, 0.78, 0.55), 4.2, 11.0)
+	_omni(Vector3(-1, 2.6, 2), Color(1.0, 0.78, 0.55), 2.2, 11.0)
 
 	# ---- Cafeteria
 	_box(Vector3(9.55, 0.5, -0.5), Vector3(0.9, 1.0, 3.0), dark_wood)
@@ -519,7 +519,7 @@ func _build_geometry() -> void:
 		_kit("Lava_Lamp", Vector3(9.5, 1.05, 0.4), 0.0, 1.0)
 	_pendant(Vector3(6.5, 0, 1.5), Color(1.0, 0.72, 0.45))
 	_pendant(Vector3(8.2, 0, 3.5), Color(1.0, 0.72, 0.45))
-	_omni(Vector3(7, 2.4, 1), Color(1.0, 0.7, 0.45), 4.0, 10.0)
+	_omni(Vector3(7, 2.4, 1), Color(1.0, 0.7, 0.45), 2.2, 10.0)
 	# Coffee steam
 	var steam := GPUParticles3D.new()
 	steam.amount = 14
@@ -572,7 +572,7 @@ func _build_geometry() -> void:
 	var fog := FogVolume.new()
 	fog.size = Vector3(20, 3.5, 16)
 	var fm := FogMaterial.new()
-	fm.density = 0.07
+	fm.density = 0.035
 	fm.albedo = Color(0.85, 0.9, 1.0)
 	fog.material = fm
 	add_child(fog)
@@ -584,7 +584,7 @@ func _build_geometry() -> void:
 		quad.size = Vector2(3.2 if kit else 2.3, 5.0)
 		var bm := ShaderMaterial.new()
 		bm.shader = BEAM_SHADER
-		bm.set_shader_parameter("strength", 0.3)
+		bm.set_shader_parameter("strength", 0.18)
 		beam_mats.append(bm)
 		var mi := MeshInstance3D.new()
 		mi.mesh = quad
