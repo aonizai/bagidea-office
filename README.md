@@ -5,10 +5,10 @@
 
 Not a dashboard. Not a chat window. A **world** that renders the true state of your AI agents — Claude Code sessions, headless agent runs, custom scripts — as living pixel-art employees, behind your desktop icons.
 
-![Office at night (real-time day cycle)](shots/art_pass_night.png)
-*The office at 4 AM, real local time — night-shift agents working under pendant lamps, city lights outside. Desktop icons render on top: this is a real wallpaper.*
+![Real characters working the night shift](shots/real_characters.png)
+*4 AM, real local time — the Main Agent (custom-composited character) thinks at the executive desk while NPC agents work ops desks with live tool labels ("Bash", "PowerShell" — real tool calls). Desktop icons render on top: this is a real wallpaper.*
 
-> ⚠️ **Status: working prototype.** The full pipeline works end-to-end (wallpaper → daemon → real Claude Code sessions → approvals), but all visuals are **procedural placeholder art** (code-generated boxes and sprites). A real art pass is the next milestone. Built and verified on Windows 11.
+> ⚠️ **Status: working prototype.** The full pipeline works end-to-end (wallpaper → daemon → real Claude Code sessions → approvals). Environment art is procedural placeholder; character art uses [Schwarnhild's customizable 32×32 characters](https://schwarnhild.itch.io/customizable-characters-top-down-32x32) (not bundled — see [Character art](#character-art-optional-but-recommended)). Built and verified on Windows 11.
 
 ---
 
@@ -35,7 +35,8 @@ Not a dashboard. Not a chat window. A **world** that renders the true state of y
 - Renders **behind your desktop icons** (WorkerW technique, same as Wallpaper Engine)
 - HD-2D look: 3D office + billboarded pixel-art sprites lit by the 3D scene, volumetric god rays, bloom, tilt-shift DOF, film grain
 - **5 zones**: Executive Office, Operations Floor, Lobby, Cafeteria, Security Center
-- Agents **walk** between zones on an A* waypoint graph, with a 2-frame walk cycle
+- Agents **walk** between zones on an A* waypoint graph with **4-direction animated spritesheets** (idle + walk); facing follows actual movement
+- **Custom Character system**: composites layered sheets (hair/head/eyes/torso/shirt/legs) with per-agent tints — the Main Agent gets a unique look; NPCs draw from 12 premade sheets by agent-id hash; falls back to runtime-generated procedural sprites when art assets are absent
 - **Real-time day/night cycle** — sun angle, color, sky and god rays follow your machine's clock; at night the city skyline outside lights up
 - **Mission Control board** in-world: one card per running task, colored by state
 - Lobby **status totem**: green = daemon connected, red = disconnected (truth, not decoration)
@@ -157,7 +158,21 @@ cd shell
 cargo build --release   # → shell/target/release/bagidea-office-shell.exe
 ```
 
-That's it — the daemon has zero npm dependencies and the Godot project has zero assets to import.
+### Character art (optional but recommended)
+
+Character spritesheets are **not bundled** (third-party license). Download
+[Customizable Characters Top-Down 32x32 by Schwarnhild](https://schwarnhild.itch.io/customizable-characters-top-down-32x32)
+and place the PNGs like this:
+
+```
+godot/assets/characters/
+├── npc/      ← contents of premade-npc-spritesheets.zip  (npc1.png … npc12.png)
+└── layers/   ← contents of demo-character-idle.zip       (hair/head/eyes/torso/shirt/legs-idle.png)
+```
+
+No import step needed — sheets load at runtime. **Without these files the game still runs**, using the original procedural pixel sprites.
+
+That's it — the daemon has zero npm dependencies.
 
 ## Running the full stack
 
@@ -235,7 +250,8 @@ The `docs/` folder is a complete V1 product-design specification written before 
 
 ## Roadmap
 
-- [ ] **Real art pass** — hand-made sprite character sheets & environment textures (current visuals are 100% procedural placeholders)
+- [x] Character art — Schwarnhild spritesheets + custom-character compositor (procedural fallback kept)
+- [ ] **Environment art pass** — real textures & furniture sprites (environment is still procedural placeholder)
 - [ ] Replay Theater — scrub & re-enact any past mission from the journal
 - [ ] Meeting-room choreography for multi-agent collaboration
 - [ ] More zones (Research Lab, Dev Studio, Dormitory, Archive Library…)

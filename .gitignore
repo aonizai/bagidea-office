@@ -12,3 +12,9 @@ workspace/*
 !workspace/.claude/
 workspace/.claude/*
 !workspace/.claude/settings.json
+
+# Licensed third-party character art — download from itch.io (see README),
+# not redistributable in this repo. The game falls back to procedural
+# sprites when these are missing.
+godot/assets/characters/
+*.zip
