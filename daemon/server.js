@@ -26,6 +26,67 @@ const wsClients = new Set();
 const pendingPerms = new Map(); // id -> {res, timer, agent, tool}
 let taskCounter = 0;
 
+// ---------------------------------------------------------------- registry
+// Persistent staff roster + roles (skills/tools libraries ride along).
+// main = Claude, the undeletable Director; ceo = the human owner's avatar.
+
+const REGISTRY = path.join(__dirname, "registry.json");
+let reg;
+
+function loadReg() {
+  try { reg = JSON.parse(fs.readFileSync(REGISTRY, "utf8")); } catch { reg = {}; }
+  reg.agents = reg.agents || {};
+  reg.roles = reg.roles || ["Director", "Founder", "Researcher", "Engineer",
+    "Designer", "Analyst", "Operator", "Specialist"];
+  reg.skills = reg.skills || {};
+  reg.tools = reg.tools || ["Read", "Glob", "Grep", "Edit", "Write", "Bash",
+    "WebSearch", "WebFetch", "Task", "TodoWrite", "NotebookEdit"];
+  if (!reg.agents.main) reg.agents.main = {
+    name: "Claude", role: "Director", avatar: 7, protected: true,
+    prompt: "You are Claude, the Director of this AI agents office. You run " +
+      "operations, make the calls the owner has not reserved for themselves, " +
+      "and delegate to the team when that serves the work better.",
+    skills: [], tools: ["Read", "Glob", "Grep", "Edit", "Write", "Bash"],
+  };
+  if (!reg.agents.ceo) reg.agents.ceo = {
+    name: "CEO", role: "Founder", avatar: 8, protected: true, isUser: true,
+    prompt: "", skills: [], tools: [],
+  };
+  saveReg();
+}
+function saveReg() { fs.writeFileSync(REGISTRY, JSON.stringify(reg, null, 2)); }
+loadReg();
+
+// Live (not journaled): registry.json is the persistence; every WS client
+// also gets a fresh snapshot on connect.
+function rosterEvt() {
+  return { type: "roster.sync", agents: reg.agents, roles: reg.roles,
+    tools: reg.tools, skills: reg.skills };
+}
+function pushRoster() { broadcast(rosterEvt(), false); }
+
+function slugId(name) {
+  const s = String(name).toLowerCase().replace(/[^a-z0-9ก-๙]+/g, "-")
+    .replace(/^-+|-+$/g, "").slice(0, 24);
+  return s || "agent" + Date.now() % 10000;
+}
+
+// Plain headless claude call → final text (prompt drafting, reflections).
+function claudeText(prompt) {
+  return new Promise((resolve) => {
+    const child = spawn("claude", ["-p"], {
+      cwd: WORKSPACE, shell: true,
+      env: { ...process.env, OFFICE_ADAPTER: "1" },
+    });
+    child.stdin.write(prompt);
+    child.stdin.end();
+    let out = "";
+    child.stdout.on("data", (c) => (out += c));
+    child.on("close", () => resolve(out.trim()));
+    child.on("error", () => resolve(""));
+  });
+}
+
 // ---------------------------------------------------------------- websocket
 
 function wsAccept(key) {
@@ -65,13 +126,13 @@ function journalTail(n) {
 
 // ---------------------------------------------------------------- bus
 
-function broadcast(evt) {
+function broadcast(evt, journal = true) {
   evt.ts = Date.now();
   const json = JSON.stringify(evt);
-  fs.appendFile(JOURNAL, json + "\n", () => {});
+  if (journal) fs.appendFile(JOURNAL, json + "\n", () => {});
   const frame = wsFrame(json);
   for (const s of wsClients) s.write(frame);
-  console.log("[oep] →", json);
+  if (evt.type !== "world.pos") console.log("[oep] →", json);
 }
 
 // ---------------------------------------------------------------- replay theater
@@ -115,17 +176,31 @@ function runClaude(agent, prompt) {
   const task = "t" + ++taskCounter;
   broadcast({ type: "task.started", agent, task });
 
+  // Persona + assigned skills ride in a stdin preamble (robust across
+  // Windows shell quoting); tool access comes from the agent's registry row.
+  const a = reg.agents[agent];
+  const tools = a && a.tools && a.tools.length ? a.tools.join(",") : "Read,Glob,Grep";
+  let preamble = "";
+  if (a && (a.prompt || (a.skills || []).length)) {
+    preamble = `<persona>\nYou are "${a.name}" (${a.role}).\n${a.prompt || ""}\n`;
+    for (const sid of a.skills || []) {
+      const sk = reg.skills[sid];
+      if (sk) preamble += `\n<skill name="${sk.name}">\n${sk.content}\n</skill>\n`;
+    }
+    preamble += "</persona>\n\n";
+  }
+
   const child = spawn(
     "claude",
     ["-p", "--output-format", "stream-json", "--verbose",
-     "--allowedTools", "Read,Glob,Grep"],
+     "--allowedTools", tools],
     {
       cwd: WORKSPACE,
       shell: true,
       env: { ...process.env, OFFICE_ADAPTER: "1", OFFICE_AGENT: agent, OFFICE_TASK: task },
     }
   );
-  child.stdin.write(prompt);
+  child.stdin.write(preamble + prompt);
   child.stdin.end();
 
   let buf = "";
@@ -219,6 +294,95 @@ const server = http.createServer((req, res) => {
         );
       res.writeHead(ok ? 200 : 409, { "content-type": "application/json" });
       res.end(JSON.stringify({ replaying: ok }));
+    });
+
+  } else if (req.method === "GET" && req.url === "/registry") {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify(reg));
+
+  } else if (req.method === "POST" && req.url === "/registry/agent") {
+    // Create or update an agent. Protected rows (main/ceo) accept edits but
+    // never deletion; id is derived from the name on first save.
+    readBody(req, (body) => {
+      try {
+        const p = JSON.parse(body);
+        const id = p.id || slugId(p.name);
+        const cur = reg.agents[id] || { skills: [], tools: [] };
+        reg.agents[id] = {
+          ...cur,
+          name: String(p.name || cur.name || id).slice(0, 40),
+          role: String(p.role || cur.role || "Specialist").slice(0, 40),
+          avatar: Math.min(Math.max(Number(p.avatar) || cur.avatar || 1, 1), 12),
+          prompt: String(p.prompt !== undefined ? p.prompt : cur.prompt || "").slice(0, 8000),
+          skills: Array.isArray(p.skills) ? p.skills : cur.skills || [],
+          tools: Array.isArray(p.tools) ? p.tools : cur.tools || [],
+        };
+        saveReg();
+        pushRoster();
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ id }));
+      } catch (e) {
+        res.writeHead(400);
+        res.end(String(e.message));
+      }
+    });
+
+  } else if (req.method === "POST" && req.url === "/registry/agent/delete") {
+    readBody(req, (body) => {
+      try {
+        const { id } = JSON.parse(body);
+        const a = reg.agents[id];
+        if (!a) { res.writeHead(404); return res.end("unknown agent"); }
+        if (a.protected) { res.writeHead(403); return res.end("protected agent"); }
+        delete reg.agents[id];
+        saveReg();
+        broadcast({ type: "roster.removed", agent: id }, false);
+        pushRoster();
+        res.writeHead(200);
+        res.end("ok");
+      } catch (e) {
+        res.writeHead(400);
+        res.end(String(e.message));
+      }
+    });
+
+  } else if (req.method === "POST" && req.url === "/registry/role") {
+    readBody(req, (body) => {
+      try {
+        const { name, remove } = JSON.parse(body);
+        const n = String(name || "").trim().slice(0, 40);
+        if (!n) throw new Error("no name");
+        if (remove) reg.roles = reg.roles.filter((r) => r !== n);
+        else if (!reg.roles.includes(n)) reg.roles.push(n);
+        saveReg();
+        pushRoster();
+        res.writeHead(200);
+        res.end("ok");
+      } catch (e) {
+        res.writeHead(400);
+        res.end(String(e.message));
+      }
+    });
+
+  } else if (req.method === "POST" && req.url === "/assist/prompt") {
+    // ✨ Prompt copilot: the owner types a one-line brief ("UI designer who
+    // sweats microcopy") and a quick claude call drafts the system prompt.
+    readBody(req, async (body) => {
+      try {
+        const { name = "Agent", role = "Specialist", brief = "" } = JSON.parse(body);
+        const draft = await claudeText(
+          `Draft a system prompt for an AI agent that works in a software office.\n` +
+          `Agent name: ${name}\nJob title: ${role}\nOwner's brief: ${brief}\n\n` +
+          `Rules: 4-8 sentences. Second person ("You are..."). Cover: mission, ` +
+          `expertise, working style, what good output looks like. Match the ` +
+          `language of the owner's brief (Thai brief → Thai prompt). ` +
+          `Output ONLY the prompt text - no preamble, no quotes, no markdown.`);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ prompt: draft }));
+      } catch (e) {
+        res.writeHead(500);
+        res.end(String(e.message));
+      }
     });
 
   } else if (req.method === "POST" && req.url === "/ui/daylight") {
@@ -322,6 +486,8 @@ server.on("upgrade", (req, sock) => {
       sock.write(wsFrame(JSON.stringify(evt)));
     } catch {}
   }
+  // Fresh roster snapshot last — registry.json is the truth, not the journal.
+  sock.write(wsFrame(JSON.stringify({ ...rosterEvt(), ts: Date.now() })));
 });
 
 server.listen(8787, "127.0.0.1", () =>

@@ -109,6 +109,18 @@ func _exit_tree() -> void:
 	if _hud:
 		_hud.unregister(self)
 
+## Live identity update from the registry (rename / new role / new avatar).
+func apply_identity(p_name: String, p_role: String, p_npc: int) -> void:
+	var changed := p_npc != npc_index or p_name != agent_name or p_role != agent_role
+	agent_name = p_name
+	agent_role = p_role
+	if p_npc != npc_index:
+		npc_index = p_npc
+		_setup_visual()
+	if changed and _hud:
+		_hud.unregister(self)
+		_hud.register(self, agent_name, agent_role, _portrait(), suit_color.lightened(0.25))
+
 ## Portrait for the nameplate: the face region of the sheet's first cell.
 func _portrait() -> Texture2D:
 	if _mode in ["npc", "custom"]:

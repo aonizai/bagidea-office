@@ -9,6 +9,7 @@ const AgentScript := preload("res://scripts/agent_sprite.gd")
 @onready var world: Node3D = get_node("../World")
 
 var agents := {}  # id -> {node, state, desk, bed, id, tasks: {task_id: true}}
+var roster := {}  # id -> {name, role, avatar} — the daemon's persistent registry
 var desk_pool: Array[String] = ["desk1", "desk2", "desk3", "desk4", "desk5", "desk6"]
 # Idle agents spread across the cafeteria AND the recreation room (TV,
 # games, the ball corner, the garden) — the office feels lived-in.
@@ -37,6 +38,12 @@ func handle(evt: Dictionary) -> void:
 		return
 	if type.begins_with("ui."):
 		return  # overlay debug beacons aren't agents
+	if type == "roster.sync":
+		_apply_roster(evt)
+		return
+	if type == "roster.removed":
+		_remove_agent(str(evt.get("agent", "")))
+		return
 	# Replay Theater: the daemon re-broadcasts journal slices time-compressed.
 	# Characters act them out, but the mission board stays in the present.
 	if type == "theater.started":
@@ -146,6 +153,43 @@ func handle(evt: Dictionary) -> void:
 				if a.desk != "":
 					_walk(a.node, a.desk)
 
+# ---------------------------------------------------------------- roster
+
+## Registry snapshot from the daemon: staff exist in the world even before
+## their first task, identities follow edits live, deletions clean up.
+func _apply_roster(evt: Dictionary) -> void:
+	var list: Dictionary = evt.get("agents", {})
+	roster = {}
+	for id in list:
+		var r: Dictionary = list[id]
+		roster[id] = {"name": str(r.get("name", id)), "role": str(r.get("role", "Staff")),
+			"avatar": int(r.get("avatar", 1))}
+	for id in roster:
+		if id == "ceo":
+			if is_instance_valid(ceo):
+				ceo.apply_identity(roster[id].name, roster[id].role, roster[id].avatar)
+			continue
+		var a: Dictionary = _ensure(id)
+		a.registered = true
+		a.node.apply_identity(roster[id].name, roster[id].role, roster[id].avatar)
+		a.node.set_state(a.state)
+	# Registry agents deleted while this renderer was away.
+	for id in agents.keys().duplicate():
+		if agents[id].get("registered", false) and not roster.has(id):
+			_remove_agent(id)
+
+func _remove_agent(id: String) -> void:
+	if id == "" or id in ["main", "ceo"] or not agents.has(id):
+		return
+	var a: Dictionary = agents[id]
+	_release_desk(a)
+	if a.bed != "":
+		bed_pool.append(a.bed)
+	for t in a.tasks:
+		world.board_set(t, "none")
+	a.node.queue_free()  # _exit_tree unregisters the nameplate
+	agents.erase(id)
+
 # ---------------------------------------------------------------- agents
 
 func _ensure(id: String) -> Dictionary:
@@ -245,7 +289,12 @@ func _make_char(id: String) -> Sprite3D:
 	# leadership stays visually distinct. (Custom compositor remains for
 	# when the full layer pack with walk frames is available.)
 	s.agent_name = id.capitalize()
-	if id == "main":
+	if roster.has(id):
+		# Registry identity wins: the owner picked this face/role/name.
+		s.agent_name = roster[id].name
+		s.agent_role = roster[id].role
+		s.npc_index = roster[id].avatar
+	elif id == "main":
 		s.npc_index = 7   # the beret — director look
 		s.agent_role = "Director"
 	elif id == "ceo":

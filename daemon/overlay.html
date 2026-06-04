@@ -178,6 +178,93 @@
   }
   footer .send:hover { background: rgba(94,200,255,0.2); }
 
+  /* ---------- settings / editor / ID-card modal ---------- */
+  #modal {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(5, 8, 14, 0.72); backdrop-filter: blur(3px);
+    align-items: center; justify-content: center; border-radius: 18px;
+  }
+  #modal.open { display: flex; }
+  #modalCard {
+    width: min(470px, 92vw); max-height: 86vh; overflow-y: auto;
+    background: linear-gradient(160deg, #15203a 0%, #0c1322 70%);
+    border: 1px solid var(--line); border-radius: 16px; padding: 16px;
+    box-shadow: 0 18px 60px rgba(0,0,0,0.6);
+  }
+  #modalCard h3 { font-size: 13px; letter-spacing: 2px; color: var(--accent); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  #modalCard h3 .x { margin-left: auto; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabs .tab {
+    font-size: 11.5px; padding: 5px 12px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line); color: var(--dim); background: rgba(255,255,255,0.03);
+  }
+  .tabs .tab.on { color: var(--accent); border-color: var(--accent); background: rgba(94,200,255,0.1); }
+  .arow {
+    display: flex; gap: 10px; align-items: center; padding: 7px 9px;
+    border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; margin-bottom: 7px;
+    cursor: pointer; background: rgba(255,255,255,0.025);
+  }
+  .arow:hover { border-color: var(--line); background: rgba(94,200,255,0.06); }
+  .arow .face { width: 34px; height: 34px; border-radius: 8px; background-color: #1c2740; flex: none; }
+  .arow .meta { min-width: 0; flex: 1; }
+  .arow .meta b { font-size: 13px; display: block; }
+  .arow .meta span { font-size: 11px; color: var(--dim); }
+  .arow .lock { font-size: 12px; color: var(--dim); }
+  .bigbtn {
+    width: 100%; padding: 9px; margin-top: 4px; font-size: 12.5px; cursor: pointer;
+    color: var(--accent); background: rgba(94,200,255,0.08);
+    border: 1px dashed var(--line); border-radius: 10px;
+  }
+  .bigbtn:hover { background: rgba(94,200,255,0.16); }
+  /* editor */
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 10.5px; letter-spacing: 1.5px; color: var(--dim); margin-bottom: 4px; }
+  .field input, .field textarea, .field select {
+    width: 100%; font: inherit; font-size: 13px; color: var(--text);
+    background: rgba(255,255,255,0.05); border: 1px solid var(--line);
+    border-radius: 9px; padding: 8px 10px; outline: none;
+  }
+  .field textarea { min-height: 110px; resize: vertical; }
+  .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--accent); }
+  .field select option { background: #131c30; }
+  #avGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; }
+  #avGrid .av {
+    aspect-ratio: 1; border-radius: 10px; cursor: pointer; background-color: #1c2740;
+    outline: 2px solid transparent; outline-offset: -2px;
+  }
+  #avGrid .av.sel { outline-color: var(--accent); box-shadow: 0 0 12px rgba(94,200,255,0.4); }
+  .btnrow { display: flex; gap: 8px; margin-top: 14px; }
+  .btnrow button {
+    flex: 1; padding: 9px; font-size: 12.5px; cursor: pointer; border-radius: 9px;
+    border: 1px solid var(--line); background: rgba(255,255,255,0.05); color: var(--text);
+  }
+  .btnrow .primary { color: #06121f; background: var(--accent); border-color: var(--accent); font-weight: 700; }
+  .btnrow .danger { color: #ff7468; border-color: rgba(255,84,72,0.45); }
+  .btnrow button:disabled { opacity: 0.45; cursor: wait; }
+  .assistrow { display: flex; gap: 6px; }
+  .assistrow input { flex: 1; }
+  .assistrow .sparkle {
+    flex: none; padding: 0 12px; font-size: 13px; cursor: pointer; border-radius: 9px;
+    color: #ffd28a; background: rgba(255,210,138,0.08); border: 1px solid rgba(255,210,138,0.35);
+  }
+  .assistrow .sparkle:disabled { opacity: 0.5; cursor: wait; }
+  /* ID card */
+  #idcard { text-align: center; }
+  #idcard .portrait {
+    width: 108px; height: 108px; margin: 6px auto 10px; border-radius: 18px;
+    background-color: #1c2740; outline: 1px solid var(--line);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  }
+  #idcard h4 { font-size: 17px; }
+  #idcard .role { color: var(--accent); font-size: 12px; letter-spacing: 1.5px; margin-bottom: 2px; }
+  #idcard .uid { color: var(--dim); font-size: 10.5px; margin-bottom: 10px; }
+  #idcard .state { display: inline-block; font-size: 11px; padding: 3px 12px; border-radius: 20px; border: 1px solid var(--line); margin-bottom: 12px; }
+  #idcard .promptbox {
+    text-align: left; font-size: 12px; color: var(--dim); white-space: pre-wrap;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 10px; padding: 10px; max-height: 150px; overflow-y: auto;
+  }
+
   /* ---------- MINI MODE: shrink the window → compact chat HUD ---------- */
   @media (max-width: 480px), (max-height: 460px) {
     aside, #companion { display: none; }
@@ -198,6 +285,7 @@
   <span id="theater">⏪ REPLAY</span>
   <button id="replayBtn" title="Re-enact the last 15 minutes in the office">⏪ Replay</button>
   <button id="dayBtn" title="World atmosphere" style="margin-left:6px">🌗</button>
+  <button id="setBtn" title="Office settings — agents, roles" style="margin-left:6px">⚙</button>
   <div id="dayMenu"></div>
   <div class="winbtn" id="miniBtn" title="Mini window" style="margin-left:6px">◱</div>
   <div class="winbtn hide" id="hideBtn" title="Hide (chat head brings it back)">—</div>
@@ -226,6 +314,8 @@
   <button class="send" id="send">➤</button>
 </footer>
 
+<div id="modal"><div id="modalCard"></div></div>
+
 <script>
   // dev error beacon → daemon log
   window.onerror = (m, s, l, c) =>
@@ -240,15 +330,22 @@
   }
   const ROLES = ["Researcher", "Engineer", "Designer", "Analyst", "Operator", "Specialist"];
   const NPCS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12];
+  // Live registry from the daemon (roster.sync) — identity source of truth.
+  let ROSTER = {}, REGROLES = [];
   function npcOf(id) {
+    if (ROSTER[id] && ROSTER[id].avatar) return ROSTER[id].avatar;
     if (id === "main") return 7;
     if (id === "ceo") return 8;
     return NPCS[phash(id) % 10];
   }
   function roleOf(id) {
+    if (ROSTER[id] && ROSTER[id].role) return ROSTER[id].role;
     if (id === "main") return "Director";
     if (id === "ceo") return "Chairman";
     return ROLES[phash(id) % 6];
+  }
+  function nameOf(id) {
+    return (ROSTER[id] && ROSTER[id].name) || id[0].toUpperCase() + id.slice(1);
   }
   // CSS sprite crops from the 256x512 sheet (cell 64): face (14,14,36,36)
   // keeps the face centered with chin + shoulders; standing body (16,6,32,54).
@@ -278,7 +375,6 @@
   let target = "main";
 
   function ensureAgent(id, state) {
-    if (id === "ceo") return;
     if (!agents[id]) {
       agents[id] = { state: state || "idle" };
       renderRail();
@@ -299,27 +395,29 @@
       f.textContent = id[0].toUpperCase();
       face(f, id, 36);
       const nm = document.createElement("div");
-      nm.className = "nm"; nm.textContent = id;
+      nm.className = "nm"; nm.textContent = nameOf(id);
       const dot = document.createElement("div");
       dot.className = "dot";
       dot.style.background = DOTS[agents[id].state] || "#4ade80";
       seat.append(f, nm, dot);
       seat.onclick = () => setTarget(id);
+      seat.ondblclick = () => openCard(id);   // ID card: who is this?
+      seat.title = `${nameOf(id)} — ${roleOf(id)} (double-click: ID card)`;
       railEl.appendChild(seat);
     }
     const plus = document.createElement("div");
     plus.className = "seat";
     plus.innerHTML = `<div class="face">＋</div><div class="nm">hire</div>`;
-    plus.onclick = () => { const n = prompt("Agent name:"); if (n) { ensureAgent(n.trim()); setTarget(n.trim()); } };
+    plus.onclick = () => openEditor(null);
     railEl.appendChild(plus);
   }
 
   function setTarget(id) {
     target = id;
-    document.getElementById("compName").textContent = id[0].toUpperCase() + id.slice(1);
+    document.getElementById("compName").textContent = nameOf(id);
     document.getElementById("compRole").textContent = roleOf(id);
     body(document.getElementById("compBody"), id);
-    document.getElementById("inp").placeholder = `Message ${id}… (Enter to send)`;
+    document.getElementById("inp").placeholder = `Message ${nameOf(id)}… (Enter to send)`;
     renderRail();
   }
 
@@ -414,8 +512,197 @@
   };
   document.addEventListener("click", () => document.getElementById("dayMenu").classList.remove("open"));
 
+  // ---- settings / editor / ID card -----------------------------------------
+  const modal = document.getElementById("modal");
+  const modalCard = document.getElementById("modalCard");
+  function closeModal() { modal.classList.remove("open"); }
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+  document.getElementById("setBtn").onclick = () => openSettings("agents");
+
+  function hdr(title) {
+    return `<h3>${title}<div class="winbtn x" onclick="document.getElementById('modal').classList.remove('open')">✕</div></h3>`;
+  }
+
+  function openSettings(tab) {
+    modal.classList.add("open");
+    const tabs = `<div class="tabs">
+      <div class="tab ${tab === "agents" ? "on" : ""}" data-t="agents">AGENTS</div>
+      <div class="tab ${tab === "roles" ? "on" : ""}" data-t="roles">ROLES</div>
+    </div>`;
+    let bodyHtml = "";
+    if (tab === "agents") {
+      bodyHtml = `<div id="alist"></div><button class="bigbtn" id="newAgent">＋ Hire a new agent</button>`;
+    } else {
+      bodyHtml = `<div id="rlist"></div>
+        <div class="assistrow" style="margin-top:8px">
+          <input id="newRole" placeholder="New job title…">
+          <button class="sparkle" id="addRole">＋ Add</button>
+        </div>`;
+    }
+    modalCard.innerHTML = hdr("⚙ OFFICE SETTINGS") + tabs + bodyHtml;
+    modalCard.querySelectorAll(".tab").forEach((t) => (t.onclick = () => openSettings(t.dataset.t)));
+    if (tab === "agents") {
+      const list = modalCard.querySelector("#alist");
+      for (const [id, a] of Object.entries(ROSTER)) {
+        const row = document.createElement("div");
+        row.className = "arow";
+        const f = document.createElement("div");
+        f.className = "face"; face(f, id, 34);
+        row.appendChild(f);
+        row.insertAdjacentHTML("beforeend",
+          `<div class="meta"><b>${a.name}</b><span>${a.role} · ${id}</span></div>` +
+          (a.protected ? `<span class="lock" title="Core agent — cannot be deleted">🔒</span>` : ""));
+        row.onclick = () => openEditor(id);
+        list.appendChild(row);
+      }
+      modalCard.querySelector("#newAgent").onclick = () => openEditor(null);
+    } else {
+      const list = modalCard.querySelector("#rlist");
+      for (const r of REGROLES) {
+        const row = document.createElement("div");
+        row.className = "arow";
+        row.style.cursor = "default";
+        row.innerHTML = `<div class="meta"><b>${r}</b></div>` +
+          `<div class="winbtn hide" title="Remove role">✕</div>`;
+        row.querySelector(".winbtn").onclick = () =>
+          api("/registry/role", { name: r, remove: true }).then(() => openSettings("roles"));
+        list.appendChild(row);
+      }
+      modalCard.querySelector("#addRole").onclick = () => {
+        const v = modalCard.querySelector("#newRole").value.trim();
+        if (v) api("/registry/role", { name: v }).then(() => openSettings("roles"));
+      };
+    }
+  }
+
+  function openEditor(id) {
+    modal.classList.add("open");
+    const a = id ? ROSTER[id] : { name: "", role: REGROLES[2] || "Specialist", avatar: 1, prompt: "" };
+    let avatar = a.avatar || 1;
+    modalCard.innerHTML = hdr(id ? "✏ EDIT AGENT" : "＋ HIRE AGENT") +
+      `<div class="field"><label>AVATAR</label><div id="avGrid"></div></div>
+       <div class="field"><label>NAME</label><input id="eName" maxlength="40"></div>
+       <div class="field"><label>JOB TITLE</label><select id="eRole"></select></div>
+       <div class="field"><label>✨ PROMPT COPILOT — บอกสั้นๆ ว่าอยากได้ agent แบบไหน</label>
+         <div class="assistrow">
+           <input id="eBrief" placeholder='เช่น "นักออกแบบ UI เน้น minimal" แล้วกด ✨'>
+           <button class="sparkle" id="eAssist">✨ Draft</button>
+         </div></div>
+       <div class="field"><label>SYSTEM PROMPT (หน้าที่ / นิสัย / มาตรฐานงาน — แก้ได้อิสระ)</label>
+         <textarea id="ePrompt"></textarea></div>
+       <div class="btnrow">
+         ${id && !a.protected ? `<button class="danger" id="eDel">🗑 Delete</button>` : ""}
+         <button id="eCancel">Cancel</button>
+         <button class="primary" id="eSave">💾 Save</button>
+       </div>`;
+    // avatar grid: the 12 NPC faces
+    const grid = modalCard.querySelector("#avGrid");
+    for (let n = 1; n <= 12; n++) {
+      const c = document.createElement("div");
+      c.className = "av px" + (n === avatar ? " sel" : "");
+      const k = 58 / 36;
+      c.style.backgroundImage = `url(/char/npc${n}.png)`;
+      c.style.backgroundSize = `${256 * k}px ${512 * k}px`;
+      c.style.backgroundPosition = `${-14 * k}px ${-14 * k}px`;
+      c.onclick = () => {
+        avatar = n;
+        grid.querySelectorAll(".av").forEach((x) => x.classList.remove("sel"));
+        c.classList.add("sel");
+      };
+      grid.appendChild(c);
+    }
+    const roleSel = modalCard.querySelector("#eRole");
+    for (const r of (REGROLES.length ? REGROLES : ROLES)) {
+      const o = document.createElement("option");
+      o.value = o.textContent = r;
+      roleSel.appendChild(o);
+    }
+    modalCard.querySelector("#eName").value = a.name;
+    roleSel.value = a.role;
+    modalCard.querySelector("#ePrompt").value = a.prompt || "";
+    modalCard.querySelector("#eCancel").onclick = () => openSettings("agents");
+    modalCard.querySelector("#eAssist").onclick = async (e) => {
+      const btn = e.target;
+      btn.disabled = true; btn.textContent = "⏳ thinking…";
+      try {
+        const r = await api("/assist/prompt", {
+          name: modalCard.querySelector("#eName").value || "Agent",
+          role: roleSel.value,
+          brief: modalCard.querySelector("#eBrief").value,
+        });
+        if (r.prompt) modalCard.querySelector("#ePrompt").value = r.prompt;
+      } finally { btn.disabled = false; btn.textContent = "✨ Draft"; }
+    };
+    modalCard.querySelector("#eSave").onclick = async () => {
+      const name = modalCard.querySelector("#eName").value.trim();
+      if (!name) return modalCard.querySelector("#eName").focus();
+      const r = await api("/registry/agent", {
+        id, name, role: roleSel.value, avatar,
+        prompt: modalCard.querySelector("#ePrompt").value,
+      });
+      closeModal();
+      if (r.id) { ensureAgent(r.id); setTarget(r.id); }
+    };
+    const del = modalCard.querySelector("#eDel");
+    if (del) del.onclick = async () => {
+      await api("/registry/agent/delete", { id });
+      closeModal();
+    };
+  }
+
+  function openCard(id) {
+    // 🪪 ID card — who is this agent?
+    modal.classList.add("open");
+    const a = ROSTER[id] || { name: nameOf(id), role: roleOf(id), prompt: "" };
+    const state = (agents[id] && agents[id].state) || "idle";
+    modalCard.innerHTML = hdr("🪪 AGENT ID CARD") +
+      `<div id="idcard">
+        <div class="portrait px" id="cardFace"></div>
+        <h4>${a.name}</h4>
+        <div class="role">${a.role}</div>
+        <div class="uid">ID · ${id}${a.protected ? " · 🔒 core staff" : ""}</div>
+        <div class="state" style="color:${DOTS[state] || "#4ade80"}">● ${state.toUpperCase()}</div>
+        <div class="promptbox">${(a.prompt || "(no system prompt yet)")
+          .replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]))}</div>
+        <div class="btnrow">
+          <button id="cardEdit">✏ Edit</button>
+          <button class="primary" id="cardChat">💬 Chat</button>
+        </div>
+      </div>`;
+    const f = modalCard.querySelector("#cardFace");
+    const k = 108 / 36;
+    f.style.backgroundImage = `url(/char/npc${npcOf(id)}.png)`;
+    f.style.backgroundSize = `${256 * k}px ${512 * k}px`;
+    f.style.backgroundPosition = `${-14 * k}px ${-14 * k}px`;
+    modalCard.querySelector("#cardEdit").onclick = () => ROSTER[id] ? openEditor(id) : null;
+    modalCard.querySelector("#cardChat").onclick = () => { closeModal(); setTarget(id); };
+  }
+
+  async function api(url, body) {
+    const r = await fetch(url, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    try { return await r.json(); } catch { return {}; }
+  }
+
   // ---- event routing --------------------------------------------------------
   function route(ev) {
+    if (ev.type === "roster.sync") {
+      ROSTER = ev.agents || {};
+      REGROLES = ev.roles || [];
+      for (const id of Object.keys(ROSTER)) ensureAgent(id);
+      renderRail();
+      setTarget(target);   // refresh name/role if the target was edited
+      return;
+    }
+    if (ev.type === "roster.removed") {
+      delete agents[ev.agent];
+      delete ROSTER[ev.agent];
+      if (target === ev.agent) setTarget("main");
+      renderRail();
+      return;
+    }
     if (ev.type === "ui.daylight") { dayMode = ev.hour; return; }
     if (String(ev.type).startsWith("ui.")) return;  // debug beacons aren't agents
     const key = ev.task || ev.agent;
