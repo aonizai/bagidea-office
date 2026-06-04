@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/office_floor.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/camera_rig.gd" id="2"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://scripts/event_client.gd" id="5"]
 [ext_resource type="Shader" path="res://shaders/grain.gdshader" id="6"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="7"]
+[ext_resource type="Shader" path="res://shaders/cinema_focus.gdshader" id="8"]
 
 [sub_resource type="Environment" id="env"]
 background_mode = 1
@@ -41,6 +42,10 @@ dof_blur_amount = 0.05
 
 [sub_resource type="ShaderMaterial" id="grain_mat"]
 shader = ExtResource("6")
+shader_parameter/vignette_amount = 0.0
+
+[sub_resource type="ShaderMaterial" id="cinema_mat"]
+shader = ExtResource("8")
 
 [node name="OfficeFloor" type="Node3D"]
 script = ExtResource("1")
@@ -64,7 +69,7 @@ distance = 58.0
 [node name="Camera3D" type="Camera3D" parent="CameraRig"]
 attributes = SubResource("dof")
 fov = 28.0
-v_offset = -2.2
+v_offset = -1.1
 current = true
 
 [node name="World" type="Node3D" parent="."]
@@ -78,6 +83,17 @@ script = ExtResource("5")
 
 [node name="Hud" type="CanvasLayer" parent="."]
 script = ExtResource("7")
+
+[node name="CinemaLayer" type="CanvasLayer" parent="."]
+
+[node name="Cinema" type="ColorRect" parent="CinemaLayer"]
+material = SubResource("cinema_mat")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 
 [node name="GrainLayer" type="CanvasLayer" parent="."]
 
