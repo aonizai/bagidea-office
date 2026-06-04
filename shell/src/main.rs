@@ -474,6 +474,9 @@ fn main() {
         .build(&orb)
         .expect("orb webview");
     circle_region(&orb, ORB_SIZE);
+    // The chat head joins the desktop only after the splash bows out —
+    // parked (not hidden: a hidden WebView2 never wakes) until WorldReady.
+    orb.set_outer_position(LogicalPosition::new(PARK.0, PARK.1 + 200.0));
 
     let raise_orb = |orb: &Window| {
         orb.set_always_on_top(false);
@@ -550,8 +553,11 @@ fn main() {
             }
             Event::UserEvent(ue) => match ue {
                 UserEvent::WorldReady => {
-                    // Wallpaper is live — the splash bows out.
+                    // Wallpaper is live — the splash bows out, the chat head
+                    // takes its post.
                     splash.set_visible(false);
+                    orb.set_outer_position(LogicalPosition::new(orb_x, orb_y));
+                    raise_orb(&orb);
                 }
                 UserEvent::Toggle => do_toggle(),
                 UserEvent::HideOverlay => {

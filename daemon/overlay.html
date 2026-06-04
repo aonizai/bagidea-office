@@ -154,6 +154,15 @@
     width: 240px; flex: none; border-left: 1px solid var(--line); background: var(--glass);
     backdrop-filter: blur(12px); padding: 12px; overflow-y: auto;
   }
+  aside.closed { display: none; }
+  #sideBtn { position: relative; }
+  #permBadge {
+    display: none; position: absolute; top: -6px; right: -6px;
+    min-width: 16px; height: 16px; line-height: 16px; border-radius: 9px;
+    background: #ff5448; color: #fff; font-size: 10px; font-weight: 700;
+    text-align: center; padding: 0 3px;
+  }
+  #permBadge.on { display: block; }
   aside h2 { font-size: 10.5px; letter-spacing: 2px; color: var(--dim); margin: 4px 0 8px; }
   .mission {
     border: 1px solid var(--line); border-left: 3px solid var(--accent);
@@ -338,6 +347,7 @@
   <button id="mapBtn" title="Top-down office map" style="margin-left:6px">🗺</button>
   <button id="dayBtn" title="World atmosphere" style="margin-left:6px">🌗</button>
   <button id="setBtn" title="Office settings — agents, roles" style="margin-left:6px">⚙</button>
+  <button id="sideBtn" title="Security Center & Mission Control" style="margin-left:6px">🛡<span id="permBadge"></span></button>
   <div class="winbtn" id="miniBtn" title="Mini window" style="margin-left:6px">◱</div>
   <div class="winbtn hide" id="hideBtn" title="Hide (chat head brings it back)">—</div>
 </header>
@@ -352,7 +362,7 @@
     </div>
     <div id="log"></div>
   </div>
-  <aside>
+  <aside id="side" class="closed">
     <h2>🛡 SECURITY CENTER</h2>
     <div id="perms"></div>
     <h2>🛰 MISSION CONTROL</h2>
@@ -527,6 +537,23 @@
     }
   }
 
+  // ---- collapsible sidebar (chat gets the space; perms summon it) --------
+  const sideEl = document.getElementById("side");
+  function setSide(open) {
+    sideEl.classList.toggle("closed", !open);
+    try { localStorage.setItem("sideOpen", open ? "1" : "0"); } catch {}
+  }
+  if ((() => { try { return localStorage.getItem("sideOpen") === "1"; } catch { return false; } })())
+    setSide(true);
+  document.getElementById("sideBtn").onclick = () =>
+    setSide(sideEl.classList.contains("closed"));
+  function renderBadge() {
+    const n = permsEl.children.length;
+    const b = document.getElementById("permBadge");
+    b.textContent = n;
+    b.classList.toggle("on", n > 0);
+  }
+
   function addPermCard(ev) {
     const d = document.createElement("div");
     d.className = "perm";
@@ -540,6 +567,8 @@
     d.querySelector(".allow").onclick = () => respondPerm(ev.perm, "allow");
     d.querySelector(".deny").onclick = () => respondPerm(ev.perm, "deny");
     permsEl.appendChild(d);
+    setSide(true);  // a pending approval summons the Security Center
+    renderBadge();
   }
   async function respondPerm(id, decision) {
     const r = await fetch("/perm/respond", {
@@ -555,6 +584,7 @@
   function removePermCard(id) {
     const el = document.getElementById("perm-" + id);
     if (el) el.remove();
+    renderBadge();
   }
 
   // ---- daylight picker ------------------------------------------------------

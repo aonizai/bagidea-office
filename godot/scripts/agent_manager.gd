@@ -43,7 +43,7 @@ func _stream_positions() -> void:
 		if is_instance_valid(a.node):
 			list.append({"id": id, "x": a.node.position.x, "z": a.node.position.z,
 				"state": a.state})
-	if is_instance_valid(ceo):
+	if is_instance_valid(ceo) and not agents.has("ceo"):
 		list.append({"id": "ceo", "x": ceo.position.x, "z": ceo.position.z, "state": "idle"})
 	if list.is_empty():
 		return
@@ -62,10 +62,12 @@ func _set_state(a: Dictionary, state: String) -> void:
 	a.state = state
 	a.node.set_state(state)
 
-## Pixel FX above an agent's head (node origin floats at y 0.86).
-func _fx(a: Dictionary, name: String, y := 2.3, loops := 1, ppm := 0.032) -> void:
+## Pixel FX beside an agent's head — to the RIGHT of the body so the HUD
+## nameplate (drawn over the head) never covers it. Bursts that wrap the
+## whole body pass x = 0. (Node origin floats at y 0.86.)
+func _fx(a: Dictionary, name: String, y := 2.0, loops := 1, ppm := 0.045, x := 0.8) -> void:
 	if a.has("node") and is_instance_valid(a.node):
-		Fx.spawn(a.node, name, Vector3(0, y - 0.86, 0), ppm, loops)
+		Fx.spawn(a.node, name, Vector3(x, y - 0.86, 0), ppm, loops)
 
 # ---------------------------------------------------------------- events
 
@@ -117,7 +119,7 @@ func handle(evt: Dictionary) -> void:
 			bed_pool.append(a.bed)  # check out of the bunk
 			a.bed = ""
 		a.node.set_status("good morning ☀")
-		_fx(a, "sparkle", 1.9)
+		_fx(a, "sparkle", 1.5, 1, 0.045, 0.0)  # wraps the body
 		_clear_status_later(a, 3.0)
 	match type:
 		"agent.online":
@@ -153,7 +155,7 @@ func handle(evt: Dictionary) -> void:
 		"perm.requested":
 			_set_state(a, "blocked")
 			a.node.set_status("needs approval ⚠")
-			_fx(a, "alert", 2.15, 3)
+			_fx(a, "alert", 2.0, 3)
 			_walk(a.node, "sec_window")
 			_pulse_security()
 			if not theatrical:
@@ -193,14 +195,14 @@ func handle(evt: Dictionary) -> void:
 		"skill.created":
 			# Hermes moment: the agent distilled its work into a new skill.
 			a.node.set_status("📚 learned: " + str(evt.get("skill", "")))
-			_fx(a, "light_burst", 1.3, 1, 0.024)
+			_fx(a, "light_burst", 1.3, 1, 0.045, 0.0)  # wraps the body
 			_clear_status_later(a, 6.0)
 		"chat.message":
 			# Speech bubble: first line of what the agent actually said.
 			var text := str(evt.get("text", "")).split("\n")[0]
 			a.node.set_status("💬 " + text.left(28))
 			if not evt.get("replay", false):
-				_fx(a, "music", 2.1, 1, 0.02)
+				_fx(a, "music", 2.0, 1, 0.028)
 			# In a meeting, words land on the whiteboard (truth, not theater).
 			if a.state == "meeting":
 				world.whiteboard_add(id, text)
@@ -270,6 +272,11 @@ func _remove_agent(id: String) -> void:
 func _ensure(id: String) -> Dictionary:
 	if agents.has(id):
 		return agents[id]
+	# Events aimed at "ceo" act on the one true CEO body — never a clone.
+	if id == "ceo" and is_instance_valid(ceo):
+		var c := {"node": ceo, "state": "idle", "desk": "", "bed": "", "id": "ceo", "tasks": {}}
+		agents["ceo"] = c
+		return c
 	# New hire: walk in through the lobby front door.
 	var node := _make_char(id)
 	node.position = world.WP["spawn"]
