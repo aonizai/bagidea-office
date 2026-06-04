@@ -25,11 +25,8 @@ use tray_icon::{
 use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::Graphics::Gdi::{CreateEllipticRgn, CreateRoundRectRgn, SetWindowRgn};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, FindWindowExW, FindWindowW, GetWindowLongW, GetWindowThreadProcessId,
-    IsWindowVisible, SendMessageTimeoutW, SetParent, SetWindowLongW, SetWindowPos,
-    SystemParametersInfoW, GWL_STYLE, SMTO_NORMAL, SPI_SETDESKWALLPAPER, SWP_FRAMECHANGED,
-    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_CAPTION, WS_MAXIMIZEBOX,
-    WS_MINIMIZEBOX, WS_SYSMENU, WS_THICKFRAME,
+    EnumWindows, FindWindowExW, FindWindowW, GetWindowThreadProcessId, IsWindowVisible,
+    SendMessageTimeoutW, SetParent, SystemParametersInfoW, SMTO_NORMAL, SPI_SETDESKWALLPAPER,
 };
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -196,28 +193,6 @@ fn restore_wallpaper() {
     }
 }
 
-/// tao's frameless windows keep an invisible Win32 resize frame that offsets
-/// the webview ~8px (white sliver + shifted content). Strip the frame styles
-/// for real, then nudge the size so wry re-fits the webview to the new
-/// client area.
-fn strip_frame(window: &Window, w: f64, h: f64) {
-    unsafe {
-        let hwnd = window.hwnd() as HWND;
-        let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
-        let cleared = style
-            & !(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
-        SetWindowLongW(hwnd, GWL_STYLE, cleared as i32);
-        SetWindowPos(
-            hwnd,
-            std::ptr::null_mut(),
-            0, 0, 0, 0,
-            SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
-        );
-    }
-    // Re-assert the size so the client rect (and the wry child) realign.
-    window.set_inner_size(LogicalSize::new(w, h));
-}
-
 fn round_region(window: &Window, w: f64, h: f64, radius: f64) {
     let sf = window.scale_factor();
     unsafe {
@@ -309,13 +284,14 @@ fn main() {
         .with_inner_size(LogicalSize::new(FULL.0, FULL.1))
         .with_position(LogicalPosition::new(PARK.0, PARK.1))
         .with_decorations(false)
+        .with_undecorated_shadow(false)
         .with_resizable(false)
         .with_always_on_top(true)
         .with_window_icon(app_icon())
         .build(&event_loop)
         .expect("overlay window");
-    strip_frame(&overlay, FULL.0, FULL.1);
-    round_region(&overlay, FULL.0, FULL.1, 18.0);
+    // Windows clamps off-screen positions at creation — park it again now.
+    overlay.set_outer_position(LogicalPosition::new(PARK.0, PARK.1));
     let overlay_id = overlay.id();
     let p_overlay = proxy.clone();
     let overlay_view = WebViewBuilder::new()
@@ -331,6 +307,7 @@ fn main() {
         })
         .build(&overlay)
         .expect("overlay webview");
+    round_region(&overlay, FULL.0, FULL.1, 18.0);
 
     // ---- circular chat head
     let orb = WindowBuilder::new()
@@ -338,14 +315,14 @@ fn main() {
         .with_inner_size(LogicalSize::new(ORB_SIZE, ORB_SIZE))
         .with_position(LogicalPosition::new(orb_x, orb_y))
         .with_decorations(false)
+        .with_undecorated_shadow(false)
         .with_resizable(false)
         .with_always_on_top(true)
         .with_skip_taskbar(true)
         .with_window_icon(app_icon())
         .build(&event_loop)
         .expect("orb window");
-    strip_frame(&orb, ORB_SIZE, ORB_SIZE);
-    circle_region(&orb, ORB_SIZE);
+    let orb_id = orb.id();
     let p_orb = proxy.clone();
     let _orb_view = WebViewBuilder::new()
         .with_html(ORB_HTML)
@@ -358,6 +335,7 @@ fn main() {
         })
         .build(&orb)
         .expect("orb webview");
+    circle_region(&orb, ORB_SIZE);
 
     let raise_orb = |orb: &Window| {
         orb.set_always_on_top(false);
@@ -416,6 +394,15 @@ fn main() {
             Event::WindowEvent { window_id, event: WindowEvent::Focused(true), .. } => {
                 if window_id == overlay_id {
                     raise_orb(&orb);
+                }
+            }
+            // Regions get cleared by style/size changes — always re-assert.
+            Event::WindowEvent { window_id, event: WindowEvent::Resized(_), .. } => {
+                if window_id == orb_id {
+                    circle_region(&orb, ORB_SIZE);
+                } else if window_id == overlay_id {
+                    let (w, h) = if mini { MINI } else { FULL };
+                    round_region(&overlay, w, h, 18.0);
                 }
             }
             Event::UserEvent(ue) => match ue {
