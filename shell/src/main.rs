@@ -23,7 +23,9 @@ use tray_icon::{
     TrayIconBuilder, TrayIconEvent,
 };
 use windows_sys::Win32::Foundation::HWND;
-use windows_sys::Win32::Graphics::Gdi::{CreateEllipticRgn, CreateRoundRectRgn, SetWindowRgn};
+use windows_sys::Win32::Graphics::Gdi::{
+    CreateEllipticRgn, CreateRectRgn, CreateRoundRectRgn, SetWindowRgn,
+};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     EnumWindows, FindWindowExW, FindWindowW, GetWindowLongW, GetWindowThreadProcessId,
     IsWindowVisible, SendMessageTimeoutW, SetParent, SetWindowLongW, SystemParametersInfoW,
@@ -43,7 +45,20 @@ enum UserEvent {
     DragOverlay,
     HideOverlay,
     MiniToggle,
+    WorldReady,
 }
+
+const SPLASH_SIZE: f64 = 210.0;
+
+// Boot splash: a floating circular logo card (same region trick as the chat
+// head — per-pixel window transparency dies under WorkerW, regions don't).
+const SPLASH_HTML: &str = r#"<!doctype html>
+<html><body style="margin:0;overflow:hidden;background:#070b13">
+<img src="http://127.0.0.1:8787/brand/logo_ico_cute.png" draggable="false"
+     style="position:absolute;left:0;top:0;width:100%;height:100%;animation:p 1.5s ease-in-out infinite"
+     onerror="document.body.style.background='radial-gradient(circle at 32% 28%,#2a78d8,#0b1422)'">
+<style>@keyframes p{0%,100%{transform:scale(1)}50%{transform:scale(0.92)}}</style>
+</body></html>"#;
 
 const ORB_HTML: &str = r#"<!doctype html>
 <html><body style="margin:0;overflow:hidden;background:#0a111d;user-select:none;-webkit-user-select:none;cursor:pointer">
@@ -111,10 +126,14 @@ fn spawn_office(root: &PathBuf) -> Option<Child> {
     if !std::path::Path::new(&godot).exists() {
         return None; // overlay-only mode
     }
+    // Born 64px and parked toward off-screen: Windows clamps far-off
+    // positions back to the desktop, but a 64px window is invisible in
+    // practice — the shell's circular splash owns the boot look while
+    // office_floor.gd grows the window to fullscreen after the first frame.
     Command::new(godot)
         .args(["--path"])
         .arg(root.join("godot"))
-        .args(["--", "--wallpaper"])
+        .args(["--resolution", "64x64", "--position", "-9000,100", "--", "--wallpaper"])
         .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .ok()
@@ -155,21 +174,43 @@ unsafe extern "system" fn find_by_pid_cb(h: HWND, lp: windows_sys::Win32::Founda
 
 /// Embed the Godot window behind the desktop icons (Wallpaper Engine trick).
 /// Found by PID — the window title varies (e.g. a "(DEBUG)" suffix).
-fn attach_wallpaper_when_ready(pid: u32) {
+/// The window is cloaked with an empty region for the whole scene build
+/// (the shell's circular splash carries the boot look); once the renderer
+/// drops its world-ready flag the region lifts and the attach happens.
+fn attach_wallpaper_when_ready(pid: u32, proxy: tao::event_loop::EventLoopProxy<UserEvent>) {
     std::thread::spawn(move || unsafe {
         let mut find = FindByPid { pid, hwnd: 0 as HWND };
-        for _ in 0..60 {
+        for _ in 0..240 {
             EnumWindows(Some(find_by_pid_cb), &mut find as *mut FindByPid as _);
             if find.hwnd != 0 as HWND {
                 break;
             }
-            std::thread::sleep(std::time::Duration::from_millis(500));
+            std::thread::sleep(std::time::Duration::from_millis(50));
         }
         let godot = find.hwnd;
         if godot == 0 as HWND {
+            let _ = proxy.send_event(UserEvent::WorldReady);
             return;
         }
-        std::thread::sleep(std::time::Duration::from_millis(1500)); // let it size up
+        // Cloak: an empty window region hides every pixel until the scene
+        // is actually rendering (no black loading box on screen).
+        SetWindowRgn(godot as _, CreateRectRgn(0, 0, 0, 0), 1);
+
+        let started = std::time::SystemTime::now() - std::time::Duration::from_secs(5);
+        let flag = std::env::temp_dir().join("bagidea_world_ready");
+        for _ in 0..120 {
+            let fresh = std::fs::metadata(&flag)
+                .and_then(|m| m.modified())
+                .map(|t| t >= started)
+                .unwrap_or(false);
+            if fresh {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(400)); // settle fullscreen
+        SetWindowRgn(godot as _, 0 as _, 1); // lift the cloak
+
         let progman_class = wide("Progman");
         let progman = FindWindowW(progman_class.as_ptr(), std::ptr::null());
         let mut result: usize = 0;
@@ -185,6 +226,7 @@ fn attach_wallpaper_when_ready(pid: u32) {
             }
         }
         SetParent(godot, workerw);
+        let _ = proxy.send_event(UserEvent::WorldReady);
     });
 }
 
@@ -285,13 +327,14 @@ fn main() {
     if daemon_child.is_some() {
         std::thread::sleep(std::time::Duration::from_millis(800));
     }
-    let mut office_child = spawn_office(&root);
-    if let Some(child) = office_child.as_ref() {
-        attach_wallpaper_when_ready(child.id());
-    }
 
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
+
+    let mut office_child = spawn_office(&root);
+    if let Some(child) = office_child.as_ref() {
+        attach_wallpaper_when_ready(child.id(), proxy.clone());
+    }
 
     // ---- system tray: the only true exit (the suite runs forever otherwise)
     let tray_menu = Menu::new();
@@ -315,15 +358,44 @@ fn main() {
     let exit_id = exit_item.id().clone();
 
     // ---- screen-aware default positions (inset, never sunk off-screen)
-    let (screen_w, _screen_h, sf) = event_loop
+    let (screen_w, screen_h, sf) = event_loop
         .primary_monitor()
         .map(|m| (m.size().width as f64, m.size().height as f64, m.scale_factor()))
         .unwrap_or((1920.0, 1080.0, 1.0));
     let logical_w = screen_w / sf;
+    let logical_h = screen_h / sf;
     let orb_x = logical_w - ORB_SIZE * 2.0;
     let orb_y = ORB_SIZE;
     let overlay_x = (logical_w - FULL.0 - ORB_SIZE * 2.2).max(20.0);
     let overlay_y = 90.0;
+
+    // ---- boot splash: a pulsing circular logo, centered — visible while
+    // the Godot window is cloaked and the world builds.
+    let splash = WindowBuilder::new()
+        .with_title("BagIdea")
+        .with_inner_size(LogicalSize::new(SPLASH_SIZE, SPLASH_SIZE))
+        .with_position(LogicalPosition::new(
+            (logical_w - SPLASH_SIZE) / 2.0,
+            (logical_h - SPLASH_SIZE) / 2.0 - 30.0,
+        ))
+        .with_decorations(false)
+        .with_undecorated_shadow(false)
+        .with_resizable(false)
+        .with_always_on_top(true)
+        .with_skip_taskbar(true)
+        .build(&event_loop)
+        .expect("splash window");
+    unsafe {
+        let hwnd = splash.hwnd() as HWND;
+        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
+        SetWindowLongW(hwnd, GWL_EXSTYLE, (ex | WS_EX_NOACTIVATE) as i32);
+    }
+    let _splash_view = WebViewBuilder::new()
+        .with_html(SPLASH_HTML)
+        .build(&splash)
+        .expect("splash webview");
+    circle_region(&splash, SPLASH_SIZE);
+    let splash_id = splash.id();
 
     // ---- overlay (born visible but parked off-screen: a WebView2 created on
     // a hidden window never wakes its scripts)
@@ -464,9 +536,15 @@ fn main() {
                 } else if window_id == overlay_id {
                     let (w, h) = if mini { MINI } else { FULL };
                     round_region(&overlay, w, h, 18.0);
+                } else if window_id == splash_id {
+                    circle_region(&splash, SPLASH_SIZE);
                 }
             }
             Event::UserEvent(ue) => match ue {
+                UserEvent::WorldReady => {
+                    // Wallpaper is live — the splash bows out.
+                    splash.set_visible(false);
+                }
                 UserEvent::Toggle => do_toggle(),
                 UserEvent::HideOverlay => {
                     overlay.set_outer_position(LogicalPosition::new(PARK.0, PARK.1));

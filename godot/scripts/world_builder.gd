@@ -297,8 +297,9 @@ func _build_sky_life() -> void:
 	# Shaded so the day cycle lights them, plus a soft emission floor that
 	# keeps the undersides fluffy instead of hard-shadowed plastic balls.
 	var cmat := StandardMaterial3D.new()
-	cmat.albedo_color = Color(0.93, 0.95, 1.0)
+	cmat.albedo_color = Color(0.93, 0.95, 1.0, 0.36)  # จาง ๆ อ่อน ๆ
 	cmat.roughness = 1.0
+	cmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	cmat.emission_enabled = true
 	cmat.emission = Color(0.86, 0.9, 1.0)
 	cmat.emission_energy_multiplier = 0.16

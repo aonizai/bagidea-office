@@ -33,16 +33,14 @@ func _ready() -> void:
 
 	_capture_map.call_deferred()
 
-	# Splash floats logo-only over the desktop (transparent window); once the
-	# scene is live the window goes opaque again — layered windows as a
-	# WorkerW child are unnecessary risk, and the scene fills every pixel.
-	get_viewport().transparent_bg = false
-	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_TRANSPARENT, false)
+	# Splash floats logo-only over the desktop (transparent window). Going
+	# opaque here would paint a black box for the whole blocking scene build
+	# — flip only after the first real frame is on screen.
+	_opaque_after_first_frame()
 
 	if "--wallpaper" in OS.get_cmdline_user_args():
-		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, true)
-		DisplayServer.window_set_position(Vector2i.ZERO)
-		DisplayServer.window_set_size(DisplayServer.screen_get_size())
+		# NB: borderless/fullscreen/opaque happen in _opaque_after_first_frame
+		# — touching the window mid-load repaints the splash on black.
 		# Wallpaper rung: 30 fps, NATIVE render + MSAA 2x — the measured sweet
 		# spot (FSR upscale read as jaggies; 4x MSAA costs +10% GPU for little
 		# visible gain at wallpaper distance).
@@ -69,6 +67,21 @@ func apply_daylight_event(evt: Dictionary) -> void:
 	var h: Variant = evt.get("hour", "auto")
 	_hour_override = float(h) if (h is float or h is int) else -1.0
 	_apply_daylight()
+
+func _opaque_after_first_frame() -> void:
+	await RenderingServer.frame_post_draw
+	get_viewport().transparent_bg = false
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_TRANSPARENT, false)
+	if "--wallpaper" in OS.get_cmdline_user_args():
+		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, true)
+		DisplayServer.window_set_position(Vector2i.ZERO)
+		DisplayServer.window_set_size(DisplayServer.screen_get_size())
+	# Signal the shell that the scene is on screen — it holds the WorkerW
+	# attach until now so the transparent splash survives the whole load.
+	var flag := FileAccess.open(
+		OS.get_environment("TEMP").path_join("bagidea_world_ready"), FileAccess.WRITE)
+	if flag:
+		flag.store_line(Time.get_datetime_string_from_system())
 
 func _process(delta: float) -> void:
 	_day_timer -= delta
