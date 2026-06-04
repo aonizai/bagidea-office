@@ -543,12 +543,8 @@ func _build_geometry() -> void:
 	totem_mat = _mat(Color(0.15, 0.2, 0.25), 0.3, Color(1.0, 0.25, 0.2), 2.2)
 	_cyl(Vector3(-2.6, 0.06, 3), 0.55, 0.12, cap)
 	_cyl(Vector3(-2.6, 1.26, 3), 0.35, 2.4, totem_mat)
-	# Brand (never on the floor): rooftop billboard angled at the camera,
-	# camera-facing sign on the lobby entrance lintel, box logo on the
-	# reception desk front.
+	# Brand: the rooftop billboard is the one and only company sign.
 	_billboard(Vector3(3, 4.45, -9.8), -42.0)
-	_logo("res://assets/brand/logo.png", Vector3(-1, 2.78, 5.72), Vector2(2.1, 0.31), 0.0)
-	_logo("res://assets/brand/logo_box.png", Vector3(-4.2, 0.55, 4.16), Vector2(0.62, 0.6), 0.0)
 	_box(Vector3(-4.2, 0.5, 3.8), Vector3(1.8, 1.0, 0.7), dark_wood)           # reception
 	_box(Vector3(-4.2, 1.02, 3.8), Vector3(2.0, 0.06, 0.85), wood)
 	_box(Vector3(-4.5, 1.25, 3.8), Vector3(0.4, 0.3, 0.04), screen)

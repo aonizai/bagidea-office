@@ -25,8 +25,9 @@ use tray_icon::{
 use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::Graphics::Gdi::{CreateEllipticRgn, CreateRoundRectRgn, SetWindowRgn};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, FindWindowExW, FindWindowW, GetWindowThreadProcessId, IsWindowVisible,
-    SendMessageTimeoutW, SetParent, SystemParametersInfoW, SMTO_NORMAL, SPI_SETDESKWALLPAPER,
+    EnumWindows, FindWindowExW, FindWindowW, GetWindowLongW, GetWindowThreadProcessId,
+    IsWindowVisible, SendMessageTimeoutW, SetParent, SetWindowLongW, SystemParametersInfoW,
+    GWL_EXSTYLE, SMTO_NORMAL, SPI_SETDESKWALLPAPER, WS_EX_NOACTIVATE,
 };
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -46,7 +47,7 @@ enum UserEvent {
 
 const ORB_HTML: &str = r#"<!doctype html>
 <html><body style="margin:0;overflow:hidden;background:#0a111d;user-select:none;-webkit-user-select:none;cursor:pointer">
-<img id="ic" src="http://127.0.0.1:8787/brand/logo_ico_cute.png" draggable="false"
+<img src="http://127.0.0.1:8787/brand/logo_ico_cute.png" draggable="false"
      style="position:absolute;left:0.9px;top:1.4px;width:70.8px;height:70.8px"
      onerror="document.body.style.background='radial-gradient(circle at 32% 28%,#2a78d8,#0b1422)'">
 <script>
@@ -287,6 +288,7 @@ fn main() {
         .with_undecorated_shadow(false)
         .with_resizable(false)
         .with_always_on_top(true)
+        .with_skip_taskbar(true)
         .with_window_icon(app_icon())
         .build(&event_loop)
         .expect("overlay window");
@@ -322,6 +324,15 @@ fn main() {
         .with_window_icon(app_icon())
         .build(&event_loop)
         .expect("orb window");
+    // Never take focus: Windows eats the first click on inactive windows as
+    // an activation handshake ("sometimes the button does nothing"). A
+    // NOACTIVATE chat head receives every click immediately — and clicking
+    // it no longer steals focus from whatever the user is working in.
+    unsafe {
+        let hwnd = orb.hwnd() as HWND;
+        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
+        SetWindowLongW(hwnd, GWL_EXSTYLE, (ex | WS_EX_NOACTIVATE) as i32);
+    }
     let orb_id = orb.id();
     let p_orb = proxy.clone();
     let _orb_view = WebViewBuilder::new()
