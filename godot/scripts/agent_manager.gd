@@ -213,7 +213,11 @@ func _walk(node: Sprite3D, target: String) -> float:
 func _make_char(id: String) -> Sprite3D:
 	var s := Sprite3D.new()
 	s.set_script(AgentScript)
-	var h := absi(id.hash())
+	# Portable hash (mirrored in overlay.html) so the web UI shows the same
+	# face/role for each agent as the world does.
+	var h := 0
+	for b in id.to_utf8_buffer():
+		h = (h * 31 + int(b)) % 1000003
 	var hue := float(h % 360) / 360.0
 	s.suit_color = Color.from_hsv(hue, 0.5, 0.45)
 	s.hair_color = Color.from_hsv(fmod(hue + 0.35, 1.0), 0.45, 0.22)

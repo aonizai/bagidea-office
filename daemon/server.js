@@ -172,6 +172,16 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     res.end(fs.readFileSync(OVERLAY));
 
+  } else if (req.method === "GET" && /^\/char\/npc([1-9]|1[0-2])\.png$/.test(req.url)) {
+    // Character sheets for overlay portraits (404 → CSS falls back to initials)
+    const f = path.join(__dirname, "..", "godot", "assets", "characters", "npc",
+      req.url.split("/").pop());
+    fs.readFile(f, (e, data) => {
+      if (e) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { "content-type": "image/png", "cache-control": "max-age=3600" });
+      res.end(data);
+    });
+
   } else if (req.method === "POST" && req.url === "/chat") {
     readBody(req, (body) => {
       try {

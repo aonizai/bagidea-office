@@ -5,8 +5,8 @@
 <title>BagIdea Office</title>
 <style>
   :root {
-    --glass: rgba(16, 22, 34, 0.78);
-    --line: rgba(110, 180, 255, 0.25);
+    --glass: rgba(14, 19, 31, 0.82);
+    --line: rgba(110, 180, 255, 0.22);
     --accent: #5ec8ff;
     --text: #dce6f2;
     --dim: #8294ab;
@@ -14,28 +14,80 @@
   * { box-sizing: border-box; margin: 0; }
   body {
     font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
-    background: radial-gradient(1200px 700px at 70% -10%, #16263e 0%, #0a111d 60%, #070b13 100%);
-    color: var(--text); height: 100vh; display: flex; flex-direction: column;
+    background: radial-gradient(1200px 700px at 70% -10%, #14233c 0%, #0a111d 60%, #070b13 100%);
+    color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden;
   }
+  .px { image-rendering: pixelated; background-repeat: no-repeat; }
+
+  /* ---------- header ---------- */
   header {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 16px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 9px; flex: none;
+    padding: 8px 14px; border-bottom: 1px solid var(--line);
     background: var(--glass); backdrop-filter: blur(12px);
-    letter-spacing: 2px; font-weight: 600; font-size: 13px;
+    font-weight: 600; font-size: 13px; letter-spacing: 1.5px;
   }
   header .logo { color: var(--accent); }
-  #conn { width: 8px; height: 8px; border-radius: 50%; background: #ff5448; }
+  #conn { width: 8px; height: 8px; border-radius: 50%; background: #ff5448; flex: none; }
   #conn.on { background: #4ade80; box-shadow: 0 0 8px #4ade8088; }
-  header .sub { color: var(--dim); font-weight: 400; letter-spacing: 0; margin-left: auto; font-size: 12px; }
+  #theater { display: none; color: #ff5448; font-weight: 700; font-size: 12px; }
+  header button {
+    margin-left: auto; font-size: 11.5px; padding: 4px 10px; cursor: pointer;
+    color: var(--accent); background: rgba(255,255,255,0.05);
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+  header button:hover { background: rgba(94,200,255,0.15); }
 
+  /* ---------- agent rail ---------- */
+  #rail {
+    display: flex; gap: 8px; align-items: center; flex: none;
+    padding: 8px 14px; border-bottom: 1px solid var(--line);
+    background: rgba(10, 14, 24, 0.6); overflow-x: auto;
+  }
+  .seat {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    cursor: pointer; padding: 4px 7px 3px; border-radius: 10px;
+    border: 1px solid transparent; flex: none; position: relative;
+  }
+  .seat:hover { background: rgba(94,200,255,0.08); }
+  .seat.active { border-color: var(--accent); background: rgba(94,200,255,0.12); }
+  .seat .face {
+    width: 36px; height: 36px; border-radius: 9px;
+    background-color: #1c2740; outline: 1px solid rgba(255,255,255,0.12);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; color: #fff;
+  }
+  .seat .nm { font-size: 10px; color: var(--dim); max-width: 52px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seat.active .nm { color: var(--accent); }
+  .seat .dot {
+    position: absolute; top: 3px; right: 5px; width: 8px; height: 8px;
+    border-radius: 50%; background: #4ade80; outline: 2px solid #0a0f1a;
+  }
+
+  /* ---------- main ---------- */
   main { flex: 1; display: flex; min-height: 0; }
-  #chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  #log { flex: 1; overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+  #chatwrap { flex: 1; display: flex; min-width: 0; position: relative; }
+  /* visual-novel companion: who you are talking to */
+  #companion {
+    flex: none; width: 132px; display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-end; padding: 0 0 6px;
+    background: linear-gradient(180deg, transparent 30%, rgba(94,200,255,0.06));
+    border-right: 1px solid rgba(255,255,255,0.05);
+  }
+  #companion .body { width: 96px; height: 162px; }
+  #companion .tag {
+    text-align: center; line-height: 1.2; padding: 4px 10px; margin-top: 2px;
+    background: var(--glass); border: 1px solid var(--line); border-radius: 9px;
+  }
+  #companion .tag b { font-size: 13px; }
+  #companion .tag span { font-size: 10px; color: var(--dim); display: block; }
 
-  .msg { max-width: 78%; padding: 9px 13px; border-radius: 12px; white-space: pre-wrap; word-wrap: break-word; }
-  .msg.you  { align-self: flex-end; background: rgba(94, 200, 255, 0.13); border: 1px solid var(--line); border-bottom-right-radius: 4px; }
+  #log { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 9px; }
+  .msg { max-width: 82%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.you { align-self: flex-end; background: rgba(94,200,255,0.13); border: 1px solid var(--line); border-bottom-right-radius: 4px; }
   .msg.agent { align-self: flex-start; background: var(--glass); border: 1px solid rgba(255,255,255,0.07); border-bottom-left-radius: 4px; }
-  .msg .who { font-size: 11px; color: var(--accent); margin-bottom: 3px; letter-spacing: 1px; }
+  .msg .who { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--accent); margin-bottom: 4px; font-weight: 600; }
+  .msg .who .face { width: 20px; height: 20px; border-radius: 5px; background-color: #1c2740; }
   .chip {
     align-self: flex-start; font-size: 11.5px; color: var(--dim);
     border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 3px 10px;
@@ -44,86 +96,191 @@
   .chip b { color: #ffd28a; font-weight: 600; }
 
   aside {
-    width: 250px; border-left: 1px solid var(--line); background: var(--glass);
-    backdrop-filter: blur(12px); padding: 14px; overflow-y: auto;
+    width: 240px; flex: none; border-left: 1px solid var(--line); background: var(--glass);
+    backdrop-filter: blur(12px); padding: 12px; overflow-y: auto;
   }
-  aside h2 { font-size: 11px; letter-spacing: 2px; color: var(--dim); margin-bottom: 10px; }
+  aside h2 { font-size: 10.5px; letter-spacing: 2px; color: var(--dim); margin: 4px 0 8px; }
   .mission {
     border: 1px solid var(--line); border-left: 3px solid var(--accent);
-    border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-size: 12.5px;
+    border-radius: 8px; padding: 7px 9px; margin-bottom: 7px; font-size: 12px;
     background: rgba(255,255,255,0.03);
   }
-  .mission .id { color: var(--dim); font-size: 11px; }
+  .mission .id { color: var(--dim); font-size: 10.5px; }
   .mission.running { border-left-color: #5ec8ff; }
   .mission.blocked { border-left-color: #ffb054; }
-  .mission.done    { border-left-color: #4ade80; opacity: 0.7; }
-  .mission.failed  { border-left-color: #ff5448; }
-
+  .mission.done { border-left-color: #4ade80; opacity: 0.7; }
+  .mission.failed { border-left-color: #ff5448; }
   .perm {
-    border: 1px solid #ffb054aa; border-radius: 10px; padding: 10px;
-    margin-bottom: 10px; background: rgba(255, 176, 84, 0.08); font-size: 12.5px;
+    border: 1px solid #ffb054aa; border-radius: 10px; padding: 9px;
+    margin-bottom: 9px; background: rgba(255,176,84,0.08); font-size: 12px;
   }
   .perm .tool { color: #ffd28a; font-weight: 700; }
-  .perm pre {
-    font-size: 11px; color: var(--dim); white-space: pre-wrap; word-break: break-all;
-    margin: 6px 0; max-height: 90px; overflow-y: auto;
-  }
+  .perm pre { font-size: 10.5px; color: var(--dim); white-space: pre-wrap; word-break: break-all; margin: 5px 0; max-height: 84px; overflow-y: auto; }
   .perm .row { display: flex; gap: 6px; }
-  .perm button { flex: 1; padding: 6px; font-size: 12.5px; }
+  .perm button { flex: 1; padding: 5px; font-size: 12px; cursor: pointer; border-radius: 7px; border: 1px solid var(--line); background: rgba(255,255,255,0.05); }
   .perm .allow { color: #4ade80; border-color: #4ade8055; }
-  .perm .deny  { color: #ff5448; border-color: #ff544855; }
+  .perm .deny { color: #ff5448; border-color: #ff544855; }
 
   footer {
-    display: flex; gap: 8px; padding: 12px 16px;
+    display: flex; gap: 8px; padding: 10px 14px; flex: none; align-items: center;
     border-top: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(12px);
   }
-  select, input, button {
-    font: inherit; color: var(--text); background: rgba(255,255,255,0.05);
-    border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; outline: none;
+  footer input {
+    flex: 1; font: inherit; color: var(--text); background: rgba(255,255,255,0.05);
+    border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; outline: none;
   }
-  input { flex: 1; }
-  input:focus { border-color: var(--accent); }
-  button { cursor: pointer; color: var(--accent); }
-  button:hover { background: rgba(94, 200, 255, 0.15); }
+  footer input:focus { border-color: var(--accent); }
+  footer .send {
+    font-size: 16px; padding: 7px 14px; cursor: pointer; color: var(--accent);
+    background: rgba(94,200,255,0.1); border: 1px solid var(--line); border-radius: 10px;
+  }
+  footer .send:hover { background: rgba(94,200,255,0.2); }
+
+  /* ---------- MINI MODE: shrink the window → compact chat HUD ---------- */
+  @media (max-width: 480px), (max-height: 460px) {
+    aside, #companion { display: none; }
+    #rail { padding: 5px 10px; }
+    .seat .nm { display: none; }
+    .seat .face { width: 30px; height: 30px; }
+    header { padding: 6px 10px; font-size: 11px; }
+    header .sub { display: none; }
+    #log { padding: 10px; }
+    footer { padding: 8px 10px; }
+  }
 </style>
 
 <header>
-  <span class="logo">◤ BAGIDEA</span> AI AGENTS OFFICE
+  <span class="logo">◤ BAGIDEA</span> OFFICE
   <span id="conn"></span>
-  <span id="theater" style="display:none;color:#ff5448;font-weight:700">⏪ REPLAY</span>
-  <button id="replayBtn" style="margin-left:auto;font-size:12px;padding:4px 10px">⏪ Replay 15m</button>
-  <span class="sub" style="margin-left:8px">Layer 2 — overlay PoC</span>
+  <span id="theater">⏪ REPLAY</span>
+  <button id="replayBtn" title="Re-enact the last 15 minutes in the office">⏪ Replay</button>
 </header>
+
+<div id="rail"></div>
+
 <main>
-  <div id="chat"><div id="log"></div></div>
+  <div id="chatwrap">
+    <div id="companion">
+      <div class="body px" id="compBody"></div>
+      <div class="tag"><b id="compName">Main</b><span id="compRole">Director</span></div>
+    </div>
+    <div id="log"></div>
+  </div>
   <aside>
-    <h2>SECURITY CENTER</h2>
+    <h2>🛡 SECURITY CENTER</h2>
     <div id="perms"></div>
-    <h2>MISSION CONTROL</h2>
+    <h2>🛰 MISSION CONTROL</h2>
     <div id="missions"></div>
   </aside>
 </main>
+
 <footer>
-  <select id="agent">
-    <option value="main">main</option>
-    <option value="rin">rin</option>
-    <option value="dev">dev</option>
-  </select>
-  <input id="inp" placeholder="Message the office… (Enter to send)" autofocus>
-  <button id="send">➤</button>
+  <input id="inp" placeholder="Message Main… (Enter to send)" autofocus>
+  <button class="send" id="send">➤</button>
 </footer>
 
 <script>
+  // ---- portable identity (must match agent_manager.gd) -------------------
+  function phash(id) {
+    let h = 0;
+    for (const b of new TextEncoder().encode(id)) h = (h * 31 + b) % 1000003;
+    return h;
+  }
+  const ROLES = ["Researcher", "Engineer", "Designer", "Analyst", "Operator", "Specialist"];
+  const NPCS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12];
+  function npcOf(id) {
+    if (id === "main") return 7;
+    if (id === "ceo") return 8;
+    return NPCS[phash(id) % 10];
+  }
+  function roleOf(id) {
+    if (id === "main") return "Director";
+    if (id === "ceo") return "Chairman";
+    return ROLES[phash(id) % 6];
+  }
+  // CSS sprite crops from the 256x512 sheet (cell 64): face (16,6,32,32),
+  // standing body (16,6,32,54).
+  function face(el, id, size) {
+    const k = size / 32;
+    el.style.backgroundImage = `url(/char/npc${npcOf(id)}.png)`;
+    el.style.backgroundSize = `${256 * k}px ${512 * k}px`;
+    el.style.backgroundPosition = `${-16 * k}px ${-6 * k}px`;
+    el.classList.add("px");
+    el.textContent = "";
+  }
+  function body(el, id) {
+    const k = 3;
+    el.style.backgroundImage = `url(/char/npc${npcOf(id)}.png)`;
+    el.style.backgroundSize = `${256 * k}px ${512 * k}px`;
+    el.style.backgroundPosition = `${-16 * k}px ${-6 * k}px`;
+  }
+
+  // ---- state --------------------------------------------------------------
   const log = document.getElementById("log");
   const missionsEl = document.getElementById("missions");
+  const permsEl = document.getElementById("perms");
+  const railEl = document.getElementById("rail");
   const missions = {};
+  const agents = {};   // id -> {state}
+  let target = "main";
 
+  function ensureAgent(id, state) {
+    if (id === "ceo") return;
+    if (!agents[id]) {
+      agents[id] = { state: state || "idle" };
+      renderRail();
+    } else if (state) {
+      agents[id].state = state;
+      renderRail();
+    }
+  }
+
+  const DOTS = { idle: "#4ade80", working: "#5ec8ff", blocked: "#ffb054", offline: "#6b7280", meeting: "#c084fc" };
+  function renderRail() {
+    railEl.innerHTML = "";
+    for (const id of Object.keys(agents)) {
+      const seat = document.createElement("div");
+      seat.className = "seat" + (id === target ? " active" : "");
+      const f = document.createElement("div");
+      f.className = "face";
+      f.textContent = id[0].toUpperCase();
+      face(f, id, 36);
+      const nm = document.createElement("div");
+      nm.className = "nm"; nm.textContent = id;
+      const dot = document.createElement("div");
+      dot.className = "dot";
+      dot.style.background = DOTS[agents[id].state] || "#4ade80";
+      seat.append(f, nm, dot);
+      seat.onclick = () => setTarget(id);
+      railEl.appendChild(seat);
+    }
+    const plus = document.createElement("div");
+    plus.className = "seat";
+    plus.innerHTML = `<div class="face">＋</div><div class="nm">hire</div>`;
+    plus.onclick = () => { const n = prompt("Agent name:"); if (n) { ensureAgent(n.trim()); setTarget(n.trim()); } };
+    railEl.appendChild(plus);
+  }
+
+  function setTarget(id) {
+    target = id;
+    document.getElementById("compName").textContent = id[0].toUpperCase() + id.slice(1);
+    document.getElementById("compRole").textContent = roleOf(id);
+    body(document.getElementById("compBody"), id);
+    document.getElementById("inp").placeholder = `Message ${id}… (Enter to send)`;
+    renderRail();
+  }
+
+  // ---- chat ---------------------------------------------------------------
   function addMsg(cls, who, text) {
     const d = document.createElement("div");
     d.className = "msg " + cls;
     if (who) {
       const w = document.createElement("div");
-      w.className = "who"; w.textContent = who.toUpperCase();
+      w.className = "who";
+      const f = document.createElement("div");
+      f.className = "face";
+      face(f, who, 20);
+      w.append(f, document.createTextNode(who.toUpperCase()));
       d.appendChild(w);
     }
     d.appendChild(document.createTextNode(text));
@@ -143,13 +300,10 @@
       const d = document.createElement("div");
       d.className = "mission " + m.state;
       d.innerHTML = `<b>${m.agent}</b> · ${m.state}` +
-        (m.tool ? ` · <i>${m.tool}</i>` : "") +
-        `<div class="id">${id}</div>`;
+        (m.tool ? ` · <i>${m.tool}</i>` : "") + `<div class="id">${id}</div>`;
       missionsEl.appendChild(d);
     }
   }
-
-  const permsEl = document.getElementById("perms");
 
   function addPermCard(ev) {
     const d = document.createElement("div");
@@ -167,8 +321,7 @@
   }
   async function respondPerm(id, decision) {
     await fetch("/perm/respond", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
+      method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ id, decision }),
     });
   }
@@ -177,11 +330,12 @@
     if (el) el.remove();
   }
 
+  // ---- event routing --------------------------------------------------------
   function route(ev) {
     const key = ev.task || ev.agent;
     if (ev.type === "theater.started") {
       document.getElementById("theater").style.display = "inline";
-      addChip(`⏪ <b>Replay Theater</b> — re-enacting ${ev.events} events at ${ev.speed}×`);
+      addChip(`⏪ <b>Replay Theater</b> — ${ev.events} events at ${ev.speed}×`);
       return;
     }
     if (ev.type === "theater.ended") {
@@ -190,30 +344,44 @@
       return;
     }
     if (ev.theater) {
-      // Cinema feed: show what's being re-enacted, never touch live state.
       if (ev.type === "chat.message") addChip(`⏪ 💬 <b>${ev.agent}</b>: ${String(ev.text).slice(0, 60)}`);
       else if (ev.type === "task.progress") addChip(`⏪ ⚙ ${ev.tool || ""} — ${ev.agent}`);
       return;
     }
+    if (ev.agent) ensureAgent(ev.agent);
+    if (ev.agents) ev.agents.forEach((a) => ensureAgent(a, "meeting"));
+
     if (ev.type === "chat.message") addMsg("agent", ev.agent, ev.text);
     else if (ev.type === "task.progress") {
       if (!ev.replay) addChip(`⚙ <b>${ev.tool || "…"}</b> — ${ev.agent}`);
       if (missions[key]) { missions[key].tool = ev.tool; renderMissions(); }
+      ensureAgent(ev.agent, "working");
     }
     else if (ev.type === "task.started") {
       missions[key] = { agent: ev.agent, state: "running" }; renderMissions();
+      ensureAgent(ev.agent, "working");
     }
-    else if (ev.type === "task.completed") { if (missions[key]) { missions[key].state = "done"; renderMissions(); } }
-    else if (ev.type === "task.failed") { if (missions[key]) { missions[key].state = "failed"; renderMissions(); } }
+    else if (ev.type === "task.completed") {
+      if (missions[key]) { missions[key].state = "done"; renderMissions(); }
+      ensureAgent(ev.agent, "idle");
+    }
+    else if (ev.type === "task.failed") {
+      if (missions[key]) { missions[key].state = "failed"; renderMissions(); }
+      ensureAgent(ev.agent, "idle");
+    }
     else if (ev.type === "perm.requested") {
       if (missions[key]) { missions[key].state = "blocked"; renderMissions(); }
-      if (!ev.replay) addPermCard(ev);  // stale approvals never resurface
+      ensureAgent(ev.agent, "blocked");
+      if (!ev.replay) addPermCard(ev);
     }
     else if (ev.type === "perm.approved" || ev.type === "perm.denied") {
       removePermCard(ev.perm);
       if (missions[key]) { missions[key].state = "running"; renderMissions(); }
+      ensureAgent(ev.agent, "working");
       if (!ev.replay) addChip(`🛡 ${ev.tool} — <b>${ev.type === "perm.approved" ? "allowed" : "denied"}</b>`);
     }
+    else if (ev.type === "agent.online") ensureAgent(ev.agent, "idle");
+    else if (ev.type === "agent.offline") ensureAgent(ev.agent, "offline");
   }
 
   function connect() {
@@ -225,29 +393,28 @@
     };
     ws.onmessage = (e) => route(JSON.parse(e.data));
   }
+  // boot (after all declarations — const TDZ bites otherwise)
+  ensureAgent("main");
+  setTarget("main");
   connect();
 
+  // ---- send ---------------------------------------------------------------
   async function send() {
     const inp = document.getElementById("inp");
-    const agent = document.getElementById("agent").value;
     const prompt = inp.value.trim();
     if (!prompt) return;
     inp.value = "";
     addMsg("you", null, prompt);
     await fetch("/chat", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ agent, prompt }),
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ agent: target, prompt }),
     });
   }
   document.getElementById("send").onclick = send;
-  document.getElementById("inp").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") send();
-  });
+  document.getElementById("inp").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
   document.getElementById("replayBtn").onclick = () =>
     fetch("/replay", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
+      method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ minutes: 15, speed: 10 }),
     });
 </script>

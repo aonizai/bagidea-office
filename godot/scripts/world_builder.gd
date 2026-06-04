@@ -727,10 +727,8 @@ func _logo(path: String, pos: Vector3, size: Vector2, rot_y: float) -> void:
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = tex
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.emission_enabled = true
-	m.emission_texture = tex
-	m.emission = Color(1, 1, 1)
-	m.emission_energy_multiplier = 0.55
+	# Unshaded: the brand ignores scene lighting entirely — always crisp.
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	var quad := QuadMesh.new()
 	quad.size = size
 	quad.material = m
