@@ -63,7 +63,8 @@ static func _common(mat: ShaderMaterial, col: Array, noise: Texture2D) -> void:
 	mat.set_shader_parameter("edge_position", 0.2)
 
 ## Ground ring sized for a 1.7m character (the pack's original is r=1.4).
-static func build(element: String, radius := 0.52) -> Node3D:
+## Generous radius — it's jewelry, it should be seen.
+static func build(element: String, radius := 0.85) -> Node3D:
 	var col: Array = ELEMENTS.get(element, ELEMENTS["fire"])
 	var s := radius / 1.4
 	var noise := _noise_tex()

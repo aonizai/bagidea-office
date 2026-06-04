@@ -294,45 +294,58 @@ const BirdScript := preload("res://scripts/bird_sprite.gd")
 ## Soft clouds drifting across the sky forever + occasional bird flocks.
 func _build_sky_life() -> void:
 	# Shaded (not unshaded!) so clouds dim with the night like everything else.
+	# Two layers: distant horizon puffs + big soft veils that drift UNDER the
+	# top-down camera, sweeping gently across the frame (user: clouds must
+	# actually pass the camera — but stay smooth, never cluttered).
 	var cmat := StandardMaterial3D.new()
 	cmat.albedo_color = Color(1.0, 1.0, 1.0, 0.75)
 	cmat.roughness = 1.0
 	cmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var vmat := StandardMaterial3D.new()
+	vmat.albedo_color = Color(1.0, 1.0, 1.0, 0.3)  # overhead veil: barely-there
+	vmat.roughness = 1.0
+	vmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	for i in 6:
+		var overhead := i < 3
 		var cloud := Node3D.new()
 		add_child(cloud)
 		for b in randi_range(3, 5):
 			var puff := MeshInstance3D.new()
 			var sm := SphereMesh.new()
-			var r := randf_range(1.1, 2.4)
+			var r := randf_range(1.1, 2.4) * (3.8 if overhead else 1.0)
 			sm.radius = r
 			sm.height = r
 			sm.radial_segments = 16
 			sm.rings = 8
 			puff.mesh = sm
-			puff.material_override = cmat
+			puff.material_override = vmat if overhead else cmat
 			puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			puff.layers = 2  # sky life stays off the static map render
-			puff.scale = Vector3(1.7, 0.5, 1.0)
+			puff.scale = Vector3(1.7, 0.45, 1.0)
 			puff.position = Vector3(b * randf_range(1.2, 1.9) - 3.0,
-				randf_range(-0.3, 0.4), randf_range(-0.7, 0.7))
+				randf_range(-0.3, 0.4), randf_range(-0.7, 0.7)) * (3.2 if overhead else 1.0)
 			cloud.add_child(puff)
-		# Behind the building (z < -14) so they never wash over the office.
-		cloud.position = Vector3(randf_range(-52.0, 52.0),
-			randf_range(15.0, 22.0), randf_range(-34.0, -14.0))
-		_drift_cloud(cloud)
+		if overhead:
+			# High above the office, far below the camera (~41m) — a soft
+			# white veil gliding across the scene.
+			cloud.position = Vector3(randf_range(-60.0, 60.0),
+				randf_range(24.0, 30.0), randf_range(-9.0, 7.0))
+		else:
+			# Behind the building (z < -14): the horizon layer.
+			cloud.position = Vector3(randf_range(-52.0, 52.0),
+				randf_range(15.0, 22.0), randf_range(-34.0, -14.0))
+		_drift_cloud(cloud, 66.0 if overhead else 56.0)
 
-func _drift_cloud(cloud: Node3D) -> void:
+func _drift_cloud(cloud: Node3D, span: float) -> void:
 	while is_instance_valid(cloud) and is_inside_tree():
 		var speed := randf_range(0.3, 0.65)
 		var tw := create_tween()
-		tw.tween_property(cloud, "position:x", 56.0,
-			(56.0 - cloud.position.x) / speed)
+		tw.tween_property(cloud, "position:x", span,
+			(span - cloud.position.x) / speed)
 		await tw.finished
 		if not is_instance_valid(cloud):
 			return
-		cloud.position.x = -56.0
-		cloud.position.y = randf_range(15.0, 22.0)
+		cloud.position.x = -span
 
 func _bird_loop() -> void:
 	while is_inside_tree():
