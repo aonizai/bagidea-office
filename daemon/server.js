@@ -1604,7 +1604,8 @@ const server = http.createServer((req, res) => {
         // Hook events from the host Claude Code session arrive as "claude" —
         // that IS the Director: map them onto main (no ghost duplicate).
         if (evt.agent === "claude") evt.agent = "main";
-        broadcast(evt);
+        // Transient UI state (visibility) must never replay from the journal.
+        broadcast(evt, evt.type !== "ui.visibility");
         res.writeHead(200);
         res.end("ok");
       } catch {
