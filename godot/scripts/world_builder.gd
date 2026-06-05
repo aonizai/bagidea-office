@@ -179,6 +179,60 @@ func _no_shadow(node: Node) -> void:
 	for c in node.get_children():
 		_no_shadow(c)
 
+## Airport-queue stanchion: two chrome posts + a blue fabric strap that sags
+## in the middle. Replaces the kit Floor_Lamp, whose bar-on-one-pole
+## silhouette read as a half-finished barrier from wallpaper distance.
+func _stanchion(pos: Vector3, rot_y := 0.0) -> Node3D:
+	var rig := Node3D.new()
+	add_child(rig)
+	rig.position = pos
+	rig.rotation_degrees = Vector3(0, rot_y, 0)
+	var post_mat := StandardMaterial3D.new()
+	post_mat.albedo_color = Color(0.55, 0.58, 0.62)
+	post_mat.metallic = 0.85
+	post_mat.roughness = 0.3
+	var strap_mat := StandardMaterial3D.new()
+	strap_mat.albedo_color = Color(0.13, 0.28, 0.72)
+	strap_mat.roughness = 0.92
+	for sx in [-0.6, 0.6]:
+		var base := MeshInstance3D.new()
+		var bm := CylinderMesh.new()
+		bm.top_radius = 0.13
+		bm.bottom_radius = 0.16
+		bm.height = 0.05
+		base.mesh = bm
+		base.material_override = post_mat
+		base.position = Vector3(sx, 0.025, 0)
+		rig.add_child(base)
+		var pole := MeshInstance3D.new()
+		var pm := CylinderMesh.new()
+		pm.top_radius = 0.028
+		pm.bottom_radius = 0.028
+		pm.height = 0.95
+		pole.mesh = pm
+		pole.material_override = post_mat
+		pole.position = Vector3(sx, 0.5, 0)
+		rig.add_child(pole)
+		var knob := MeshInstance3D.new()
+		var km := SphereMesh.new()
+		km.radius = 0.05
+		km.height = 0.1
+		knob.mesh = km
+		knob.material_override = post_mat
+		knob.position = Vector3(sx, 1.0, 0)
+		rig.add_child(knob)
+	# Two tilted halves meeting low in the middle — a cheap, readable sag.
+	for side in [-1.0, 1.0]:
+		var strap := MeshInstance3D.new()
+		var sm := BoxMesh.new()
+		sm.size = Vector3(0.62, 0.085, 0.015)
+		strap.mesh = sm
+		strap.material_override = strap_mat
+		strap.position = Vector3(side * 0.3, 0.835, 0)
+		strap.rotation_degrees = Vector3(0, 0, side * 8.0)
+		rig.add_child(strap)
+	return rig
+
 var _tint_mat_cache := {}
 
 ## Multiplies a kit model's materials by a color (zone-keying plain floors).
@@ -915,7 +969,7 @@ func _build_geometry() -> void:
 	if kit:
 		_kit("End_Table", Vector3(-3.55, 0, 2.1), 0.0, 0.8)                    # chess corner
 		_kit("3D_Chess_Board", Vector3(-3.55, 0.75, 2.1), 25.0, 0.35)
-		_kit("Floor_Lamp", Vector3(-4.5, 0, 4.6), 0.0, 1.0)
+		_stanchion(Vector3(-4.5, 0, 4.6), 35.0)
 	for px in [-1.9, -0.1]:
 		_box(Vector3(px, 1.2, 5.6), Vector3(0.2, 2.4, 0.2), dark_wood)
 	_box(Vector3(-1, 2.5, 5.6), Vector3(2.0, 0.2, 0.2), dark_wood)
@@ -994,7 +1048,7 @@ func _build_geometry() -> void:
 		_kit("Hydroponics_Full", Vector3(-6.9, 0, 12.2), 25.0, 0.85)
 		_kit("Hydroponics_Lamp", Vector3(-7.8, 0, 11.9), 0.0, 0.85)
 		_kit("Plant_1", Vector3(-9.3, 0, 6.7), 60.0, 1.7)
-		_kit("Floor_Lamp", Vector3(0.5, 0, 12.4), 0.0, 0.9)
+		_stanchion(Vector3(0.5, 0, 12.4), -20.0)
 	# Procedural rec life: the office dog and a football (kit-independent).
 	var dog := Sprite3D.new()
 	dog.set_script(load("res://scripts/dog_sprite.gd"))
@@ -1014,7 +1068,7 @@ func _build_geometry() -> void:
 		var bunk_colors := ["Blue", "Green", "Orange", "Purple", "Red", "Grey"]
 		for i in 6:
 			_kit("Bunk_Single_" + bunk_colors[i], Vector3(4.6 + i * 1.8, 0, 11.7), 0.0, 0.7)
-		_kit("Floor_Lamp", Vector3(15.2, 0, 12.2), 0.0, 0.9)
+		_stanchion(Vector3(15.2, 0, 12.2), 90.0)
 		_kit("Plant_1", Vector3(3.7, 0, 6.8), 200.0, 1.7)
 	_omni(Vector3(9.5, 2.3, 10.0), Color(1.0, 0.78, 0.55), 1.6, 9.0)
 
