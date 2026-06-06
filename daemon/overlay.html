@@ -1793,6 +1793,13 @@
     modalCard.querySelectorAll(".tab").forEach((t) => (t.onclick = () => openOps(t.dataset.t)));
 
     if (tab === "proj") {
+      // Deferred refreshes re-render ONLY while the user still has this tab
+      // open — openOps() opens the modal, so a bare delayed call would POP
+      // the window back up after the user closed it (reported bug).
+      const opsRefresh = () => {
+        if (modal.classList.contains("open") && modalCard.querySelector("#plist"))
+          openOps("proj");
+      };
       const r = await fetch("/projects").then((x) => x.json()).catch(() => ({ projects: [], places: {} }));
       PROJECTS_CACHE = r.projects || [];
       // Project rows with live status + actions, grouped by origin.
@@ -1842,7 +1849,7 @@
             (p.created
               ? `<div class="winbtn hide" title="ลบโปรเจคออกจากเครื่องจริงๆ">🗑</div>` : "");
           const b = [...row.querySelectorAll(".winbtn")];
-          const refresh = () => setTimeout(() => openOps("proj"), 2600);
+          const refresh = () => setTimeout(opsRefresh, 2600);
           const metaSpan = () => row.querySelector(".meta span");
           if (!p.open) {
             b[0].onclick = () => api("/projects/open", { id: p.id, mode: "play" }).then(refresh);
@@ -1860,12 +1867,12 @@
           // round button can't hold words.
           b[3 + o].onclick = () => {
             if (row.dataset.rm === "1")
-              api("/projects", { remove: p.id }).then(() => openOps("proj"));
+              api("/projects", { remove: p.id }).then(opsRefresh);
             else {
               row.dataset.rm = "1";
               metaSpan().innerHTML =
                 `<span style="color:#ffb054">เอาออกจากรายการ (ไฟล์ยังอยู่) — กด ✕ ซ้ำเพื่อยืนยัน</span>`;
-              setTimeout(() => { if (row.dataset.rm === "1") { row.dataset.rm = ""; openOps("proj"); } }, 4000);
+              setTimeout(() => { if (row.dataset.rm === "1") { row.dataset.rm = ""; opsRefresh(); } }, 4000);
             }
           };
           // 🗑 real disk delete — created-by-app only. Deletion can lose to
@@ -1879,18 +1886,18 @@
                 headers: { "content-type": "application/json", "x-bagidea-ui": "1" },
                 body: JSON.stringify({ removeDisk: p.id }),
               });
-              if (r.ok) openOps("proj");
+              if (r.ok) opsRefresh();
               else {
                 row.dataset.del = "";
                 metaSpan().innerHTML =
                   `<span style="color:#ff6258">${(await r.text()).replace(/</g, "&lt;")}</span>`;
-                setTimeout(() => openOps("proj"), 6000);
+                setTimeout(opsRefresh, 6000);
               }
             } else {
               row.dataset.del = "1";
               metaSpan().innerHTML =
                 `<span style="color:#ff6258">⚠ ลบโฟลเดอร์จริงจากเครื่อง — กด 🗑 ซ้ำเพื่อยืนยัน</span>`;
-              setTimeout(() => { if (row.dataset.del === "1") { row.dataset.del = ""; openOps("proj"); } }, 5000);
+              setTimeout(() => { if (row.dataset.del === "1") { row.dataset.del = ""; opsRefresh(); } }, 5000);
             }
           };
           box.appendChild(row);
