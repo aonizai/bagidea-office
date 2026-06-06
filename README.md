@@ -5,10 +5,10 @@
 
 Not a dashboard. Not a chat window. A **world** that renders the true state of your AI agents — Claude Code sessions, headless agent runs, custom scripts — as living pixel-art employees, behind your desktop icons.
 
-![Sci-fi office on the night shift](shots/scifi_office.png)
-*Real local time — agents work glowing consoles in a sci-fi office in a countryside meadow, clouds drifting by, the camera slowly breathing. Desktop icons render on top: this is a real wallpaper.*
+![The office, alive on a real desktop — night shift, Ghost Deck glowing](docs/img/world.png)
+*A real desktop, captured live: agents at their desks at 4 AM, the floating Ghost Deck glowing top-right, garden lamps on, desktop icons rendering on top — this is a real wallpaper.*
 
-> ⚠️ **Status: working product (Windows 11).** The full pipeline works end-to-end: wallpaper → daemon → real Claude Code sessions → spatialized approvals → agent management UI. Some art packs are not bundled (licenses — see [Art assets](#art-assets)); the game falls back to procedural placeholders without them.
+> ✅ **Status: working product (Windows 11).** The full pipeline works end-to-end: wallpaper → daemon → real Claude Code sessions working *inside real project folders* → spatialized approvals → agent management UI → Telegram/Discord/LINE channels → CLI → self-updater. Some art packs are not bundled (licenses — see [Art assets](#art-assets)); the game falls back to procedural placeholders without them.
 
 ---
 
@@ -22,9 +22,11 @@ Not a dashboard. Not a chat window. A **world** that renders the true state of y
 - [Art assets](#art-assets)
 - [Running the full stack](#running-the-full-stack)
 - [Using it](#using-it)
+- [The `bagidea` CLI](#the-bagidea-cli)
 - [HTTP API](#http-api)
 - [Event protocol (OEP)](#event-protocol-oep)
 - [Performance](#performance)
+- [User guides (ภาษาไทย)](#user-guides)
 - [Design documents](#design-documents)
 - [Roadmap](#roadmap)
 
@@ -64,15 +66,20 @@ Not a dashboard. Not a chat window. A **world** that renders the true state of y
 - **Calendar with a personal touch**: appointments remind you via the Director — he physically walks over and tells you (`reminder` event), N minutes ahead
 - **Director heartbeat**: every 15/30/60 minutes (configurable) he reviews the calendar, standing jobs and the note board — and pings you ONLY when something deserves it ("OK" stays silent)
 - **Claude Code hooks integration**: any Claude Code session in this project reports its tool calls — your real work animates the Director automatically
-- **Permission broker**: dangerous tools from adapter sessions are held until you approve
+- **Permission broker**: tools you *granted* in an agent's profile run silently; anything else is held until you approve — with a **✓✓ forever** option that remembers the grant
+- **📁 Projects**: register real folders as projects (with PLACE shorthands like `"ห้องเรียน" → D:\Learning`); the Director creates new ones himself via a `PROJECT:` protocol line and routes work with `DELEGATE: <agent> @ <project> :: <job>` — the assignee's claude session lives **inside** that directory and is resumable by you. One window per project: ▶ opens (or surfaces) *the* window; pressed while an agent works it opens a **live view** of their session that hands control to you the moment they finish. Disk-deletes sweep leftover dev servers first
+- **📨 Channels**: Telegram (long-poll), Discord (native gateway client) and LINE (webhook) feed straight into the Director — order your office from your phone, the reply comes back on the same channel
+- **🔑 API key vault**: store `OPENAI_API_KEY` & friends once; they're injected into every agent run's environment, and agents are told which names exist
+- **🔄 Self-updating**: the daemon compares local HEAD with GitHub `main`; an in-app banner (or `bagidea update`) pulls, rebuilds what changed, and relaunches
 
 ### 🛡️ Spatialized security
-When an agent needs a dangerous tool:
+When an agent needs a tool you have **not** granted:
 1. Its character **physically walks to the Security Center** and waits (amber light pulses, ❗ flashes over its head)
-2. The overlay's Security Center pops open with the **exact command**
-3. You click **Allow / Deny** — deny (or 50s timeout) makes the agent visibly re-plan
+2. The overlay's Security Center pops open with the **exact command** — and in 📡 feed mode the request appears as an actionable card right in the stream
+3. You click **Allow / ✓✓ Forever / Deny** — deny (or 50s timeout) makes the agent visibly re-plan; *forever* adds the tool to that agent's grants so it never asks again
 4. Approve, and the tool actually executes
 
+Tools already granted in the agent's profile are approved instantly and logged.
 This is real: the PreToolUse hook long-polls the daemon until you decide.
 
 ### 💬 Overlay (Layer 2)
@@ -82,8 +89,14 @@ Served by the daemon at `http://127.0.0.1:8787/` — best experienced through th
 - **🗺 Live map**: a real orthographic floorplan render with live agent icons (face, state ring, name) — click one to chat with it
 - **🧵 Threads**: per-conversation chat panes — switching threads or agents loads that conversation's history; a thread bar shows where you are; meetings (🗣 with participant faces) and sub-agent jobs (👻 with the owner's face + ✓/✗/⏳ status) are readable forever, streaming live while they run
 - **🗣 Discussions**: launch agent-to-agent meetings
+- **🗂 OFFICE OPS**: projects (create / register / open / live-view / hide / delete, with an in-house Blender-style folder picker), standing tasks, calendar, the shared note board, and the org chart by tier
+- **🔵 NOW WORKING strip**: one calm line under the header — "กำลังทำ N งาน · latest…" — expandable into the full live task list; visible in feed mode too
+- **🔗 CONNECT tab**: API key vault (masked) + Telegram/Discord/LINE channel setup with live status dots
+- **📡 Feed mode**: right-click the chat head — the panel becomes a translucent right-edge activity stream (scrollback, hover-to-focus, 🧹 clear, actionable permission cards); the wallpaper stays clean for streaming/recording
+- **🎤 Push-to-talk**: hold **F6** anywhere in Windows, speak (Windows Voice Typing — Thai works), release; a pulsing live pill shows what was heard; feed mode auto-sends to the Director
 - **🌗 Atmosphere picker**, slide-over **🛡 Security/Mission/Office-Log sidebar** (edge handle pulses when an approval is waiting; pops open on arrival)
-- Circular **chat head** (Messenger-style, never steals focus) + system tray (Start with Windows, Exit)
+- **🔄 Update banner** when a new version lands on GitHub — one click updates and relaunches
+- Circular **chat head** (Messenger-style, never steals focus) + system tray (Start with Windows, **Hide office**, Exit)
 
 ## Architecture
 
@@ -149,6 +162,21 @@ Three independent processes: the **daemon** keeps agents running even if renderi
 | GPU | Anything Vulkan-capable; verified on GTX 1060 6GB |
 
 ## Installation
+
+### One-shot installer (recommended)
+
+Installs every dependency (Git, Node LTS, Rust, Godot 4.6.3, Claude Code CLI),
+clones the app to `%LOCALAPPDATA%\BagIdeaOffice`, builds it, wires the
+`bagidea` command into your PATH and creates a Start Menu shortcut:
+
+```powershell
+irm https://raw.githubusercontent.com/bagidea/bagidea-ai-agents-office/main/installer/install.ps1 | iex
+```
+
+> First time only: run `claude` once in a new terminal to log in to Claude,
+> then `bagidea start`. Safe to re-run — each step skips what already exists.
+
+### Manual
 
 ```powershell
 git clone https://github.com/bagidea/bagidea-ai-agents-office.git
@@ -275,8 +303,27 @@ Any Claude Code session inside this project reports its prompts and tool calls
 through hooks — the **Director** works at his desk in real time while you work.
 
 ### Approve dangerous tools
-When a session needs Bash/Write/etc., its character walks to Security and the
-overlay pops the exact command with Allow/Deny.
+When a session needs a tool you haven't granted, its character walks to
+Security and the overlay pops the exact command with Allow / ✓✓ Forever / Deny.
+Granted tools run silently.
+
+### Work in real projects
+🗂 → PROJECTS: define a PLACE once (`"ห้องเรียน" → D:\Learning`), then just tell
+the Director: *"สร้างโปรเจค Calculator ในห้องเรียน แล้วให้ Flamingo สร้างเว็บเครื่องคิดเลข"* —
+the project folder is created, registered, and the assignee works **inside** it
+with a real resumable session. The row lights up with who's working; ▶ opens
+*the* project window (a live view while an agent works, your interactive
+session the moment they finish). ✕ unregisters; 🗑 really deletes (created-by-app
+folders only, leftover dev servers are swept first).
+
+### Talk to it from your phone
+⚙ → 🔗 CONNECT: paste a Telegram bot token (60 seconds with @BotFather) and your
+office answers you anywhere. Discord and LINE work too —
+[setup guide](docs/guide/channels.md).
+
+### Speak instead of typing
+Hold **F6**, talk, release. In normal mode the words land in the input box for
+you to review; in 📡 feed mode they're sent to the Director automatically.
 
 ### Simulate events (no Claude needed)
 ```powershell
@@ -284,6 +331,24 @@ node daemon\send.js task.started rin
 node daemon\send.js perm.requested rin
 node daemon\send.js task.completed rin
 node daemon\send.js agent.offline rin
+```
+
+## The `bagidea` CLI
+
+The installer puts `bagidea` on your PATH (manual installs: the repo root has
+`bagidea.cmd`). It talks to the running office — and can start it.
+
+```
+bagidea start                 launch the office (if not running)
+bagidea stop                  stop the whole suite
+bagidea status                health + agents + projects + who's working
+bagidea ask "<message>"       ask the Director and WAIT for the final answer
+bagidea chat <agent> "<msg>"  fire-and-forget to a specific agent
+bagidea projects              list projects with live status
+bagidea open "<project>"      open a project window (same as ▶)
+bagidea feed                  live office event stream in your terminal
+bagidea update                update to the latest version + relaunch
+bagidea version               current build
 ```
 
 ## HTTP API
@@ -303,8 +368,17 @@ node daemon\send.js agent.offline rin
 | `POST /ui/daylight` `{hour: 17.5 \| "auto"}` | atmosphere override |
 | `POST /event` | push any OEP event (custom integrations) |
 | `GET /map/bg` · `POST /pos` | live map plumbing |
-| `POST /perm/request` (long-poll) · `POST /perm/respond` | permission broker |
-| `GET /health` | liveness |
+| `POST /perm/request` (long-poll) · `POST /perm/respond` `{id, decision, always?}` | permission broker |
+| `GET /projects` · `POST /projects` `{name, place\|path \| remove \| removeDisk}` | projects (removals are human-UI-only) |
+| `POST /projects/open` `{id, mode: play\|shell\|folder}` · `/projects/hide` · `/projects/resume` · `/projects/stop` | project windows (▶ = smart open / live view) |
+| `GET /fs?dir=` · `POST /fs/mkdir` | in-house folder picker |
+| `POST /places` `{name, folder \| remove}` | PLACE shorthands |
+| `POST /registry/key` `{name, value \| remove}` | API key vault (env injection) |
+| `POST /registry/channel` `{kind, config}` · `GET /channels/status` | Telegram/Discord/LINE |
+| `POST /channels/line/webhook` | LINE Messaging API webhook target |
+| `POST /chat` with `wait: true` | hold the response until the run finishes (the CLI's `ask`) |
+| `POST /update` | run the updater (human-UI-only) |
+| `GET /health` | liveness (`{clients, pendingPerms, wt}`) |
 
 ## Event protocol (OEP)
 
@@ -321,6 +395,11 @@ One JSON event per WebSocket message / journal line: `{type, agent, task?, tool?
 | `skill.created` | golden burst + "📚 learned" |
 | `ceo.summon` / `task.delegated` | the Director's chain-of-command walks |
 | `roster.sync` / `roster.removed` | registry → world (spawn/update/despawn) |
+| `reminder` | the Director walks over and tells you in person 🔔 |
+| `ceo.report` | the Director walks the final summary to the boss 📨 |
+| `channel.message` | a message arrived from Telegram/Discord/LINE 📨 |
+| `projects.changed` | project list/status flipped (live UI refresh) |
+| `update.available` | GitHub main is ahead — the 🔄 banner appears |
 | `ui.daylight` | atmosphere override |
 
 Push your own events from anything: `POST /event` — that's the whole integration
@@ -334,6 +413,22 @@ replaced by god-ray cards, no SSAO/DOF. On a GTX 1060 @1680×1050 the full scene
 (countryside, grass field, clouds, cinematic pass) measures roughly 20–30% GPU —
 the renderer pauses entirely when occluded by fullscreen apps. Plenty of knobs
 remain (FSR scale, grass density, cinema pass) if you want it leaner.
+
+## User guides
+
+คู่มือผู้ใช้ฉบับเต็ม (ภาษาไทย) — step-by-step พร้อมภาพ:
+
+| คู่มือ | เนื้อหา |
+|---|---|
+| [เริ่มต้นใช้งาน](docs/guide/getting-started.md) | ติดตั้ง · เปิดครั้งแรก · แชทแรกกับ Director |
+| [Agents & Skills](docs/guide/agents.md) | จ้างพนักงาน · persona · skills/tools · Security Center |
+| [Projects](docs/guide/projects.md) | places · สร้าง/เปิด/ดูงานสด/ลบโปรเจค |
+| [เสียง & Feed mode](docs/guide/voice-feed.md) | F6 push-to-talk · feed mode · NOW WORKING |
+| [Office Ops](docs/guide/office-ops.md) | งานตั้งเวลา · ปฏิทิน · กระดานโน้ต · ผังองค์กร |
+| [Channels](docs/guide/channels.md) | ต่อ Telegram / Discord / LINE ทีละขั้น |
+| [CLI](docs/guide/cli.md) | ทุกคำสั่ง `bagidea` พร้อมตัวอย่าง |
+| [อัปเดตโปรแกรม](docs/guide/updates.md) | ระบบอัปเดต + ตัวติดตั้ง |
+| [แก้ปัญหา](docs/guide/troubleshooting.md) | ปัญหาที่พบบ่อยและวิธีแก้ |
 
 ## Design documents
 
@@ -356,9 +451,16 @@ this makes them employable"*).
 - [x] Day/night + manual atmosphere, roofline clock, ambient life, event FX
 - [x] **Sub-agents** — agents split into parallel ghost clones on the floating
       Ghost Deck (`SUB:` protocol, per-ghost sessions, auto-synthesis)
-- [ ] Permission policies (always-allow rules, per-agent keycards)
-- [ ] Voice (push-to-talk, wake word)
-- [ ] Packaged installer; macOS/Linux wallpaper backends
+- [x] **Projects** — agents work inside real folders with resumable sessions;
+      one window per project with a live view + hand-over
+- [x] Permission policies — granted tools run silently, ✓✓ forever grants
+- [x] Voice — F6 push-to-talk over Windows Voice Typing (Thai works)
+- [x] 📡 Feed mode, NOW-WORKING strip, Office Ops (jobs/calendar/notes/org)
+- [x] **Channels** — Telegram / Discord / LINE → the Director
+- [x] API key vault, `bagidea` CLI, one-shot installer + self-updater
+- [ ] Wake word; channel round-trip reports (delegate results back to the channel)
+- [ ] macOS/Linux wallpaper backends
+- [ ] Signed binary releases (skip the Rust build on install)
 
 ---
 
