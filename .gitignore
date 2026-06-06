@@ -41,3 +41,6 @@ _shots/
 shots/
 godot/assets/pixelfx/
 godot/assets/sounds/
+
+# Working art files at repo root (untracked until the owner decides)
+CharacterBase*

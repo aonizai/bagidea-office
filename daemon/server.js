@@ -53,6 +53,8 @@ const BUILTIN_TOOLS = {
 function loadReg() {
   try { reg = JSON.parse(fs.readFileSync(REGISTRY, "utf8")); } catch { reg = {}; }
   reg.agents = reg.agents || {};
+  reg.apiKeys = reg.apiKeys || {};      // ENV_NAME → value (injected into runs)
+  reg.channels = reg.channels || {};    // telegram/discord/line connector config
   reg.roles = reg.roles || ["Director", "Founder", "Researcher", "Engineer",
     "Designer", "Analyst", "Operator", "Specialist"];
   reg.skills = reg.skills || {};
@@ -160,7 +162,7 @@ function claudeText(prompt) {
   return new Promise((resolve) => {
     const child = spawn("claude", ["-p"], {
       cwd: WORKSPACE, shell: true,
-      env: { ...process.env, OFFICE_ADAPTER: "1" },
+      env: { ...process.env, ...(reg.apiKeys || {}), OFFICE_ADAPTER: "1" },
     });
     child.stdin.write(prompt);
     child.stdin.end();
@@ -411,7 +413,11 @@ function sweepProjects() {
 // Every agent knows the project map — say a project's name in chat and
 // they work its real directory, full authority, summary on finish.
 function projectNote() {
-  if (!projects.length && !Object.keys(reg.places).length) return "";
+  if (!projects.length && !Object.keys(reg.places).length &&
+      !Object.keys(reg.apiKeys || {}).length) return "";
+  const keysLine = Object.keys(reg.apiKeys || {}).length
+    ? `\nAPI keys ที่ตั้งค่าไว้ใน env ของคุณแล้ว (เรียกใช้ได้ทันที): ${Object.keys(reg.apiKeys).join(", ")}`
+    : "";
   const list = projects.map((p) => `- ${p.name} → ${p.dir}`).join("\n") || "(ยังไม่มี)";
   const places = Object.entries(reg.places)
     .map(([n, f]) => `- "${n}" → ${f}`).join("\n") || "(ไม่มี)";
@@ -431,7 +437,7 @@ ${places}
 อย่าเปิดหน้าต่างรบกวนผู้ใช้; ถ้าจำเป็นต้องเปิดจริงๆ จนไม่มีทางอื่น ให้รันคำสั่งเปิดตรงๆ
 แล้วระบบ Security จะขอ allow จากผู้ใช้ให้เอง.
 กฎเหล็ก: server/process ทุกตัวที่คุณเปิดเพื่อทดสอบ (dev server, next start, ฯลฯ)
-ต้องปิดให้หมดก่อนจบงาน — ห้ามทิ้งโปรเซสค้างไว้ในเครื่องผู้ใช้เด็ดขาด.
+ต้องปิดให้หมดก่อนจบงาน — ห้ามทิ้งโปรเซสค้างไว้ในเครื่องผู้ใช้เด็ดขาด.${keysLine}
 </office-projects>`;
 }
 
@@ -663,7 +669,7 @@ function runClaude(agent, prompt, opts = {}) {
   const child = spawn("claude", args, {
     cwd,
     shell: true,
-    env: { ...process.env, OFFICE_ADAPTER: "1", OFFICE_AGENT: agent, OFFICE_TASK: task },
+    env: { ...process.env, ...(reg.apiKeys || {}), OFFICE_ADAPTER: "1", OFFICE_AGENT: agent, OFFICE_TASK: task },
   });
   // The split capability + project map ride on the wire only — never in
   // the chat log.
@@ -1036,7 +1042,7 @@ function runSub(parentId, subId, taskText, entry, onDone) {
   const subCwd = (entry.proj && projectDir(entry.proj)) || WORKSPACE;
   const child = spawn("claude", args, {
     cwd: subCwd, shell: true,
-    env: { ...process.env, OFFICE_ADAPTER: "1", OFFICE_AGENT: subId, OFFICE_TASK: entry.key },
+    env: { ...process.env, ...(reg.apiKeys || {}), OFFICE_ADAPTER: "1", OFFICE_AGENT: subId, OFFICE_TASK: entry.key },
   });
   child.stdin.write(
     `You are a temporary SUB-AGENT — a parallel clone of "${a.name}" (${a.role}) ` +
@@ -1096,6 +1102,68 @@ function runSub(parentId, subId, taskText, entry, onDone) {
   child.on("error", () => finish(false));
   child.on("close", () => finish(!!lastText));
 }
+
+// ---------------------------------------------------------------- updates
+// Quietly compare local HEAD with GitHub main; when they differ the office
+// shows a 🔄 banner and `bagidea update` / POST /update runs the updater.
+let updateSha = null;
+function checkUpdate() {
+  const { execFile } = require("child_process");
+  execFile("git", ["rev-parse", "HEAD"], { cwd: path.join(__dirname, "..") }, (e, out) => {
+    if (e) return;
+    const local = String(out).trim();
+    require("https").get({
+      host: "api.github.com",
+      path: "/repos/bagidea/bagidea-ai-agents-office/commits/main",
+      headers: { "user-agent": "bagidea-office" },
+    }, (res) => {
+      let b = "";
+      res.on("data", (c) => (b += c));
+      res.on("end", () => {
+        try {
+          const j = JSON.parse(b);
+          if (j.sha && j.sha !== local && updateSha !== j.sha) {
+            updateSha = j.sha;
+            broadcast({ type: "update.available", sha: j.sha.slice(0, 7) }, false);
+            console.log("[update] new version available", j.sha.slice(0, 7));
+          }
+        } catch {}
+      });
+    }).on("error", () => {});
+  });
+}
+setTimeout(checkUpdate, 90000);
+setInterval(checkUpdate, 6 * 3600000);
+
+// ---------------------------------------------------------------- channels
+// The outside world (Telegram / Discord / LINE) talks to the Director —
+// inbound messages become serialized Director turns (no thread races) and
+// his reply rides back on the same channel. Full DELEGATE power applies.
+const channels = require("./channels")({
+  getConfig: () => reg.channels || {},
+  log: (s) => console.log(s),
+  onMessage(channel, from, text, reply) {
+    broadcast({ type: "channel.message", channel, from,
+      text: String(text).slice(0, 500) });
+    queueDirectorTurn((release) => {
+      runClaude("main",
+        `ข้อความใหม่จากช่องทาง ${channel.toUpperCase()} โดย "${from}":\n` +
+        `"""${String(text).slice(0, 4000)}"""\n\n` +
+        `ตอบกลับให้เหมาะสม — คำตอบของคุณจะถูกส่งกลับไปหาเขาทาง ${channel} ` +
+        `(ข้อความล้วน อ่านง่าย ภาษาเดียวกับผู้ส่ง). ` +
+        `ถ้าเป็นคำสั่งงาน คุณมีอำนาจเต็ม: ทำเอง หรือ DELEGATE ตาม protocol ปกติ ` +
+        `แล้วตอบเขาว่ารับเรื่องแล้วและจะรายงานผลทางออฟฟิศ`,
+        { logPrompt: `📨 [${channel}] ${String(text).slice(0, 80)}`,
+          filterText: makeDelegateFilter(0, undefined),
+          onDone: (out, ok) => {
+            release();
+            try { reply(ok && out ? out : "ขออภัยครับ ระบบติดขัดชั่วคราว ลองใหม่อีกครั้งนะครับ"); }
+            catch (e) { console.error("[chan reply]", e.message); }
+          } });
+    });
+  },
+});
+channels.restart();
 
 // ---------------------------------------------------------------- discussion
 // Agents talk to each other: round-robin claude calls sharing a transcript,
@@ -1208,10 +1276,29 @@ const server = http.createServer((req, res) => {
   } else if (req.method === "POST" && req.url === "/chat") {
     readBody(req, (body) => {
       try {
-        const { agent = "main", prompt, session } = JSON.parse(body);
+        let { agent = "main", prompt, session, wait } = JSON.parse(body);
         if (!prompt) throw new Error("no prompt");
         // Saying a project's name binds the conversation to its directory.
         const project = projectFromPrompt(prompt);
+        // wait:true (the CLI's ask) holds the response until the run truly
+        // finishes and returns the final text. CEO theatrics need a screen —
+        // waited calls go straight to the Director instead.
+        let waited = null;
+        if (wait) {
+          if (agent === "ceo") agent = "main";
+          const safety = setTimeout(() => {
+            if (waited) { waited = null;
+              res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+              res.end(JSON.stringify({ ok: false, text: "(timeout 10 นาที — งานยังทำต่อเบื้องหลัง)" })); }
+          }, 10 * 60000);
+          waited = (text, ok) => {
+            clearTimeout(safety);
+            if (!waited) return;
+            waited = null;
+            res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ ok, text: String(text || "") }));
+          };
+        }
         // CEO orders route through the Director; talking to the Director
         // directly gives him the same dispatch power. New threads adopt the
         // requested project workspace.
@@ -1219,10 +1306,14 @@ const server = http.createServer((req, res) => {
           : agent === "main"
             ? runClaude("main", prompt + directorNote(),
                 { session, project, logPrompt: prompt,
-                  filterText: makeDelegateFilter(0, session) })
-            : runClaude(agent, prompt, { session, project });
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ task }));
+                  filterText: makeDelegateFilter(0, session),
+                  onDone: wait ? (t, ok) => waited && waited(t, ok) : undefined })
+            : runClaude(agent, prompt, { session, project,
+                onDone: wait ? (t, ok) => waited && waited(t, ok) : undefined });
+        if (!wait) {
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ task }));
+        }
       } catch (e) {
         res.writeHead(400);
         res.end(String(e.message));
@@ -1681,6 +1772,54 @@ const server = http.createServer((req, res) => {
       } catch (e) { res.writeHead(400); res.end(String(e.message)); }
     });
 
+  } else if (req.method === "POST" && req.url === "/registry/key") {
+    // 🔑 API key vault: ENV_NAME → value, injected into every agent run's
+    // environment (OPENAI_API_KEY, GEMINI_API_KEY, …). Agents are told the
+    // NAMES via projectNote; values live only in registry.json + env.
+    readBody(req, (body) => {
+      try {
+        const { name, value, remove } = JSON.parse(body);
+        const n = String(name || "").trim().toUpperCase()
+          .replace(/[^A-Z0-9_]/g, "_").slice(0, 64);
+        if (!n) throw new Error("no name");
+        if (remove) delete reg.apiKeys[n];
+        else {
+          if (!value) throw new Error("no value");
+          reg.apiKeys[n] = String(value).trim().slice(0, 500);
+        }
+        saveReg();
+        res.writeHead(200); res.end("ok");
+      } catch (e) { res.writeHead(400); res.end(String(e.message)); }
+    });
+
+  } else if (req.method === "POST" && req.url === "/registry/channel") {
+    // 🔗 channel connector config — saving restarts the connectors live.
+    readBody(req, (body) => {
+      try {
+        const { kind, config } = JSON.parse(body);
+        if (!["telegram", "discord", "line"].includes(kind)) throw new Error("bad kind");
+        reg.channels[kind] = {
+          enabled: !!(config && config.enabled),
+          token: String((config && config.token) || "").trim().slice(0, 300),
+          chat: String((config && config.chat) || "").trim().slice(0, 80),
+          channel: String((config && config.channel) || "").trim().slice(0, 80),
+          secret: String((config && config.secret) || "").trim().slice(0, 200),
+        };
+        saveReg();
+        channels.restart();
+        res.writeHead(200); res.end("ok");
+      } catch (e) { res.writeHead(400); res.end(String(e.message)); }
+    });
+
+  } else if (req.method === "GET" && req.url === "/channels/status") {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify(channels.status()));
+
+  } else if (req.method === "POST" && req.url === "/channels/line/webhook") {
+    // LINE Messaging API webhook — point your channel's webhook URL here
+    // through a public HTTPS tunnel (e.g. cloudflared).
+    readBodyRaw(req, (raw) => channels.lineWebhook(req, res, raw));
+
   } else if (req.method === "POST" && req.url === "/registry/heartbeat") {
     // Director overview cadence: 0 = off, otherwise minutes between passes.
     readBody(req, (body) => {
@@ -1860,6 +1999,14 @@ const server = http.createServer((req, res) => {
         res.end("bad json");
       }
     });
+
+  } else if (req.method === "POST" && req.url === "/update") {
+    // Human-triggered only (in-app 🔄 button or the CLI).
+    if (!req.headers["x-bagidea-ui"]) { res.writeHead(403); return res.end("human UI only"); }
+    const ps = path.join(__dirname, "..", "installer", "update.ps1");
+    spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps],
+      { detached: true, stdio: "ignore", windowsHide: false }).unref();
+    res.writeHead(200); res.end("ok");
 
   } else if (req.url === "/health") {
     res.writeHead(200, { "content-type": "application/json" });

@@ -65,8 +65,12 @@ fn parse_hotkey(s: &str) -> Option<global_hotkey::hotkey::HotKey> {
             "shift" => mods |= Modifiers::SHIFT,
             "alt" => mods |= Modifiers::ALT,
             "space" => code = Some(Code::Space),
+            "f5" => code = Some(Code::F5),
+            "f6" => code = Some(Code::F6),
+            "f7" => code = Some(Code::F7),
             "f8" => code = Some(Code::F8),
             "f9" => code = Some(Code::F9),
+            "f10" => code = Some(Code::F10),
             "none" | "" => return None,
             _ => {}
         }
@@ -483,7 +487,7 @@ fn main() {
 
     // ---- global push-to-talk hotkey (default Ctrl+Space, overlay-config)
     let hk_mgr = global_hotkey::GlobalHotKeyManager::new().ok();
-    let mut cur_hotkey = parse_hotkey("ctrl+space");
+    let mut cur_hotkey = parse_hotkey("f6");
     if let (Some(m), Some(hk)) = (hk_mgr.as_ref(), cur_hotkey) {
         let _ = m.register(hk);
     }
@@ -621,6 +625,7 @@ fn main() {
 
     let mut mini = false;
     let mut feed = false;
+    let mut ptt_held = false;
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
@@ -654,12 +659,18 @@ fn main() {
             }
         }
 
-        // Global push-to-talk: hold the chord, dictate, release to send.
+        // Global push-to-talk: hold the chord, dictate, release to stop.
         while let Ok(e) = global_hotkey::GlobalHotKeyEvent::receiver().try_recv() {
             if let Some(hk) = cur_hotkey {
                 if e.id == hk.id() {
                     match e.state {
                         global_hotkey::HotKeyState::Pressed => {
+                            // Keyboard auto-repeat fires Pressed again and
+                            // again while held — only the first one counts.
+                            if ptt_held {
+                                continue;
+                            }
+                            ptt_held = true;
                             // Summon the overlay if it's parked off-screen —
                             // dictation needs a real, visible, FOREGROUND box.
                             let hidden = overlay
@@ -685,6 +696,7 @@ fn main() {
                             send_win_h();
                         }
                         global_hotkey::HotKeyState::Released => {
+                            ptt_held = false;
                             send_esc();
                             let _ = overlay_view
                                 .evaluate_script("window.pttEnd && pttEnd()");

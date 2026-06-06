@@ -1,4 +1,4 @@
-# Live project viewer — opened by the play button while an AGENT is working
+﻿# Live project viewer — opened by the play button while an AGENT is working
 # in the project. Tails the agent's claude session (pretty-printed) so the
 # owner watches the real work, and the moment the daemon reports the run
 # finished, this SAME window resumes the SAME session interactively.
