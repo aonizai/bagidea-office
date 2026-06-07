@@ -72,6 +72,7 @@ async function main() {
   ${C.cyan}bagidea projects${C.off}              รายชื่อโปรเจค
   ${C.cyan}bagidea open "<ชื่อโปรเจค>"${C.off}    เปิดหน้าต่างโปรเจค
   ${C.cyan}bagidea feed${C.off}                  ดูเหตุการณ์สด (Ctrl+C ออก)
+  ${C.cyan}bagidea fixmic${C.off}                แก้แผงพิมพ์ด้วยเสียงค้าง
   ${C.cyan}bagidea update${C.off}                อัปเดตโปรแกรม
   ${C.cyan}bagidea version${C.off}               เวอร์ชันปัจจุบัน`);
     return;
@@ -202,6 +203,16 @@ async function main() {
           console.log(`${C.dim}${t}${C.off} 📨 [${e.channel}] ${e.from}: ${e.text}`);
       }
     }, 800);
+    return;
+  }
+
+  if (cmd === "fixmic") {
+    // Windows Voice Typing (TextInputHost) can hang with the panel stuck on
+    // "Listening..." — killing it is safe, Windows respawns it instantly.
+    spawn("powershell", ["-NoProfile", "-Command",
+      "Get-Process TextInputHost -ErrorAction SilentlyContinue | Stop-Process -Force"],
+      { stdio: "ignore" }).on("close", () =>
+      console.log(`${C.green}✓${C.off} รีเซ็ตแผงพิมพ์ด้วยเสียงแล้ว (Windows เปิดตัวใหม่ให้เอง)`));
     return;
   }
 
