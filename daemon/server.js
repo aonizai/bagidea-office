@@ -828,7 +828,7 @@ PROJECT: <ชื่อโปรเจค> @ <ชื่อ place หรือ ful
 </system-capability>`;
 }
 
-function ceoFlow(prompt, session, project) {
+function ceoFlow(prompt, session, project, opts = {}) {
   broadcast({ type: "ceo.summon", agent: "main" });
   const wrapped =
     `The owner (CEO) has called you over and given this order in person:\n` +
@@ -844,8 +844,9 @@ function ceoFlow(prompt, session, project) {
   return runClaude("main", wrapped, {
     session,
     project,
-    logPrompt: "👑 (CEO) " + prompt,
+    logPrompt: opts.logPrompt || ("👑 (CEO) " + prompt),
     filterText: makeDelegateFilter(0, session),
+    onDone: opts.onDone,   // channels/CLI hook the reply ride-back here
   });
 }
 
@@ -1145,16 +1146,17 @@ const channels = require("./channels")({
   onMessage(channel, from, text, reply) {
     broadcast({ type: "channel.message", channel, from,
       text: String(text).slice(0, 500) });
+    // A channel message IS the owner speaking — it goes through the CEO
+    // seat: the Director walks over (ceo.summon), takes the order, may
+    // DELEGATE, and his reply rides back on the same channel. Serialized
+    // like every other Director turn so threads never fork.
     queueDirectorTurn((release) => {
-      runClaude("main",
-        `ข้อความใหม่จากช่องทาง ${channel.toUpperCase()} โดย "${from}":\n` +
-        `"""${String(text).slice(0, 4000)}"""\n\n` +
-        `ตอบกลับให้เหมาะสม — คำตอบของคุณจะถูกส่งกลับไปหาเขาทาง ${channel} ` +
-        `(ข้อความล้วน อ่านง่าย ภาษาเดียวกับผู้ส่ง). ` +
-        `ถ้าเป็นคำสั่งงาน คุณมีอำนาจเต็ม: ทำเอง หรือ DELEGATE ตาม protocol ปกติ ` +
-        `แล้วตอบเขาว่ารับเรื่องแล้วและจะรายงานผลทางออฟฟิศ`,
-        { logPrompt: `📨 [${channel}] ${String(text).slice(0, 80)}`,
-          filterText: makeDelegateFilter(0, undefined),
+      ceoFlow(
+        `(ข้อความนี้ส่งมาจาก ${channel.toUpperCase()} โดย "${from}" — ` +
+        `ตอบกลับกระชับ อ่านง่ายในแชทมือถือ ภาษาเดียวกับผู้ส่ง)\n` +
+        String(text).slice(0, 4000),
+        undefined, undefined,
+        { logPrompt: `👑📨 [${channel}] ${String(text).slice(0, 80)}`,
           onDone: (out, ok) => {
             release();
             try { reply(ok && out ? out : "ขออภัยครับ ระบบติดขัดชั่วคราว ลองใหม่อีกครั้งนะครับ"); }
@@ -1281,11 +1283,9 @@ const server = http.createServer((req, res) => {
         // Saying a project's name binds the conversation to its directory.
         const project = projectFromPrompt(prompt);
         // wait:true (the CLI's ask) holds the response until the run truly
-        // finishes and returns the final text. CEO theatrics need a screen —
-        // waited calls go straight to the Director instead.
+        // finishes and returns the final text.
         let waited = null;
         if (wait) {
-          if (agent === "ceo") agent = "main";
           const safety = setTimeout(() => {
             if (waited) { waited = null;
               res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
@@ -1302,7 +1302,9 @@ const server = http.createServer((req, res) => {
         // CEO orders route through the Director; talking to the Director
         // directly gives him the same dispatch power. New threads adopt the
         // requested project workspace.
-        const task = agent === "ceo" ? ceoFlow(prompt, session, project)
+        const task = agent === "ceo"
+          ? ceoFlow(prompt, session, project,
+              { onDone: wait ? (t, ok) => waited && waited(t, ok) : undefined })
           : agent === "main"
             ? runClaude("main", prompt + directorNote(),
                 { session, project, logPrompt: prompt,
