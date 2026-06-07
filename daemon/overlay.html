@@ -968,77 +968,68 @@
   // Engine = Windows Voice Typing (offline-capable, speaks Thai): press
   // opens it over the focused input, release closes it. WebView2 has no
   // Web Speech backend and we have no STT keys, so this is the honest path.
+  // Click = mic ON (button burns red), click again = OFF. The system's own
+  // dictation panel is parked off-screen by the shell — OUR button is the
+  // mic indicator.
   function wireMic(btn, input) {
     if (!btn) return;
-    btn.title = "🎤 กดค้างเพื่อพูด — ปล่อยเพื่อหยุด";
-    let talking = false;
-    const start = (e) => {
+    btn.title = "🎤 คลิกเพื่อเปิดไมค์ — คลิกอีกครั้งเพื่อปิด";
+    let on = false;
+    btn.onclick = (e) => {
       e.preventDefault();
-      if (talking) return;
-      talking = true;
-      btn.classList.add("rec");
+      if (!shellPost) {
+        addChip("🎤 ใช้ได้เฉพาะในแอป BagIdea Office (กด Win+H แทนได้)");
+        return;
+      }
+      on = !on;
+      btn.classList.toggle("rec", on);
       if (input) input.focus();
-      if (shellPost) shellPost("micdown");
-      else addChip("🎤 ใช้ได้เฉพาะในแอป BagIdea Office (กด Win+H แทนได้)");
+      shellPost(on ? "micdown" : "micup");
+      if (!on && input) input.focus();
     };
-    const stop = () => {
-      if (!talking) return;
-      talking = false;
-      btn.classList.remove("rec");
-      if (shellPost) shellPost("micup");
-      if (input) input.focus();
-    };
-    btn.addEventListener("mousedown", start);
-    btn.addEventListener("touchstart", start);
-    btn.addEventListener("mouseup", stop);
-    btn.addEventListener("mouseleave", stop);
-    btn.addEventListener("touchend", stop);
-    btn.onclick = (e) => e.preventDefault();
   }
   wireMic(document.getElementById("micBtn"), document.getElementById("inp"));
 
-  // ---- global push-to-talk (shell hotkey): hold → dictate → release SENDS.
-  // In feed mode the command always goes to the Director (main).
-  let _pttFeed = false;
-  // Live dictation pill: you SEE that the mic is hot and what it heard so
-  // far — without it, hold-to-talk feels like talking to a wall.
+  // ---- global voice-command hotkey (F6): press = mic ON, press again =
+  // mic OFF + the words go STRAIGHT to the Director. Independent from the
+  // mic buttons; works in normal / mini / feed mode alike (dictation lands
+  // in the hidden #pttInp, never in a visible box).
   let _pttTimer = null;
   function pttLive(on) {
     const pill = document.getElementById("pttLive");
     clearInterval(_pttTimer);
     if (!on) { pill.classList.remove("on"); return; }
     pill.classList.add("on");
-    const box = _pttFeed ? document.getElementById("pttInp") : document.getElementById("inp");
+    const box = document.getElementById("pttInp");
     const paint = () => {
       const v = (box && box.value || "").trim();
-      pill.querySelector("span").textContent = v || "กำลังฟัง… พูดได้เลย";
+      pill.querySelector("span").textContent =
+        (v || "กำลังฟัง… พูดได้เลย") + "  · กด F6 อีกครั้งเพื่อส่ง";
     };
     paint();
     _pttTimer = setInterval(paint, 250);
   }
   window.pttStart = () => {
-    _pttFeed = document.body.classList.contains("feedmode");
-    const box = _pttFeed ? document.getElementById("pttInp") : document.getElementById("inp");
-    if (box) { box.focus(); }
+    const box = document.getElementById("pttInp");
+    box.value = "";
+    box.focus();
     pttLive(true);
   };
   window.pttEnd = () => {
-    // Voice typing finalizes a beat after Esc — give it a moment.
+    // Voice typing finalizes its last words a beat after closing.
     setTimeout(async () => {
       pttLive(false);
-      if (_pttFeed) {
-        // Feed mode has no visible input — release SENDS to the Director.
-        const box = document.getElementById("pttInp");
-        const val = (box.value || "").trim();
-        box.value = "";
-        if (!val) return;
+      const box = document.getElementById("pttInp");
+      const val = (box.value || "").trim();
+      box.value = "";
+      if (!val) return;
+      if (document.body.classList.contains("feedmode"))
         addFeed("ceo", "🎤 " + val, "", "");
-        await fetch("/chat", {
-          method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ agent: "main", prompt: val }),
-        });
-      }
-      // Normal mode: the words stay in the box — YOU press send.
+      else addChip("🎤 สั่งงาน Director: " + val.slice(0, 140));
+      await fetch("/chat", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agent: "main", prompt: val }),
+      });
     }, 750);
   };
   // Tell the shell which chord to listen for (persisted per machine).
@@ -1409,7 +1400,7 @@
             <option value="30">ทุก 30 นาที</option>
             <option value="60">ทุก 1 ชั่วโมง</option>
           </select></div>
-        <div class="field" style="margin-top:8px"><label>🎤 PUSH-TO-TALK HOTKEY — กดค้างเพื่อพูด ปล่อยเพื่อหยุด (feed mode ส่งหา Director อัตโนมัติ)</label>
+        <div class="field" style="margin-top:8px"><label>🎤 HOTKEY สั่งงานด้วยเสียง — กด = เปิดไมค์ · กดอีกครั้ง = ปิด + ส่งหา Director ทันที (ทุกโหมด)</label>
           <select id="pttSel">
             <option value="f6">F6 (แนะนำ)</option>
             <option value="f7">F7</option>

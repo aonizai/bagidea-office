@@ -104,6 +104,44 @@ fn send_win_h() {
     send_keys(&[(VK_LWIN, false), (0x48, false), (0x48, true), (VK_LWIN, true)]);
 }
 
+/// The Windows Voice Typing panel (TextInputHost) is ugly and floats over
+/// everything — OUR red pill/button is the mic indicator, so the panel gets
+/// parked off-screen while dictating (it keeps listening and typing). On
+/// mic-off it's moved back to a sane bottom-center spot first, so a manual
+/// Win+H later doesn't open an invisible panel.
+fn move_voice_panel(park: bool) {
+    std::thread::spawn(move || unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            FindWindowW, GetSystemMetrics, SetWindowPos, SM_CXSCREEN, SM_CYSCREEN,
+            SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
+        };
+        let title: Vec<u16> = "Microsoft Text Input Application\0".encode_utf16().collect();
+        for round in 0..14 {
+            if round > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(150));
+            }
+            let h = FindWindowW(std::ptr::null(), title.as_ptr());
+            if !h.is_null() {
+                let (x, y) = if park {
+                    (-3000, -3000)
+                } else {
+                    ((GetSystemMetrics(SM_CXSCREEN) - 340) / 2, GetSystemMetrics(SM_CYSCREEN) - 320)
+                };
+                SetWindowPos(h, std::ptr::null_mut(), x, y, 0, 0,
+                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+                if !park {
+                    break;
+                }
+                // parking: keep re-asserting for the full window — the panel
+                // re-centers itself while it animates in
+            }
+            if !park && round >= 4 {
+                break;
+            }
+        }
+    });
+}
+
 /// Voice typing lands wherever the FOREGROUND focus is — and plain
 /// set_focus loses to the Windows foreground lock when we're a background
 /// process. A synthetic ALT tap counts as "recent user input" and unlocks
@@ -621,6 +659,7 @@ fn main() {
     let mut mini = false;
     let mut feed = false;
     let mut ptt_held = false;
+    let mut ptt_on = false;
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
@@ -666,39 +705,46 @@ fn main() {
                                 continue;
                             }
                             ptt_held = true;
-                            // Summon the overlay if it's parked off-screen —
-                            // dictation needs a real, visible, FOREGROUND box.
-                            let hidden = overlay
-                                .outer_position()
-                                .map(|p| p.x < -2000)
-                                .unwrap_or(true);
-                            if hidden {
-                                let (px, py) = if feed {
-                                    (feed_x, feed_y)
-                                } else {
-                                    (overlay_x, overlay_y)
-                                };
-                                overlay.set_outer_position(LogicalPosition::new(px, py));
-                                raise_orb(&orb);
+                            if !ptt_on {
+                                // ── mic ON: dictate a command for the Director.
+                                ptt_on = true;
+                                // Summon the overlay if it's parked — the live
+                                // pill must be visible, and dictation needs a
+                                // real foreground box (the hidden #pttInp).
+                                let hidden = overlay
+                                    .outer_position()
+                                    .map(|p| p.x < -2000)
+                                    .unwrap_or(true);
+                                if hidden {
+                                    let (px, py) = if feed {
+                                        (feed_x, feed_y)
+                                    } else {
+                                        (overlay_x, overlay_y)
+                                    };
+                                    overlay.set_outer_position(LogicalPosition::new(px, py));
+                                    raise_orb(&orb);
+                                }
+                                overlay.set_focus();
+                                force_foreground(overlay.hwnd() as HWND);
+                                let _ = overlay_view
+                                    .evaluate_script("window.pttStart && pttStart()");
+                                // Let focus actually land before Win+H opens
+                                // the panel, or it attaches to the wrong window.
+                                std::thread::sleep(std::time::Duration::from_millis(230));
+                                send_win_h();
+                                move_voice_panel(true); // hide the ugly panel
+                            } else {
+                                // ── mic OFF: close the panel + SEND to main.
+                                ptt_on = false;
+                                move_voice_panel(false); // back on-screen first
+                                std::thread::sleep(std::time::Duration::from_millis(120));
+                                send_win_h();
+                                let _ = overlay_view
+                                    .evaluate_script("window.pttEnd && pttEnd()");
                             }
-                            overlay.set_focus();
-                            force_foreground(overlay.hwnd() as HWND);
-                            let _ = overlay_view
-                                .evaluate_script("window.pttStart && pttStart()");
-                            // Let focus actually land before Win+H opens the
-                            // panel, or it attaches to the wrong window.
-                            std::thread::sleep(std::time::Duration::from_millis(230));
-                            send_win_h();
                         }
                         global_hotkey::HotKeyState::Released => {
                             ptt_held = false;
-                            // Win+H TOGGLES voice typing — closing with the
-                            // same chord works from anywhere, while Esc only
-                            // works when the panel itself has focus (it kept
-                            // getting stranded open).
-                            send_win_h();
-                            let _ = overlay_view
-                                .evaluate_script("window.pttEnd && pttEnd()");
                         }
                     }
                 }
@@ -816,8 +862,13 @@ fn main() {
                     force_foreground(overlay.hwnd() as HWND);
                     std::thread::sleep(std::time::Duration::from_millis(160));
                     send_win_h();
+                    move_voice_panel(true);  // our red button IS the indicator
                 }
-                UserEvent::MicUp => send_win_h(),  // toggle the panel closed
+                UserEvent::MicUp => {
+                    move_voice_panel(false); // sane spot for future manual Win+H
+                    std::thread::sleep(std::time::Duration::from_millis(120));
+                    send_win_h();            // toggle the panel closed
+                }
                 UserEvent::SetHotkey(s) => {
                     if let Some(m) = hk_mgr.as_ref() {
                         if let Some(old) = cur_hotkey {
