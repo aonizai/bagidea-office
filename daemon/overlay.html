@@ -1782,8 +1782,17 @@
       m.appendChild(o);
     }
   }
+  // One dropdown at a time: opening any menu closes the others. (Each menu
+  // button calls stopPropagation, so the per-menu outside-click closers can't
+  // reach across — without this they stack on top of each other.)
+  const MENU_IDS = ["dayMenu", "moreMenu", "langMenu", "sessMenu"];
+  function closeMenus(except) {
+    for (const id of MENU_IDS)
+      if (id !== except) document.getElementById(id).classList.remove("open");
+  }
   document.getElementById("dayBtn").onclick = (e) => {
     e.stopPropagation();
+    closeMenus("dayMenu");
     renderDayMenu();
     document.getElementById("dayMenu").classList.toggle("open");
   };
@@ -1791,7 +1800,7 @@
 
   // ⋯ overflow menu — holds the secondary tools so the header never overflows
   const moreMenu = document.getElementById("moreMenu");
-  document.getElementById("moreBtn").onclick = (e) => { e.stopPropagation(); moreMenu.classList.toggle("open"); };
+  document.getElementById("moreBtn").onclick = (e) => { e.stopPropagation(); closeMenus("moreMenu"); moreMenu.classList.toggle("open"); };
   document.addEventListener("click", () => moreMenu.classList.remove("open"));
   moreMenu.querySelectorAll(".opt").forEach((o) =>
     o.addEventListener("click", () => moreMenu.classList.remove("open")));
@@ -1810,6 +1819,7 @@
   }
   document.getElementById("langBtn").addEventListener("click", (e) => {
     e.stopPropagation();
+    closeMenus("langMenu");
     renderLangMenu();
     langMenu.classList.toggle("open");
   });
@@ -3339,6 +3349,7 @@
 
   document.getElementById("sessBtn").onclick = async (e) => {
     e.stopPropagation();
+    closeMenus("sessMenu");
     const m = document.getElementById("sessMenu");
     if (m.classList.contains("open")) return m.classList.remove("open");
     const r = await fetch(`/sessions?agent=${encodeURIComponent(sessAgent())}`).then((x) => x.json());
