@@ -114,9 +114,110 @@ func _build_room(room: Node3D, kind: String) -> void:
 	lbl.position = Vector3(0, WALL_H + 0.6, 0); lbl.rotation_degrees = Vector3(-90, 0, 0)
 	lbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	room.add_child(lbl)
-	# a couple of placeholder furniture blocks so rooms read as occupied
-	room.add_child(_box(Vector3(-1.6, 0.4, -1.2), Vector3(1.4, 0.8, 0.8), _m("3a3f4d", 0.5)))
-	room.add_child(_box(Vector3(1.6, 0.3, 1.4), Vector3(1.0, 0.6, 1.0), _m(String(d["accent"]), 0.6)))
+	_furnish(room, kind, String(d["accent"]))
+
+# ----------------------------------------------------------- kit furniture
+const SCIFI_DIR := "res://assets/scifi/"
+var _kit_cache := {}
+
+func _kit_avail() -> bool:
+	return FileAccess.file_exists(ProjectSettings.globalize_path(SCIFI_DIR + "Chair_1.glb"))
+
+func _kit(room: Node3D, model: String, lpos: Vector3, roty := 0.0, s := 1.0) -> void:
+	if not _kit_cache.has(model):
+		var doc := GLTFDocument.new(); var st := GLTFState.new()
+		var path := ProjectSettings.globalize_path(SCIFI_DIR + model + ".glb")
+		_kit_cache[model] = doc.generate_scene(st) if doc.append_from_file(path, st) == OK else null
+	var proto = _kit_cache[model]
+	if proto == null: return
+	var inst: Node3D = proto.duplicate()
+	inst.position = lpos; inst.rotation_degrees = Vector3(0, roty, 0); inst.scale = Vector3.ONE * s
+	room.add_child(inst)
+
+## Per-room hero furniture (kit when present, else simple blocks). All LOCAL to
+## the cell centre so it rides the container when rooms swap.
+func _furnish(room: Node3D, kind: String, accent: String) -> void:
+	var kit := _kit_avail()
+	match kind:
+		"exec":
+			if kit:
+				_kit(room, "Command_Console", Vector3(0, 0, -2.5), 0.0, 0.5)
+				_kit(room, "Large_Monitor_Blue", Vector3(-2.2, 0, -3.0), 0.0, 0.5)
+				_kit(room, "Orrery", Vector3(2.7, 0, -2.4), 0.0, 0.35)
+				_kit(room, "Chair_1", Vector3(0, 0, -1.4), 180.0, 0.6)
+				_kit(room, "Plant_1", Vector3(3.0, 0, 2.8), 40.0, 1.4)
+			else:
+				room.add_child(_box(Vector3(0, 0.45, -2.4), Vector3(2.4, 0.9, 1.0), _m("2a2018", 0.5)))
+		"ops":
+			var spots := [Vector3(-2.3, 0, -2.0), Vector3(0, 0, -2.0), Vector3(2.3, 0, -2.0),
+				Vector3(-2.3, 0, 1.4), Vector3(0, 0, 1.4), Vector3(2.3, 0, 1.4)]
+			for sp in spots:
+				room.add_child(_box(sp + Vector3(0, 0.4, 0), Vector3(1.4, 0.8, 0.7), _m("23303f", 0.5)))
+				if kit:
+					_kit(room, "Large_Monitor_Blue", sp + Vector3(0, 0.8, 0.05), 0.0, 0.24)
+					_kit(room, "Chair_1", sp + Vector3(0, 0, -0.85), 180.0, 0.55)
+		"server":
+			if kit:
+				_kit(room, "Generator", Vector3(0.6, 0, -1.8), 25.0, 0.55)
+				_kit(room, "Generator_Pile_Chonky", Vector3(-2.2, 0, -2.6), 0.0, 0.45)
+				_kit(room, "Battery_Green", Vector3(2.6, 0, 0.6), 90.0, 0.8)
+				_kit(room, "Battery_Blue", Vector3(2.6, 0, 1.5), 90.0, 0.8)
+				_kit(room, "Generator_Pile_Small", Vector3(-2.4, 0, 2.0), 0.0, 0.5)
+			else:
+				room.add_child(_box(Vector3(0, 0.7, -1.8), Vector3(1.6, 1.4, 1.0), _m("1c2a22", 0.4)))
+		"meeting":
+			if kit:
+				_kit(room, "Octo_Table", Vector3(0, 0, 0), 0.0, 0.45)
+				_kit(room, "Chair_1", Vector3(-1.3, 0, -1.3), 135.0, 0.6)
+				_kit(room, "Chair_1", Vector3(1.3, 0, -1.3), -135.0, 0.6)
+				_kit(room, "Chair_1", Vector3(-1.3, 0, 1.3), 45.0, 0.6)
+				_kit(room, "Chair_1", Vector3(1.3, 0, 1.3), -45.0, 0.6)
+				_kit(room, "Briefing_Screen_Purple", Vector3(0, 0, -3.0), 0.0, 0.5)
+			else:
+				room.add_child(_box(Vector3(0, 0.4, 0), Vector3(2.2, 0.8, 2.2), _m("241d30", 0.5)))
+		"cafe":
+			room.add_child(_box(Vector3(-2.6, 0.5, 0), Vector3(0.9, 1.0, 2.4), _m("2a1d10", 0.5)))   # counter
+			for tp in [Vector3(0.6, 0, -1.4), Vector3(1.6, 0, 1.8)]:
+				if kit:
+					_kit(room, "Cafeteria_Table", tp, 0.0, 0.8)
+					_kit(room, "Chair_1", tp + Vector3(0.9, 0, 0.5), -120.0, 0.55)
+					_kit(room, "Chair_1", tp + Vector3(-0.9, 0, -0.5), 60.0, 0.55)
+				else:
+					room.add_child(_box(tp + Vector3(0, 0.4, 0), Vector3(1.0, 0.8, 1.0), _m("3a2a18", 0.5)))
+		"dorm":
+			if kit:
+				_kit(room, "Bunk_Single_Blue", Vector3(-1.8, 0, -1.5), 0.0, 0.7)
+				_kit(room, "Bunk_Single_Red", Vector3(1.8, 0, -1.5), 0.0, 0.7)
+				_kit(room, "Cryo_Tube_ON", Vector3(2.8, 0, 2.2), 0.0, 0.45)
+				_kit(room, "Plant_1", Vector3(-2.8, 0, 2.4), 120.0, 1.5)
+			else:
+				room.add_child(_box(Vector3(-1.8, 0.3, -1.5), Vector3(1.0, 0.5, 2.0), _m("2a2d3a", 0.6)))
+				room.add_child(_box(Vector3(1.8, 0.3, -1.5), Vector3(1.0, 0.5, 2.0), _m("2a2d3a", 0.6)))
+		"dormx":
+			for i in 4:
+				var x := -2.7 + i * 1.8
+				if kit:
+					_kit(room, "Bunk_Single_" + ["Blue", "Green", "Orange", "Purple"][i], Vector3(x, 0, -1.4), 0.0, 0.7)
+				else:
+					room.add_child(_box(Vector3(x, 0.3, -1.4), Vector3(1.0, 0.5, 2.0), _m("242636", 0.6)))
+		"rec":
+			if kit:
+				_kit(room, "Large_Monitor_White", Vector3(-3.0, 0, 0), 90.0, 0.5)
+				_kit(room, "Chair_1", Vector3(-1.4, 0, -0.5), 90.0, 0.6)
+				_kit(room, "Chair_1", Vector3(-1.4, 0, 0.6), 90.0, 0.6)
+				_kit(room, "Cafeteria_Table", Vector3(1.6, 0, 1.4), 90.0, 0.8)
+				_kit(room, "3D_Chess_Board", Vector3(1.6, 0.62, 1.4), 15.0, 0.35)
+				_kit(room, "Hydroponics_Full", Vector3(2.6, 0, -2.4), 0.0, 0.8)
+				_kit(room, "Plant_1", Vector3(-2.8, 0, 2.6), 60.0, 1.5)
+			else:
+				room.add_child(_box(Vector3(-3.0, 0.6, 0), Vector3(0.2, 1.2, 2.0), _m("101418", 0.3)))
+		"lobby":
+			room.add_child(_box(Vector3(0, 1.2, 0), Vector3(0.5, 2.4, 0.5), _m("1a2025", 0.3, "ff2a20", 1.6)))   # totem
+			room.add_child(_box(Vector3(-2.4, 0.5, -2.2), Vector3(1.8, 1.0, 0.7), _m("2a1d18", 0.5)))            # reception
+			room.add_child(_box(Vector3(2.4, 0.35, 2.0), Vector3(0.9, 0.7, 0.9), _m("203038", 0.5)))            # armchair
+			if kit:
+				_kit(room, "End_Table", Vector3(2.4, 0, -2.2), 0.0, 0.8)
+				_kit(room, "3D_Chess_Board", Vector3(2.4, 0.75, -2.2), 25.0, 0.35)
 
 func _m(hex: String, rough := 0.8, emit := "", emit_e := 0.0) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
