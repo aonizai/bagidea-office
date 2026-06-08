@@ -496,37 +496,48 @@ func _build_ui() -> void:
 	ui.theme = _build_theme()
 	var layer := CanvasLayer.new(); layer.add_child(ui); add_child(layer)
 
+	var M := 16.0      # screen-edge margin
+	var COLW := 224.0  # side-column width
+
 	# ── TOP TOOLBAR — layout / file actions, separate from the object palette
-	var bar := PanelContainer.new(); bar.position = Vector2(12, 10)
+	var bar := PanelContainer.new(); bar.position = Vector2(M, M)
 	var bh := HBoxContainer.new(); bh.add_theme_constant_override("separation", 8); bar.add_child(bh)
 	var bt := Label.new(); bt.text = "🎨 EDITOR"; bh.add_child(bt)
-	var sep := VSeparator.new(); bh.add_child(sep)
+	bh.add_child(VSeparator.new())
 	var plab := Label.new(); plab.text = "Layout:"; plab.add_theme_font_size_override("font_size", 11); bh.add_child(plab)
 	var pbtn := OptionButton.new(); pbtn.name = "PresetPick"; pbtn.add_item("เลือก layout…")
 	for pr in PRESETS: pbtn.add_item("⭐ " + pr["name"])
 	pbtn.item_selected.connect(_on_preset_picked); bh.add_child(pbtn)
+	bh.add_child(VSeparator.new())
 	var imp := Button.new(); imp.text = "📦 .glb"; imp.pressed.connect(_import_model); bh.add_child(imp)
 	var pst := Button.new(); pst.text = "🖼 image"; pst.pressed.connect(_import_image); bh.add_child(pst)
 	var save := Button.new(); save.text = "💾 บันทึก"; save.pressed.connect(_save); bh.add_child(save)
 	var savep := Button.new(); savep.text = "⭐ เป็น preset"; savep.pressed.connect(_save_as_preset); bh.add_child(savep)
 	ui.add_child(bar)
 
-	# ── LEFT — object palette only (categorised: system vs decor)
-	var panel := PanelContainer.new(); panel.position = Vector2(12, 64); panel.custom_minimum_size = Vector2(196, 0)
-	var sc := ScrollContainer.new(); sc.custom_minimum_size = Vector2(190, 470); panel.add_child(sc)
-	var vb := VBoxContainer.new(); vb.add_theme_constant_override("separation", 4); vb.custom_minimum_size = Vector2(178, 0); sc.add_child(vb)
-	var title := Label.new(); title.text = "＋ เพิ่มวัตถุ"; vb.add_child(title)
-	var hint := Label.new(); hint.text = "ซ้ายลาก=เลื่อนกล้อง · คลิกวัตถุ=เลือก · ลาก=ย้าย · ขวา=หมุน"
-	hint.add_theme_font_size_override("font_size", 9); hint.autowrap_mode = TextServer.AUTOWRAP_WORD; vb.add_child(hint)
-	# 🔵 system objects — bound to an agent anchor; moving one makes agents
-	# work at the new spot (and hides the matching baked desk).
+	# ── LEFT COLUMN — fills the left edge top-to-bottom: palette (scrolls) on
+	# top, LIBRARY pinned at the bottom. One stretching container = never
+	# overlaps or clips regardless of window size.
+	var left := PanelContainer.new()
+	left.anchor_left = 0.0; left.anchor_right = 0.0; left.anchor_top = 0.0; left.anchor_bottom = 1.0
+	left.offset_left = M; left.offset_right = M + COLW; left.offset_top = 66.0; left.offset_bottom = -M
+	var lcol := VBoxContainer.new(); lcol.add_theme_constant_override("separation", 6); left.add_child(lcol)
+	var title := Label.new(); title.text = "＋ เพิ่มวัตถุ"; lcol.add_child(title)
+	var hint := Label.new(); hint.text = "ลากซ้าย=เลื่อนกล้อง · คลิกวัตถุ=เลือก · ลาก=ย้าย · คลิกขวา=หมุน · ล้อ=ซูม"
+	hint.add_theme_font_size_override("font_size", 9); hint.autowrap_mode = TextServer.AUTOWRAP_WORD; lcol.add_child(hint)
+	# palette scroll grows to fill the space above the library
+	var sc := ScrollContainer.new(); sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; lcol.add_child(sc)
+	var vb := VBoxContainer.new(); vb.add_theme_constant_override("separation", 4)
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL; sc.add_child(vb)
+	# 🔵 system objects — bound to an agent anchor; moving one makes agents work there
 	var syslab := Label.new(); syslab.text = "🔵 ของระบบ (agents ใช้)"; syslab.add_theme_font_size_override("font_size", 10); vb.add_child(syslab)
 	for s in SYS_TYPES:
 		var b := Button.new(); b.text = "＋ " + s[1]; b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		var base: String = s[0]
 		b.pressed.connect(func(): _add_system(base))
 		vb.add_child(b)
-	var catlab := Label.new(); catlab.text = "🟢 ของตกแต่ง"; catlab.add_theme_font_size_override("font_size", 10); vb.add_child(catlab)
+	var catlab := Label.new(); catlab.text = "🟢 ของตกแต่ง (ขยับได้อิสระ)"; catlab.add_theme_font_size_override("font_size", 10); vb.add_child(catlab)
 	for t in TYPES:
 		var b := Button.new(); b.text = "＋ " + t[1]; b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		var ty: String = t[0]
@@ -543,34 +554,32 @@ func _build_ui() -> void:
 		vb.add_child(cpick)
 		var flist := VBoxContainer.new(); flist.name = "DecorList"; flist.add_theme_constant_override("separation", 2); vb.add_child(flist)
 		_fill_decor(String(cats[0]))
-	ui.add_child(panel)
+	# LIBRARY pinned to the bottom of the left column
+	lcol.add_child(HSeparator.new())
+	var ll := Label.new(); ll.text = "🗃 LIBRARY — โมเดล/รูปที่ import"; ll.add_theme_font_size_override("font_size", 11); lcol.add_child(ll)
+	var lsc := ScrollContainer.new(); lsc.custom_minimum_size = Vector2(0, 132)
+	lsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; lcol.add_child(lsc)
+	var llist := VBoxContainer.new(); llist.name = "LibList"; llist.size_flags_horizontal = Control.SIZE_EXPAND_FILL; lsc.add_child(llist)
+	ui.add_child(left)
 
-	# right top: selected item
-	var sp := PanelContainer.new(); sp.name = "SelPanel"; sp.anchor_left = 1.0; sp.anchor_right = 1.0
-	sp.position = Vector2(-232, 12); sp.custom_minimum_size = Vector2(218, 0)
-	var sv := VBoxContainer.new(); sv.name = "SelBox"; sv.add_theme_constant_override("separation", 5); sp.add_child(sv)
-	ui.add_child(sp); sp.visible = false
-
-	# right bottom: SCENE list
-	var scp := PanelContainer.new(); scp.anchor_left = 1.0; scp.anchor_right = 1.0; scp.anchor_top = 1.0; scp.anchor_bottom = 1.0
-	scp.position = Vector2(-232, -250); scp.custom_minimum_size = Vector2(218, 230)
-	var scvb := VBoxContainer.new(); scp.add_child(scvb)
-	var scl := Label.new(); scl.text = "🗂 SCENE — วัตถุที่วาง"; scvb.add_child(scl)
-	var ssc := ScrollContainer.new(); ssc.custom_minimum_size = Vector2(210, 190); scvb.add_child(ssc)
-	var slist := VBoxContainer.new(); slist.name = "SceneList"; slist.custom_minimum_size = Vector2(200, 0); ssc.add_child(slist)
-	ui.add_child(scp)
-
-	# left bottom: LIBRARY (imported assets)
-	var lp := PanelContainer.new(); lp.anchor_top = 1.0; lp.anchor_bottom = 1.0
-	lp.position = Vector2(12, -210); lp.custom_minimum_size = Vector2(210, 190)
-	var lvb := VBoxContainer.new(); lp.add_child(lvb)
-	var ll := Label.new(); ll.text = "🗃 LIBRARY — โมเดล/รูปที่ import"; ll.add_theme_font_size_override("font_size", 11); lvb.add_child(ll)
-	var lsc := ScrollContainer.new(); lsc.custom_minimum_size = Vector2(202, 150); lvb.add_child(lsc)
-	var llist := VBoxContainer.new(); llist.name = "LibList"; llist.custom_minimum_size = Vector2(192, 0); lsc.add_child(llist)
-	ui.add_child(lp)
+	# ── RIGHT COLUMN — fills the right edge top-to-bottom: selected-item props
+	# (toggled) on top, SCENE list (scrolls) filling the rest.
+	var right := PanelContainer.new()
+	right.anchor_left = 1.0; right.anchor_right = 1.0; right.anchor_top = 0.0; right.anchor_bottom = 1.0
+	right.offset_left = -(M + COLW); right.offset_right = -M; right.offset_top = M; right.offset_bottom = -M
+	var rcol := VBoxContainer.new(); rcol.add_theme_constant_override("separation", 6); right.add_child(rcol)
+	var selWrap := VBoxContainer.new(); selWrap.name = "SelPanel"; selWrap.add_theme_constant_override("separation", 5)
+	var sv := VBoxContainer.new(); sv.name = "SelBox"; sv.add_theme_constant_override("separation", 5); selWrap.add_child(sv)
+	rcol.add_child(selWrap); selWrap.visible = false
+	rcol.add_child(HSeparator.new())
+	var scl := Label.new(); scl.text = "🗂 SCENE — วัตถุที่วาง"; rcol.add_child(scl)
+	var ssc := ScrollContainer.new(); ssc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	ssc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; rcol.add_child(ssc)
+	var slist := VBoxContainer.new(); slist.name = "SceneList"; slist.size_flags_horizontal = Control.SIZE_EXPAND_FILL; ssc.add_child(slist)
+	ui.add_child(right)
 
 	var toast := Label.new(); toast.name = "Toast"; toast.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	toast.position = Vector2(-120, -40); ui.add_child(toast)
+	toast.position = Vector2(-120, -48); ui.add_child(toast)
 
 func _fill_decor(cat: String) -> void:
 	var box := ui.find_child("DecorList", true, false)

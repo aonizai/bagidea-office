@@ -658,10 +658,17 @@ func _clear_status_later(a: Dictionary, delay: float) -> void:
 
 func _walk(node: Sprite3D, target: String) -> float:
 	var path: Array = world.path_to(node.position, target)
-	# Tiny jitter on shared idle spots so agents don't stack pixel-perfect.
-	if target.begins_with("cafe"):
-		path[path.size() - 1] += Vector3(randf_range(-0.35, 0.35), 0, randf_range(-0.35, 0.35))
+	# Shared gathering spots (room centres, café/rec/meeting seats, lobby) are
+	# visited by several characters — scatter the final step so they never stand
+	# on top of each other. Personal desks/beds stay exact (single occupant).
+	if path.size() > 0 and _is_shared_spot(target):
+		path[path.size() - 1] += Vector3(randf_range(-0.7, 0.7), 0, randf_range(-0.7, 0.7))
 	return node.walk_to(path)
+
+func _is_shared_spot(target: String) -> bool:
+	return target.ends_with("_c") or target.begins_with("cafe") \
+		or target.begins_with("rec_s") or target.begins_with("m_s") \
+		or target == "spawn"
 
 func _make_char(id: String) -> Sprite3D:
 	var s := Sprite3D.new()
