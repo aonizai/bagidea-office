@@ -1262,7 +1262,7 @@ function voiceTranscribe(buf) {
       });
       const rq = https.request({
         method: "POST", host: "generativelanguage.googleapis.com",
-        path: "/v1beta/models/gemini-2.0-flash:generateContent?key=" + gm,
+        path: "/v1beta/models/gemini-flash-latest:generateContent?key=" + gm,
         headers: { "content-type": "application/json",
           "content-length": Buffer.byteLength(body) },
       }, (rs) => {
@@ -1402,7 +1402,7 @@ function genImage(prompt) {
       });
       const rq = https.request({
         method: "POST", host: "generativelanguage.googleapis.com",
-        path: "/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=" + k.GEMINI_API_KEY,
+        path: "/v1beta/models/gemini-2.5-flash-image:generateContent?key=" + k.GEMINI_API_KEY,
         headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) },
       }, (rs) => {
         let o = "";
@@ -2628,6 +2628,73 @@ const server = http.createServer((req, res) => {
         }
         broadcast({ type: "proposal." + p.status, agent: p.by, name: p.name, proposal: p.id });
         res.writeHead(200); res.end("ok");
+      } catch (e) { res.writeHead(400); res.end(String(e.message)); }
+    });
+
+  } else if (req.method === "POST" && req.url === "/i18n") {
+    // 🌐 auto-translate UI strings to any language via Gemini, cached to
+    // disk (daemon/i18n/<lang>.json) so it's instant + shared next time.
+    // The overlay sends the Thai strings it finds on screen; we return the
+    // full map for those, translating only the ones not yet cached.
+    readBody(req, (body) => {
+      try {
+        const { lang, strings } = JSON.parse(body);
+        const L = String(lang || "").toLowerCase();
+        if (!L || L === "th" || !Array.isArray(strings)) { res.writeHead(400); return res.end("bad"); }
+        const dir = path.join(__dirname, "i18n");
+        fs.mkdirSync(dir, { recursive: true });
+        const file = path.join(dir, L + ".json");
+        let cache = {};
+        try { cache = JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
+        const want = [...new Set(strings.map((s) => String(s)).filter((s) => s && s.length <= 400))];
+        const missing = want.filter((s) => !(s in cache));
+        const reply = () => {
+          const out = {};
+          for (const s of want) if (cache[s] !== undefined) out[s] = cache[s];
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify({ map: out }));
+        };
+        if (!missing.length) return reply();
+        const gm = (reg.apiKeys || {}).GEMINI_API_KEY;
+        if (!gm) { res.writeHead(200, { "content-type": "application/json" });
+          return res.end(JSON.stringify({ map: {}, err: "no GEMINI_API_KEY" })); }
+        const langName = { en: "English", zh: "Simplified Chinese", ja: "Japanese",
+          ko: "Korean", es: "Spanish", fr: "French", de: "German" }[L] || L;
+        // batch in chunks to keep prompts sane
+        const chunks = [];
+        for (let i = 0; i < missing.length; i += 60) chunks.push(missing.slice(i, i + 60));
+        let pending = chunks.length;
+        const finish = () => { if (--pending <= 0) { fs.writeFileSync(file, JSON.stringify(cache)); reply(); } };
+        for (const chunk of chunks) {
+          const prompt = `Translate these UI strings from Thai to ${langName}. ` +
+            `Keep emoji, symbols, numbers, code and placeholders (like \${...}, <...>) EXACTLY. ` +
+            `Natural, concise product-UI wording. Return ONLY a JSON object mapping each ` +
+            `original string to its translation.\n\n` + JSON.stringify(chunk);
+          const reqBody = JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
+          });
+          const rq = require("https").request({
+            method: "POST", host: "generativelanguage.googleapis.com",
+            path: "/v1beta/models/gemini-flash-latest:generateContent?key=" + gm,
+            headers: { "content-type": "application/json", "content-length": Buffer.byteLength(reqBody) },
+          }, (rs) => {
+            let o = ""; rs.on("data", (c) => (o += c));
+            rs.on("end", () => {
+              try {
+                const j = JSON.parse(o);
+                const txt = j.candidates && j.candidates[0] &&
+                  j.candidates[0].content.parts.map((p) => p.text || "").join("");
+                const m = JSON.parse(txt.match(/\{[\s\S]*\}/)[0]);
+                for (const k of chunk) if (m[k] !== undefined) cache[k] = String(m[k]);
+              } catch (e) { console.error("[i18n]", e.message); }
+              finish();
+            });
+          });
+          rq.setTimeout(40000, () => { rq.destroy(); finish(); });
+          rq.on("error", () => finish());
+          rq.write(reqBody); rq.end();
+        }
       } catch (e) { res.writeHead(400); res.end(String(e.message)); }
     });
 

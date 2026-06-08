@@ -362,8 +362,11 @@
   .edchip { font-size: 11px; padding: 4px 9px; border-radius: 8px; cursor: pointer;
     border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: #cfe3ff; }
   .edchip.on { border-color: var(--accent); color: var(--accent); background: rgba(94,200,255,0.12); }
-  .edgrid { position: relative; width: 100%; height: 320px; border-radius: 10px;
-    background-color: #0a1018; background-size: cover; background-position: center;
+  /* aspect matches the map capture (28.57 wide × 25 deep) so the room image
+     fills the grid exactly 1:1 and placed items line up with real rooms. */
+  .edgrid { position: relative; width: 100%; aspect-ratio: 28.57 / 25;
+    max-height: 56vh; border-radius: 10px;
+    background-color: #0a1018; background-size: 100% 100%; background-repeat: no-repeat;
     border: 1px solid var(--line); overflow: hidden; cursor: crosshair; }
   .edgrid::after { content: ""; position: absolute; inset: 0; pointer-events: none;
     background: repeating-linear-gradient(0deg, transparent 0 31px, rgba(255,255,255,0.05) 31px 32px),
@@ -893,46 +896,75 @@
     } catch { return "en"; }
   }
   let LANG = uiLang();
-  function tr(s) {
-    if (LANG === "th" || !s) return s;
-    const e = DICT[String(s).trim()];
-    return (e && e[LANG]) || s;
+  // Runtime cache (curated DICT seeds it; Gemini fills the rest, persisted).
+  let TR = {};   // thai -> translation for the CURRENT language
+  function loadTR() {
+    TR = {};
+    for (const [k, v] of Object.entries(DICT)) if (v[LANG]) TR[k] = v[LANG];
+    try { Object.assign(TR, JSON.parse(localStorage.getItem("i18n_" + LANG) || "{}")); } catch {}
   }
-  const t = tr;  // back-compat for the few inline ${t(...)} uses
-  // Walk a subtree and translate exact Thai matches in text + placeholder/title.
+  if (LANG !== "th") loadTR();
+  function tr(s) { if (LANG === "th" || !s) return s; return TR[String(s).trim()] || s; }
+  const t = tr;  // back-compat for inline ${t(...)} uses
+
+  // Dynamic content (chat, feed, agent names, thread titles, live counters)
+  // must NOT be machine-translated — only UI chrome. Skip these subtrees.
+  const NO_I18N = new Set(["log", "feed", "feedTasks", "rail", "companion", "nowStrip", "threadName", "pttTxt"]);
+  function inNoI18n(node) {
+    let el = node.nodeType === 1 ? node : node.parentElement;
+    while (el) { if (el.id && NO_I18N.has(el.id)) return true; el = el.parentElement; }
+    return false;
+  }
+  const THAI = /[฀-๿]/;
+  let _pending = new Set(), _timer = null;
+
+  // Translate exact matches in a subtree; collect unknown Thai for the API.
   function applyI18n(root) {
-    if (LANG === "th") return;
-    if (root.nodeType === 1) {
-      if (root.placeholder && DICT[root.placeholder.trim()]) {
-        const e = DICT[root.placeholder.trim()]; if (e[LANG]) root.placeholder = e[LANG];
-      }
-      if (root.title && DICT[root.title.trim()]) {
-        const e = DICT[root.title.trim()]; if (e[LANG]) root.title = e[LANG];
-      }
-    }
+    if (LANG === "th" || inNoI18n(root)) return;
     const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    const hits = [];
-    let n;
+    const hits = []; let n;
     while ((n = walk.nextNode())) {
+      if (inNoI18n(n)) continue;
       const raw = n.nodeValue, key = raw.trim();
-      if (key && DICT[key] && DICT[key][LANG]) hits.push([n, raw.replace(key, DICT[key][LANG])]);
+      if (!key) continue;
+      if (TR[key]) hits.push([n, raw.replace(key, TR[key])]);
+      else if (THAI.test(key)) _pending.add(key);
     }
     for (const [node, val] of hits) node.nodeValue = val;
-    // placeholders/titles on descendants
-    if (root.querySelectorAll) root.querySelectorAll("[placeholder],[title]").forEach((el) => {
-      ["placeholder", "title"].forEach((a) => {
-        const v = el.getAttribute(a); if (v && DICT[v.trim()] && DICT[v.trim()][LANG]) el.setAttribute(a, DICT[v.trim()][LANG]);
-      });
-    });
+    const attrEls = root.nodeType === 1 ? [root, ...root.querySelectorAll("[placeholder],[title]")] : [];
+    for (const el of attrEls) for (const a of ["placeholder", "title"]) {
+      const v = el.getAttribute && el.getAttribute(a); if (!v) continue;
+      const key = v.trim();
+      if (TR[key]) el.setAttribute(a, TR[key]);
+      else if (THAI.test(key)) _pending.add(key);
+    }
+    if (_pending.size) { clearTimeout(_timer); _timer = setTimeout(fetchTR, 400); }
+  }
+  async function fetchTR() {
+    const batch = [..._pending]; _pending = new Set();
+    if (!batch.length) return;
+    try {
+      const r = await fetch("/i18n", { method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ lang: LANG, strings: batch }) }).then((x) => x.json());
+      let got = false;
+      for (const [k, v] of Object.entries(r.map || {})) { TR[k] = v; got = true; }
+      if (got) {
+        try { localStorage.setItem("i18n_" + LANG, JSON.stringify(
+          Object.fromEntries(Object.entries(TR).filter(([k]) => !(DICT[k] && DICT[k][LANG]))))); } catch {}
+        applyI18n(document.body);  // re-apply now that more strings are known
+      }
+    } catch {}
   }
   function setLang(l) {
     try { localStorage.setItem("lang", l); } catch {}
     location.reload();
   }
-  // auto-translate anything rendered after load (modals, menus, feed items)
+  // Translate the chrome on load + everything rendered later (modals, menus).
   if (LANG !== "th") {
     const _obs = new MutationObserver((muts) => {
-      for (const m of muts) for (const nd of m.addedNodes) if (nd.nodeType === 1) applyI18n(nd);
+      for (const m of muts) for (const nd of m.addedNodes)
+        if (nd.nodeType === 1 && !inNoI18n(nd)) applyI18n(nd);
     });
     addEventListener("DOMContentLoaded", () => {
       applyI18n(document.body);
@@ -2552,7 +2584,7 @@
   const ED_ITEMS = [
     ["desk", "🪑 โต๊ะทำงาน"], ["table", "🍽 โต๊ะกลม"], ["chair", "💺 เก้าอี้"],
     ["shelf", "📚 ชั้นวาง"], ["plant", "🪴 ต้นไม้"], ["lamp", "💡 โคมไฟ"],
-    ["rug", "🟫 พรม"], ["partition", "🧱 ฉากกั้น"], ["wall", "🧱 กำแพง"],
+    ["rug", "🟫 พรม"],
     ["poster", "🖼 รูป (import)"], ["model", "📦 โมเดล (import)"],
   ];
   let EDIT = { items: [], sel: -1, asset: null };
@@ -2560,7 +2592,7 @@
     modal.classList.add("open");
     const r = await fetch("/layout").then((x) => x.json()).catch(() => ({ items: [] }));
     EDIT = { items: r.items || [], sel: -1, asset: null };
-    modalCard.innerHTML = hdr("🎨 " + t("🎨 จัดออฟฟิศ (Editor)")) +
+    modalCard.innerHTML = hdr("🎨 จัดออฟฟิศ (Editor)") +
       `<div style="font-size:11px;color:var(--dim);margin-bottom:8px">${t("คลิกบนผังเพื่อวาง · ลากเพื่อย้าย · ดับเบิลคลิกเพื่อลบ")}</div>
        <div id="edPalette" class="edpal"></div>
        <div id="edGrid" class="edgrid"></div>
@@ -2661,8 +2693,13 @@
         <div class="row" style="font-size:11px;color:var(--dim)">หมุน <input id="edRot" type="range" min="0" max="360" value="${it.rot || 0}">
           ขนาด <input id="edScl" type="range" min="0.4" max="3" step="0.1" value="${it.scale || 1}">
           สี <input id="edCol" type="color" value="#${it.color || '8a8f99'}"></div></div>`;
-    pb.querySelector("#edRot").oninput = (e) => { it.rot = +e.target.value; edRender(); };
-    pb.querySelector("#edScl").oninput = (e) => { it.scale = +e.target.value; edRender(); };
+    // Update ONLY the selected item's icon transform while dragging — calling
+    // edRender() here rebuilt #edProps and killed the slider mid-drag (bug).
+    const selDiv = () => modalCard.querySelectorAll(".editem")[EDIT.sel];
+    const paint = () => { const d = selDiv(); if (d) d.style.transform =
+      `translate(-50%,-50%) rotate(${it.rot || 0}deg) scale(${it.scale || 1})`; };
+    pb.querySelector("#edRot").oninput = (e) => { it.rot = +e.target.value; paint(); };
+    pb.querySelector("#edScl").oninput = (e) => { it.scale = +e.target.value; paint(); };
     pb.querySelector("#edCol").oninput = (e) => { it.color = e.target.value.replace("#", ""); };
   }
 

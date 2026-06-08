@@ -49,3 +49,4 @@ CharacterBase*
 plugins/*/data/
 plugins/music/tracks/
 daemon/layout.json
+daemon/i18n/
