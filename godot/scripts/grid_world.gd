@@ -13,7 +13,7 @@ extends Node3D
 const CELL := 8.0          # cell pitch (room interior ~ CELL - wall)
 const GRID_COLS := 3
 const GRID_ROWS := 3
-const WALL_H := 3.2
+const WALL_H := 4.0
 const WALL_T := 0.18
 const DOOR_W := 2.2        # door-gap width on each interior side
 
@@ -95,14 +95,17 @@ func _build() -> void:
 	_perim(Vector3( halfx, 0, 0), Vector3(WALL_T, 0, lenz))      # east wall
 
 func _perim(pos: Vector3, size: Vector3) -> void:
-	var base := _m("3a4150", 0.6)
-	var glass := _m("8fb6e6", 0.06, "5a7aa8", 0.5); glass.albedo_color.a = 0.32
+	var T := 0.34          # thick enough to read as a real wall from a distance
+	var base := _m("69748f", 0.6)
+	var glass := _m("b6d2f4", 0.05, "7fa0cf", 0.8); glass.albedo_color.a = 0.55
 	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	var bh := 0.9          # solid wainscot height
-	var gh := WALL_H - bh  # glass band above
-	var sz := Vector3(max(size.x, WALL_T), 0, max(size.z, WALL_T))
+	var cap := _m("dbe4f2", 0.3)
+	var bh := 2.8          # SOLID wall (the bulk) — clearly visible
+	var gh := WALL_H - bh  # window band above
+	var sz := Vector3(max(size.x, T), 0, max(size.z, T))
 	_box(Vector3(pos.x, bh * 0.5, pos.z), Vector3(sz.x, bh, sz.z), base)
 	_box(Vector3(pos.x, bh + gh * 0.5, pos.z), Vector3(sz.x, gh, sz.z), glass)
+	_box(Vector3(pos.x, WALL_H + 0.03, pos.z), Vector3(sz.x + 0.08, 0.1, sz.z + 0.08), cap)  # top coping
 
 	for slot in range(GRID_COLS * GRID_ROWS):
 		var center := slot_center(slot)
