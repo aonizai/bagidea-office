@@ -7,6 +7,7 @@ config/name="BagIdea AI Agents Office - Visual Target"
 run/main_scene="res://scenes/office_floor.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://assets/brand/logo_ico_cute.png"
+config/windows_native_icon="res://assets/brand/logo.ico"
 boot_splash/bg_color=Color(0, 0, 0, 0)
 boot_splash/image="res://assets/brand/logo_box.png"
 boot_splash/fullsize=false
