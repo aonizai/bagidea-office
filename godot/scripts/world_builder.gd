@@ -1687,7 +1687,9 @@ func _build_countryside() -> void:
 		_env("Log_2", Vector3(26, 0, 19), -50.0, 0.9)
 		for i in 26:
 			var gp := Vector3(-30.0 + fmod(i * 11.3, 64.0), 0, -16.0 + fmod(i * 17.9, 46.0))
-			if gp.x > -12.0 and gp.x < 18.0 and gp.z > -12.0 and gp.z < 14.5:
+			# clear the (origin-centred, rectangular) office footprint so no grass
+			# tufts/clover poke through the interior floor
+			if gp.x > -16.8 and gp.x < 16.8 and gp.z > -13.0 and gp.z < 13.0:
 				continue
 			_env("Grass_%d" % (1 + i % 2), gp, i * 31.0, 1.3)
 	else:

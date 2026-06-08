@@ -138,6 +138,29 @@ func _enter_editor_mode() -> void:
 	ed.name = "MapEditor"
 	add_child(ed)
 	ed.setup($CameraRig, cam)
+	_editor_splash()
+
+## Branded loading splash (logo on the house-dark background) over the editor
+## while the world settles — matches the main app's boot feel — then fades out.
+func _editor_splash() -> void:
+	var layer := CanvasLayer.new(); layer.layer = 200; add_child(layer)
+	var root := Control.new(); root.set_anchors_preset(Control.PRESET_FULL_RECT); layer.add_child(root)
+	var bg := ColorRect.new(); bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.color = Color(0.04, 0.07, 0.12); root.add_child(bg)
+	var cc := CenterContainer.new(); cc.set_anchors_preset(Control.PRESET_FULL_RECT); root.add_child(cc)
+	var box := VBoxContainer.new(); box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 14); cc.add_child(box)
+	var logo := TextureRect.new()
+	var img := Image.load_from_file(ProjectSettings.globalize_path("res://assets/brand/logo.png"))
+	if img: logo.texture = ImageTexture.create_from_image(img)
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.custom_minimum_size = Vector2(460, 150); box.add_child(logo)
+	var sub := Label.new(); sub.text = "Office Editor"; sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.modulate = Color(0.6, 0.78, 1.0); sub.add_theme_font_size_override("font_size", 18); box.add_child(sub)
+	get_tree().create_timer(1.8).timeout.connect(func():
+		var tw := create_tween()
+		tw.tween_property(root, "modulate:a", 0.0, 0.7)
+		tw.tween_callback(layer.queue_free))
 
 ## Manual atmosphere from the overlay: {"hour": 17.5} pins the clock for
 ## debugging/beauty shots; {"hour": "auto"} hands it back to real time.
