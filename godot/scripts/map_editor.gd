@@ -50,6 +50,8 @@ var _decor_cache := {}            # {category: [name…]} bundled Low Poly furni
 var world: Node3D                 # the live grid world (room swapping)
 var _swap_pick := -1              # first slot clicked in the room-swap panel
 var ui_lang := "en"               # editor UI language (en default, th if set on this machine)
+var _ui_layer: CanvasLayer        # so we can rebuild the whole UI on a language switch
+var _billboard_path := ""         # user-uploaded billboard image (persisted in layout)
 
 ## Pick the localized string. English is the default; Thai when the machine's
 ## registry lang is "th".
@@ -320,6 +322,9 @@ func _on_layout(_r: int, code: int, _h: PackedStringArray, body: PackedByteArray
 		world.apply_room_order(data["rooms"])
 	if data is Dictionary and data.get("ghost") is Array and (data["ghost"] as Array).size() == 2 and world and world.has_method("set_ghost_deck_pos"):
 		world.set_ghost_deck_pos(float(data["ghost"][0]), float(data["ghost"][1]))
+	if data is Dictionary and data.get("billboard") is String and String(data["billboard"]) != "":
+		_billboard_path = String(data["billboard"])
+		if world and world.has_method("set_billboard_texture"): world.set_billboard_texture(_billboard_path)
 	_refresh_scene()
 	_refresh_rooms()
 
@@ -532,7 +537,7 @@ func _build_theme() -> Theme:
 func _build_ui() -> void:
 	ui = Control.new(); ui.set_anchors_preset(Control.PRESET_FULL_RECT); ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.theme = _build_theme()
-	var layer := CanvasLayer.new(); layer.add_child(ui); add_child(layer)
+	_ui_layer = CanvasLayer.new(); _ui_layer.add_child(ui); add_child(_ui_layer)
 
 	var M := 16.0      # screen-edge margin
 	var COLW := 224.0  # side-column width
@@ -544,7 +549,10 @@ func _build_ui() -> void:
 	bh.add_child(VSeparator.new())
 	var imp := Button.new(); imp.text = "📦 .glb"; imp.pressed.connect(_import_model); bh.add_child(imp)
 	var pst := Button.new(); pst.text = "🖼 image"; pst.pressed.connect(_import_image); bh.add_child(pst)
+	var bbtn := Button.new(); bbtn.text = L("🏷 Billboard", "🏷 ป้าย"); bbtn.pressed.connect(_import_billboard); bh.add_child(bbtn)
 	var save := Button.new(); save.text = L("💾 Save", "💾 บันทึก"); save.pressed.connect(_save); bh.add_child(save)
+	bh.add_child(VSeparator.new())
+	var lng := Button.new(); lng.text = "🌐 " + ("ไทย" if ui_lang == "th" else "EN"); lng.pressed.connect(_toggle_lang); bh.add_child(lng)
 	ui.add_child(bar)
 
 	# ── LEFT COLUMN — fills the left edge top-to-bottom: palette (scrolls) on
@@ -629,6 +637,28 @@ func _build_ui() -> void:
 
 	var toast := Label.new(); toast.name = "Toast"; toast.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	toast.position = Vector2(-120, -48); ui.add_child(toast)
+
+func _toggle_lang() -> void:
+	ui_lang = "en" if ui_lang == "th" else "th"
+	var req := HTTPRequest.new(); add_child(req)
+	req.request_completed.connect(func(_a, _b, _c, _d): req.queue_free())
+	req.request("http://127.0.0.1:8787/registry/lang", ["content-type: application/json"],
+		HTTPClient.METHOD_POST, JSON.stringify({ "lang": ui_lang }))
+	_rebuild_ui()
+
+func _rebuild_ui() -> void:
+	if _ui_layer: _ui_layer.queue_free()
+	_build_ui(); _refresh_rooms(); _refresh_scene(); _refresh_lib(); _refresh_sel()
+
+## Upload an image to use as the company billboard (recommended ~1380×207, the
+## same wide ratio as the default sign).
+func _import_billboard() -> void:
+	_pick_file(PackedStringArray(["*.png", "*.jpg", "*.jpeg", "*.webp"]), func(p):
+		_billboard_path = p
+		if world and world.has_method("set_billboard_texture"):
+			world.set_billboard_texture(p)
+		_flash(L("🏷 Billboard set — Save to keep (best ratio ~6.7:1, e.g. 1380×207)",
+			"🏷 ตั้งป้ายแล้ว — กดบันทึกเพื่อจำ (อัตราส่วน ~6.7:1 เช่น 1380×207)")))
 
 func _fill_decor(cat: String) -> void:
 	var box := ui.find_child("DecorList", true, false)
@@ -786,12 +816,28 @@ func _current_items() -> Array:
 	return out
 
 func _save() -> void:
+	# confirm first — saving updates the live wallpaper and then closes the editor
+	var dlg := ConfirmationDialog.new()
+	dlg.title = L("Confirm save", "ยืนยันการบันทึก")
+	dlg.dialog_text = L("Save this office layout, update the wallpaper, and close the editor?",
+		"บันทึกผังออฟฟิศนี้ อัปเดตวอลเปเปอร์ แล้วปิดโปรแกรมเลยไหม?")
+	dlg.ok_button_text = L("Save & close", "บันทึกแล้วปิด")
+	dlg.get_cancel_button().text = L("Cancel", "ยกเลิก")
+	add_child(dlg)
+	dlg.confirmed.connect(func(): dlg.queue_free(); _do_save())
+	dlg.canceled.connect(func(): dlg.queue_free())
+	dlg.popup_centered(Vector2i(420, 150))
+
+func _do_save() -> void:
 	var payload := { "items": _current_items() }
 	if world and world.has_method("get_room_order"): payload["rooms"] = world.get_room_order()
 	if world and world.has_method("ghost_deck_pos"):
 		var gp: Vector2 = world.ghost_deck_pos(); payload["ghost"] = [gp.x, gp.y]
+	if _billboard_path != "": payload["billboard"] = _billboard_path
 	_save_req.request(LAYOUT_URL, ["content-type: application/json"], HTTPClient.METHOD_POST, JSON.stringify(payload))
-	_flash(L("💾 Saved — wallpaper updated", "💾 บันทึกแล้ว — วอลเปเปอร์อัปเดต"))
+	_flash(L("💾 Saved — updating wallpaper, closing…", "💾 บันทึกแล้ว — อัปเดตวอลเปเปอร์ แล้วปิด…"))
+	await get_tree().create_timer(1.2).timeout   # let the POST land + daemon broadcast
+	get_tree().quit()
 
 func _save_as_preset() -> void:
 	var dlg := AcceptDialog.new(); dlg.title = L("Save as preset", "บันทึกเป็น preset")

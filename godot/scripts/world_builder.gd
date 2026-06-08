@@ -109,6 +109,8 @@ const BOARD_COLORS := {
 var astar := AStar3D.new()
 var _grid: Node3D            # the swappable room-grid (owns geometry, anchors, A* graph)
 var _ghost_deck: Node3D     # the floating sub-ops platform (movable from the editor)
+var _billboard_logo: MeshInstance3D   # the brand sign face (user can swap its image)
+var _billboard_pending := ""          # billboard image requested before the sign was built
 const GRID_SCRIPT := preload("res://scripts/grid_world.gd")
 var _ops_nodes: Array = []   # baked ops-desk visuals (hideable when the editor supplies custom workstations)
 
@@ -153,6 +155,24 @@ func apply_room_order(target: Array) -> void:
 			if _grid.room_order[j] == target[i]:
 				_grid.swap_slots(i, j); break
 	_resnap_agents()
+
+## Swap the company billboard image (user upload). Keeps the sign's aspect by
+## fitting the image into the panel; accepts res://, /uploads/ or absolute paths.
+func set_billboard_texture(path: String) -> void:
+	if path == "": return
+	if _billboard_logo == null:
+		_billboard_pending = path   # sign not built yet — apply when it is
+		return
+	var p := path
+	if p.begins_with("res://"): p = ProjectSettings.globalize_path(p)
+	elif p.begins_with("/uploads/"): p = ProjectSettings.globalize_path("res://..") + "/workspace/uploads/" + p.get_file()
+	var img := Image.new()
+	if img.load(p) != OK: return
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = ImageTexture.create_from_image(img)
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_billboard_logo.material_override = m
 
 ## Ghost (sub-ops) deck position — editor nudges it, layout persists it.
 func move_ghost_deck(dx: float, dz: float) -> void:
@@ -792,8 +812,8 @@ var _icon_dusk: Node3D
 func _build_clock() -> void:
 	var rig := Node3D.new()
 	add_child(rig)
-	rig.position = Vector3(11.6, 4.15, -9.8)
-	rig.rotation_degrees.x = -42.0
+	rig.position = Vector3(8.5, 4.7, -12.0)   # back-wall roofline, right of the billboard
+	rig.rotation_degrees.x = -40.0
 
 	var frame := CSGBox3D.new()
 	frame.size = Vector3(3.5, 1.2, 0.14)
@@ -894,17 +914,21 @@ func _build_graph() -> void:
 	for e in EDGES:
 		astar.connect_points(_wp_ids[e[0]], _wp_ids[e[1]])
 
+## Nearest graph point — uses A* point positions (the grid graph carries hub/
+## door nodes that aren't in WP, so we can't index WP by name here).
 func _nearest(pos: Vector3) -> int:
+	if _grid: return _grid._nearest(pos)
 	var best := -1
 	var best_d := INF
 	for name in _wp_ids:
-		var d: float = pos.distance_to(WP[name])
+		var d: float = pos.distance_to(astar.get_point_position(_wp_ids[name]))
 		if d < best_d:
 			best_d = d
 			best = _wp_ids[name]
 	return best
 
 func path_to(from_pos: Vector3, target: String) -> Array:
+	if _grid: return _grid.path_to(from_pos, target)
 	var pts := astar.get_point_path(_nearest(from_pos), _wp_ids[target])
 	var out: Array = []
 	for p in pts:
@@ -916,6 +940,7 @@ func path_to(from_pos: Vector3, target: String) -> Array:
 ## Graph walk between two free positions (nearest waypoints both ends) —
 ## ghosts route home to wherever their owner currently stands.
 func path_between(from_pos: Vector3, to_pos: Vector3) -> Array:
+	if _grid: return _grid.path_between(from_pos, to_pos)
 	var pts := astar.get_point_path(_nearest(from_pos), _nearest(to_pos))
 	var out: Array = []
 	for p in pts:
@@ -1142,8 +1167,8 @@ func _build_geometry() -> void:
 	astar = _grid.astar
 	_wp_ids = _grid._wp_ids
 	WP = _grid.WP
-	# brand billboard above the grid
-	_billboard(Vector3(0, 4.6, -13.0), -18.0)
+	# brand billboard centred on the back-wall roofline, facing the camera
+	_billboard(Vector3(-3.5, 5.2, -12.1), -24.0)
 	# mission-control board on the OPS slot's north wall
 	_board_x = 0.0; _board_z = -11.6; _board_y0 = 1.7
 	var mctl := _label("MISSION CONTROL", Vector3(0.0, 2.2, -11.7), 44, Color(0.6, 0.85, 1.0))
@@ -1585,11 +1610,15 @@ func _billboard(center: Vector3, tilt_deg: float) -> void:
 	if logo:
 		rig.add_child(logo)
 		logo.position = Vector3(0, 0, 0.085)
+		_billboard_logo = logo
+		if _billboard_pending != "":
+			set_billboard_texture(_billboard_pending)
 
-	# support posts down to the wall top
+	# support posts down to the wall top (at the billboard's own z, not a fixed
+	# old-wall z — otherwise they float in front of the back wall)
 	var post_mat := _mat(Color(0.3, 0.31, 0.34), 0.5)
-	_box(Vector3(center.x - 2.6, center.y - 0.9, -10.05), Vector3(0.16, 1.1, 0.16), post_mat)
-	_box(Vector3(center.x + 2.6, center.y - 0.9, -10.05), Vector3(0.16, 1.1, 0.16), post_mat)
+	_box(Vector3(center.x - 2.6, center.y - 1.2, center.z + 0.1), Vector3(0.16, 1.6, 0.16), post_mat)
+	_box(Vector3(center.x + 2.6, center.y - 1.2, center.z + 0.1), Vector3(0.16, 1.6, 0.16), post_mat)
 
 ## Countryside placeholder set (swappable for real assets later): grass
 ## field with wind-swaying blades, low-poly mountains, hills and pine trees.

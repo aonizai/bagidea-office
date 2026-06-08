@@ -2364,6 +2364,7 @@ const server = http.createServer((req, res) => {
         const out = { items: j.items.slice(0, 500) };
         if (Array.isArray(j.rooms)) out.rooms = j.rooms.slice(0, 64);  // jigsaw room arrangement
         if (Array.isArray(j.ghost) && j.ghost.length === 2) out.ghost = j.ghost.map(Number);  // ghost deck pos
+        if (typeof j.billboard === "string" && j.billboard) out.billboard = j.billboard.slice(0, 400);  // custom sign image
         fs.writeFileSync(LAYOUT_FILE, JSON.stringify(out, null, 1));
         broadcast({ type: "layout.changed" }, false);
         res.writeHead(200); res.end("ok");
