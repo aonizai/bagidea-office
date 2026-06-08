@@ -53,7 +53,12 @@ godot/assets/sounds/
 # Working art files at repo root (untracked until the owner decides)
 CharacterBase*
 
-# Plugin runtime data + user-dropped media
+# Only the CORE plugins ship in this repo. Plugins installed at runtime via
+# `bagidea plugin install` (each its own git clone) are never tracked here.
+plugins/*
+!plugins/music
+!plugins/calculator
+# ...and even within the core plugins, runtime data + user media stay out.
 plugins/*/data/
 plugins/music/tracks/
 daemon/layout.json
