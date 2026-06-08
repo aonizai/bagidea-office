@@ -1451,15 +1451,28 @@ function voiceTranscribe(buf) {
 // agent. Agents speak RARELY — a SPEAK: protocol line they add only when a
 // short spoken announcement genuinely fits (or the owner asked to be read
 // to). Global toggle: reg.tts.
+// Voice presets — clearly split ♀ / ♂, each a distinct Gemini prebuilt voice
+// with its own emotion + speaking style. `voice` is the Gemini voiceName; the
+// realtime-call path derives its voice from this same table (no duplication).
 const VOICE_PRESETS = {
-  sunny:   { voice: "Aoede",  label: "🌞 สาวสดใสร่าเริง",  style: "พูดภาษาไทยด้วยน้ำเสียงสดใสร่าเริงแบบสาวอนิเมะ" },
-  sweet:   { voice: "Leda",   label: "🍬 สาวหวานนุ่มนวล",  style: "พูดภาษาไทยด้วยน้ำเสียงหวาน นุ่มนวล อ่อนโยน" },
-  cool:    { voice: "Kore",   label: "❄️ สาวนิ่งเท่",       style: "พูดภาษาไทยด้วยน้ำเสียงนิ่ง เท่ มั่นใจ" },
-  genki:   { voice: "Zephyr", label: "⚡ สาวพลังล้นเหลือ",  style: "พูดภาษาไทยเร็วๆ ตื่นเต้น พลังงานล้นเหลือ" },
-  boyish:  { voice: "Puck",   label: "🎈 หนุ่มขี้เล่น",      style: "พูดภาษาไทยแบบหนุ่มขี้เล่น อารมณ์ดี" },
-  warm:    { voice: "Charon", label: "☕ ชายทุ้มอบอุ่น",    style: "พูดภาษาไทยเสียงทุ้ม อบอุ่น ใจเย็น" },
-  serious: { voice: "Fenrir", label: "🗡 ชายเข้มจริงจัง",   style: "พูดภาษาไทยเสียงเข้ม จริงจัง หนักแน่น" },
-  polite:  { voice: "Orus",   label: "🎩 ชายสุภาพ",         style: "พูดภาษาไทยอย่างสุภาพ ชัดถ้อยชัดคำ" },
+  // ♀ female
+  sunny:    { voice: "Aoede",       label: "♀ 🌞 สดใสร่าเริง",     style: "พูดด้วยน้ำเสียงสดใสร่าเริงแบบสาวอนิเมะ ยิ้มในเสียง" },
+  sweet:    { voice: "Leda",        label: "♀ 🍬 หวานนุ่มนวล",     style: "พูดด้วยน้ำเสียงหวาน นุ่มนวล อ่อนโยน เป็นสาวน้อย" },
+  cool:     { voice: "Kore",        label: "♀ ❄️ นิ่งเท่มั่นใจ",    style: "พูดด้วยน้ำเสียงนิ่ง เท่ มั่นใจ หนักแน่นแบบมือโปร" },
+  genki:    { voice: "Zephyr",      label: "♀ ⚡ พลังล้นเหลือ",     style: "พูดเร็วๆ ตื่นเต้น พลังงานล้นเหลือ ร่าเริงสุดๆ" },
+  gentle:   { voice: "Achernar",    label: "♀ 🌸 อ่อนโยนนุ่มลึก",   style: "พูดเบาๆ อ่อนโยน นุ่มลึก ใจเย็น ปลอบประโลม" },
+  mature:   { voice: "Gacrux",      label: "♀ 🌹 ผู้ใหญ่หนักแน่น",  style: "พูดแบบผู้หญิงผู้ใหญ่ สุขุม หนักแน่น น่าเชื่อถือ" },
+  easy:     { voice: "Callirrhoe",  label: "♀ 🍃 สบายเป็นกันเอง",   style: "พูดชิลๆ สบายๆ เป็นกันเอง เหมือนเพื่อนสนิท" },
+  warmf:    { voice: "Sulafat",     label: "♀ 🧡 อบอุ่นนุ่มนวล",    style: "พูดด้วยน้ำเสียงอบอุ่น นุ่มนวล โอบกอด ใจดี" },
+  // ♂ male
+  boyish:   { voice: "Puck",        label: "♂ 🎈 หนุ่มขี้เล่น",     style: "พูดแบบหนุ่มขี้เล่น อารมณ์ดี กวนๆ นิดๆ" },
+  warm:     { voice: "Charon",      label: "♂ ☕ ทุ้มอบอุ่น",       style: "พูดเสียงทุ้ม อบอุ่น ใจเย็น น่าฟัง" },
+  serious:  { voice: "Fenrir",      label: "♂ 🗡 เข้มมีพลัง",       style: "พูดเสียงเข้ม มีพลัง กระตือรือร้น หนักแน่น" },
+  polite:   { voice: "Orus",        label: "♂ 🎩 สุภาพชัดถ้อย",     style: "พูดอย่างสุภาพ ชัดถ้อยชัดคำ เป็นทางการนิดๆ" },
+  deep:     { voice: "Enceladus",   label: "♂ 🌑 ทุ้มต่ำนุ่มลม",    style: "พูดเสียงทุ้มต่ำ นุ่มลม ผ่อนคลาย เหมือนจัดรายการดึก" },
+  clear:    { voice: "Iapetus",     label: "♂ 🔷 ชัดเจนกระฉับ",     style: "พูดชัดเจน กระฉับกระเฉง ตรงไปตรงมา" },
+  narrator: { voice: "Rasalgethi",  label: "♂ 🎙 นักเล่าเรื่อง",    style: "พูดแบบผู้บรรยายให้ข้อมูล จังหวะดี น่าติดตาม" },
+  buddy:    { voice: "Achird",      label: "♂ 😄 เป็นมิตร",         style: "พูดเป็นมิตร เป็นกันเอง อบอุ่น เหมือนพี่ชายใจดี" },
 };
 
 function pcmToWav(pcm, rate) {
@@ -3158,8 +3171,7 @@ function handleLive(req, sock) {
   // Calling is for the MAIN agent only — it speaks for the whole office. Use the
   // voice the owner assigned to main; if none, fall back to a default preset.
   const a = reg.agents["main"] || {};
-  const presetVoice = { sunny: "Aoede", sweet: "Leda", cool: "Kore", genki: "Zephyr",
-    boyish: "Puck", warm: "Charon", serious: "Fenrir", polite: "Orus" }[a.voice] || "Aoede";
+  const presetVoice = (VOICE_PRESETS[a.voice] || {}).voice || "Aoede";
   const ctxNote = (() => {
     try { return fs.readFileSync(OFFICE_MD, "utf8").slice(0, 2000); } catch { return ""; }
   })();
