@@ -768,6 +768,19 @@ fn main() {
         *control_flow = ControlFlow::WaitUntil(
             std::time::Instant::now() + std::time::Duration::from_millis(150));
 
+        // Chat-head watchdog: the orb is the user's ONE always-present control,
+        // so it must never get lost. Unless the office is deliberately hidden,
+        // if the orb has drifted off-screen (a missed WorldReady, a glitch) snap
+        // it back and re-assert always-on-top so it can't sink behind anything.
+        if !hide_item.is_checked() {
+            let off = orb.outer_position().map(|p| p.x < -2000).unwrap_or(true);
+            if off {
+                orb.set_outer_position(LogicalPosition::new(orb_x, orb_y));
+            }
+            orb.set_visible(true);
+            orb.set_always_on_top(true);
+        }
+
         let mut shutdown = false;
         let mut toggle = false;
 

@@ -488,12 +488,35 @@ const OFFICE_MD = path.join(WORKSPACE, "OFFICE.md");
 const MEM_DIR = path.join(WORKSPACE, "memory");
 fs.mkdirSync(MEM_DIR, { recursive: true });
 if (!fs.existsSync(OFFICE_MD)) {
+  // English by default (this is a global product); agents may append in any
+  // language later — the owner edits it from the 🗂 NOTES tab.
   fs.writeFileSync(OFFICE_MD,
-    "# OFFICE.md — ข้อมูลกลางของออฟฟิศ\n\n" +
-    "(เจ้าของแก้ไฟล์นี้ได้จากหน้า 🗂 NOTES — agents ทุกตัวรู้ว่าไฟล์นี้อยู่ที่ไหน " +
-    "และจะเปิดอ่านเมื่อเกี่ยวข้องกับงานเท่านั้น)\n\n" +
-    "## เกี่ยวกับเจ้าของ\n- \n\n## กฎของออฟฟิศ\n- \n");
+    "# OFFICE.md — shared office knowledge\n\n" +
+    "(The owner can edit this from the 🗂 NOTES tab. Every agent knows where this " +
+    "file is and reads it only when it's relevant to the work. Write in any language.)\n\n" +
+    "## About the owner\n- \n\n## Office rules\n- \n");
 }
+
+// 🌐 Ship pre-translated UI caches: merge daemon/i18n-seed/<lang>.json into the
+// runtime cache (daemon/i18n/) on startup, so the UI shows in the chosen
+// language even with NO Gemini key. Runtime entries win (they may be newer or
+// hand-edited); the bundled seed only fills the gaps.
+(function seedI18n() {
+  try {
+    const seedDir = path.join(__dirname, "i18n-seed");
+    const runDir = path.join(__dirname, "i18n");
+    if (!fs.existsSync(seedDir)) return;
+    fs.mkdirSync(runDir, { recursive: true });
+    for (const f of fs.readdirSync(seedDir)) {
+      if (!f.endsWith(".json")) continue;
+      let seed = {}, run = {};
+      try { seed = JSON.parse(fs.readFileSync(path.join(seedDir, f), "utf8")); } catch {}
+      try { run = JSON.parse(fs.readFileSync(path.join(runDir, f), "utf8")); } catch {}
+      fs.writeFileSync(path.join(runDir, f), JSON.stringify({ ...seed, ...run }));
+    }
+  } catch {}
+})();
+
 function memFile(agent) {
   return path.join(MEM_DIR, String(agent).replace(/[^\w-]/g, "_") + ".md");
 }
@@ -1556,25 +1579,36 @@ function voiceTranscribe(buf) {
 // Voice presets — clearly split ♀ / ♂, each a distinct Gemini prebuilt voice
 // with its own emotion + speaking style. `voice` is the Gemini voiceName; the
 // realtime-call path derives its voice from this same table (no duplication).
+// English labels + styles (global product). The ♀/♂ marker in each label drives
+// the picker grouping AND the gender-aware voice preview. `voice` is the Gemini
+// prebuilt voiceName. IDs are stable (agents store them) — never rename one.
 const VOICE_PRESETS = {
   // ♀ female
-  sunny:    { voice: "Aoede",       label: "♀ 🌞 สดใสร่าเริง",     style: "พูดด้วยน้ำเสียงสดใสร่าเริงแบบสาวอนิเมะ ยิ้มในเสียง" },
-  sweet:    { voice: "Leda",        label: "♀ 🍬 หวานนุ่มนวล",     style: "พูดด้วยน้ำเสียงหวาน นุ่มนวล อ่อนโยน เป็นสาวน้อย" },
-  cool:     { voice: "Kore",        label: "♀ ❄️ นิ่งเท่มั่นใจ",    style: "พูดด้วยน้ำเสียงนิ่ง เท่ มั่นใจ หนักแน่นแบบมือโปร" },
-  genki:    { voice: "Zephyr",      label: "♀ ⚡ พลังล้นเหลือ",     style: "พูดเร็วๆ ตื่นเต้น พลังงานล้นเหลือ ร่าเริงสุดๆ" },
-  gentle:   { voice: "Achernar",    label: "♀ 🌸 อ่อนโยนนุ่มลึก",   style: "พูดเบาๆ อ่อนโยน นุ่มลึก ใจเย็น ปลอบประโลม" },
-  mature:   { voice: "Gacrux",      label: "♀ 🌹 ผู้ใหญ่หนักแน่น",  style: "พูดแบบผู้หญิงผู้ใหญ่ สุขุม หนักแน่น น่าเชื่อถือ" },
-  easy:     { voice: "Callirrhoe",  label: "♀ 🍃 สบายเป็นกันเอง",   style: "พูดชิลๆ สบายๆ เป็นกันเอง เหมือนเพื่อนสนิท" },
-  warmf:    { voice: "Sulafat",     label: "♀ 🧡 อบอุ่นนุ่มนวล",    style: "พูดด้วยน้ำเสียงอบอุ่น นุ่มนวล โอบกอด ใจดี" },
+  sunny:    { voice: "Aoede",       label: "♀ 🌞 Cheerful",      style: "speak in a cheerful, sunny voice with a smile in it" },
+  sweet:    { voice: "Leda",        label: "♀ 🍬 Sweet",         style: "speak in a sweet, soft, gentle young voice" },
+  cool:     { voice: "Kore",        label: "♀ ❄️ Cool",          style: "speak calm, cool and confident, like a poised pro" },
+  genki:    { voice: "Zephyr",      label: "♀ ⚡ Energetic",      style: "speak fast and excited, bursting with energy" },
+  gentle:   { voice: "Achernar",    label: "♀ 🌸 Gentle",        style: "speak softly and gently, calm and soothing" },
+  mature:   { voice: "Gacrux",      label: "♀ 🌹 Mature",        style: "speak as a composed, mature woman — steady and trustworthy" },
+  easy:     { voice: "Callirrhoe",  label: "♀ 🍃 Easygoing",     style: "speak relaxed and friendly, like a close friend" },
+  warmf:    { voice: "Sulafat",     label: "♀ 🧡 Warm",          style: "speak in a warm, tender, kind voice" },
+  bright:   { voice: "Autonoe",     label: "♀ ✨ Bright",         style: "speak bright, crisp and articulate" },
+  silky:    { voice: "Despina",     label: "♀ 🌙 Silky",         style: "speak in a silky, smooth, soothing tone" },
+  pro:      { voice: "Erinome",     label: "♀ 🔷 Professional",   style: "speak clear, neutral and professional" },
+  lively:   { voice: "Laomedeia",   label: "♀ 🎉 Lively",        style: "speak lively, bubbly and upbeat" },
   // ♂ male
-  boyish:   { voice: "Puck",        label: "♂ 🎈 หนุ่มขี้เล่น",     style: "พูดแบบหนุ่มขี้เล่น อารมณ์ดี กวนๆ นิดๆ" },
-  warm:     { voice: "Charon",      label: "♂ ☕ ทุ้มอบอุ่น",       style: "พูดเสียงทุ้ม อบอุ่น ใจเย็น น่าฟัง" },
-  serious:  { voice: "Fenrir",      label: "♂ 🗡 เข้มมีพลัง",       style: "พูดเสียงเข้ม มีพลัง กระตือรือร้น หนักแน่น" },
-  polite:   { voice: "Orus",        label: "♂ 🎩 สุภาพชัดถ้อย",     style: "พูดอย่างสุภาพ ชัดถ้อยชัดคำ เป็นทางการนิดๆ" },
-  deep:     { voice: "Enceladus",   label: "♂ 🌑 ทุ้มต่ำนุ่มลม",    style: "พูดเสียงทุ้มต่ำ นุ่มลม ผ่อนคลาย เหมือนจัดรายการดึก" },
-  clear:    { voice: "Iapetus",     label: "♂ 🔷 ชัดเจนกระฉับ",     style: "พูดชัดเจน กระฉับกระเฉง ตรงไปตรงมา" },
-  narrator: { voice: "Rasalgethi",  label: "♂ 🎙 นักเล่าเรื่อง",    style: "พูดแบบผู้บรรยายให้ข้อมูล จังหวะดี น่าติดตาม" },
-  buddy:    { voice: "Achird",      label: "♂ 😄 เป็นมิตร",         style: "พูดเป็นมิตร เป็นกันเอง อบอุ่น เหมือนพี่ชายใจดี" },
+  boyish:   { voice: "Puck",        label: "♂ 🎈 Playful",       style: "speak like a playful, cheeky, good-humoured young man" },
+  warm:     { voice: "Charon",      label: "♂ ☕ Mellow",        style: "speak in a deep, warm, mellow voice" },
+  serious:  { voice: "Fenrir",      label: "♂ 🗡 Intense",       style: "speak intense, powerful and driven" },
+  polite:   { voice: "Orus",        label: "♂ 🎩 Polite",        style: "speak politely and clearly, a touch formal" },
+  deep:     { voice: "Enceladus",   label: "♂ 🌑 Deep",          style: "speak in a deep, low, relaxed late-night-radio voice" },
+  clear:    { voice: "Iapetus",     label: "♂ 🔷 Crisp",         style: "speak crisp, brisk and straightforward" },
+  narrator: { voice: "Rasalgethi",  label: "♂ 🎙 Narrator",      style: "speak like an engaging documentary narrator" },
+  buddy:    { voice: "Achird",      label: "♂ 😄 Friendly",      style: "speak friendly and warm, like a kind big brother" },
+  chill:    { voice: "Umbriel",     label: "♂ 🍵 Chill",         style: "speak relaxed and easygoing" },
+  smooth:   { voice: "Algieba",     label: "♂ 🎷 Smooth",        style: "speak smooth and laid-back" },
+  gravel:   { voice: "Algenib",     label: "♂ 🪨 Gravelly",      style: "speak deep and gravelly" },
+  steady:   { voice: "Alnilam",     label: "♂ ⚓ Steady",        style: "speak firm, steady and grounded" },
 };
 // Each preset is tagged ♀/♂ in its label — read the gender straight off it so a
 // voice preview introduces itself correctly (no more everyone saying "ค่ะ").

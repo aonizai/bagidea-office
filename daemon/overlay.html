@@ -901,6 +901,11 @@
     "🧱 กำแพง": { en: "🧱 Wall", zh: "🧱 墙", ja: "🧱 壁" },
     "🖼 รูป (import)": { en: "🖼 Image (import)", zh: "🖼 图片（导入）", ja: "🖼 画像（インポート）" },
     "📦 โมเดล (import)": { en: "📦 Model (import)", zh: "📦 模型（导入）", ja: "📦 モデル（インポート）" },
+    // voice picker
+    "🔇 ไม่มีเสียง": { en: "🔇 No voice", zh: "🔇 无声音", ja: "🔇 ボイスなし" },
+    "เสียงผู้หญิง": { en: "Female voices", zh: "女声", ja: "女性ボイス" },
+    "เสียงผู้ชาย": { en: "Male voices", zh: "男声", ja: "男性ボイス" },
+    "อื่นๆ": { en: "Other", zh: "其他", ja: "その他" },
   };
   function uiLang() {
     try {
@@ -1118,7 +1123,8 @@
       ? `สั่งงานในนาม CEO… (Director จะมารับคำสั่ง)`
       : `Message ${nameOf(id)}… (Enter to send)`;
     // 📞 calling is for the MAIN agent only (it speaks for the office).
-    document.getElementById("liveBtn").style.display = (id === "main") ? "" : "none";
+    // The realtime call always reaches the main agent — offer it from the CEO seat too.
+    document.getElementById("liveBtn").style.display = (id === "main" || id === "ceo") ? "" : "none";
     renderRail();
     refreshThreadBar(true);  // clicking a seat always shows that agent's latest thread
   }
@@ -2400,12 +2406,22 @@
     // 🗣 voice preset picker + sample playback
     const vSel = modalCard.querySelector("#eVoice");
     if (vSel) {
-      vSel.innerHTML = `<option value="">🔇 ไม่มีเสียง</option>`;
+      vSel.innerHTML = `<option value="">${tr("🔇 ไม่มีเสียง")}</option>`;
       fetch("/tts/presets").then((x) => x.json()).then((ps) => {
+        // Group by gender (the ♀/♂ marker in the label) so the long list is
+        // easy to scan: two labelled sections instead of one flat dropdown.
+        const groups = { "♀": null, "♂": null, "•": null };
+        const grpName = { "♀": tr("เสียงผู้หญิง"), "♂": tr("เสียงผู้ชาย"), "•": tr("อื่นๆ") };
+        const ensure = (k) => {
+          if (!groups[k]) { const g = document.createElement("optgroup"); g.label = grpName[k]; vSel.appendChild(g); groups[k] = g; }
+          return groups[k];
+        };
         for (const [pid, label] of Object.entries(ps)) {
+          const g = label.indexOf("♀") >= 0 ? "♀" : label.indexOf("♂") >= 0 ? "♂" : "•";
           const o = document.createElement("option");
-          o.value = pid; o.textContent = label;
-          vSel.appendChild(o);
+          // drop the gender glyph from the per-option text (the group says it)
+          o.value = pid; o.textContent = label.replace(/^[♀♂]\s*/, "");
+          ensure(g).appendChild(o);
         }
         vSel.value = a.voice || "";
       });

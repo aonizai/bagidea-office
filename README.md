@@ -46,6 +46,21 @@ the office truly comes alive.
 
 ---
 
+## 💛 Sponsors
+
+BagIdea Office is built in the open and kept free to run. These sponsors make that possible — **thank you** 🙏
+
+<p align="center">
+  <a href="https://www.warrix.co.th" target="_blank">
+    <img src="docs/img/sponsors/warrix.png" alt="WARRIX — Gold Partner" height="110">
+  </a>
+</p>
+<p align="center"><b>👑 Gold Partner — <a href="https://www.warrix.co.th">WARRIX</a></b></p>
+
+Want your brand here and in the app's credits? **[Become a sponsor →](mailto:wrxbgid@warrix.co.th?subject=BagIdea%20Office%20Sponsorship)**
+
+---
+
 ## Table of Contents
 
 - [What it does](#what-it-does)

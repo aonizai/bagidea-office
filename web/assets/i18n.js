@@ -58,6 +58,7 @@ const I18N = {
 
     sp_eyebrow:"Sponsors", sp_title:"Back an open AI-agent workspace",
     sp_lead:"BagIdea Office is built in the open. Sponsorship funds development, art licenses, cross-platform backends, and keeps it free to run. Your brand is shown here and in the app's credits.",
+    sp_thanks:"Proudly backed by",
     sp_gold_t:"Gold Partner", sp_gold_1:"Logo on the site & in-app credits", sp_gold_2:"Top placement, largest size", sp_gold_3:"Roadmap input & early builds", sp_gold_4:"Shout-out in release notes",
     sp_silver_t:"Silver Partner", sp_silver_1:"Logo on the website", sp_silver_2:"Mention in release notes", sp_silver_3:"Early access to builds",
     sp_bronze_t:"Bronze / Backer", sp_bronze_1:"Name on the supporters list", sp_bronze_2:"Our heartfelt thanks", sp_bronze_3:"A good-karma boost",
@@ -297,6 +298,7 @@ const I18N = {
 
     sp_eyebrow:"สปอนเซอร์", sp_title:"สนับสนุนพื้นที่ทำงาน AI agent แบบเปิด",
     sp_lead:"BagIdea Office พัฒนาแบบเปิด การสนับสนุนช่วยเรื่องการพัฒนา ลิขสิทธิ์อาร์ต รองรับหลายแพลตฟอร์ม และทำให้ใช้งานได้ฟรีต่อไป แบรนด์ของคุณจะแสดงที่นี่และในเครดิตของแอป",
+    sp_thanks:"ขอบคุณผู้สนับสนุน",
     sp_gold_t:"Gold Partner", sp_gold_1:"โลโก้บนเว็บและเครดิตในแอป", sp_gold_2:"ตำแหน่งบนสุด ขนาดใหญ่สุด", sp_gold_3:"ร่วมกำหนด roadmap + ได้ build ก่อนใคร", sp_gold_4:"ขอบคุณใน release notes",
     sp_silver_t:"Silver Partner", sp_silver_1:"โลโก้บนเว็บไซต์", sp_silver_2:"กล่าวถึงใน release notes", sp_silver_3:"เข้าถึง build ก่อนใคร",
     sp_bronze_t:"Bronze / ผู้สนับสนุน", sp_bronze_1:"ชื่อในรายชื่อผู้สนับสนุน", sp_bronze_2:"คำขอบคุณจากใจ", sp_bronze_3:"เพิ่มบุญกุศลให้คุณ",

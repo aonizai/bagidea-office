@@ -127,6 +127,17 @@ pre code { color:#cfe3ff; white-space:pre; }
 @media(max-width:640px){ .cli .row { grid-template-columns:1fr; gap:3px; } }
 
 /* sponsors */
+/* Honored-sponsor wall: real logos on light cards so any logo reads on dark. */
+.sp-thanks { text-align:center; margin:36px 0 14px; letter-spacing:2px; text-transform:uppercase;
+  font-size:12px; color:var(--dim); }
+.sponsor-wall { display:flex; flex-wrap:wrap; gap:20px; justify-content:center; }
+.sp-logo { display:flex; flex-direction:column; align-items:center; gap:10px; text-decoration:none;
+  background:#fff; border:1px solid var(--line); border-radius:18px; padding:24px 34px;
+  transition:transform .15s, box-shadow .15s; }
+.sp-logo:hover { transform:translateY(-3px); box-shadow:0 16px 40px rgba(0,0,0,.4); }
+.sp-logo img { height:84px; width:auto; display:block; }
+.sp-logo.gold { border-color:rgba(255,206,106,.7); box-shadow:0 0 44px rgba(255,206,106,.14); }
+.sp-badge { font-size:12px; font-weight:800; color:#caa23a; letter-spacing:.5px; }
 .tiers { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:42px; }
 @media(max-width:760px){ .tiers { grid-template-columns:1fr; } }
 .tier { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:26px 22px; text-align:center; }

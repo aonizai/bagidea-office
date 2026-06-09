@@ -46,6 +46,12 @@ _*.png
 # Working art files at repo root (untracked until the owner decides)
 CharacterBase*
 
+# Promo drafts + working images at repo root (owner's social material)
+THAI.md
+ENGLISH.md
+/Warrix.png
+/preview.jpg
+
 # Only the CORE plugins ship in this repo. Plugins installed at runtime via
 # `bagidea plugin install` (each its own git clone) are never tracked here.
 plugins/*
