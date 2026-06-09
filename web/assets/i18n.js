@@ -92,7 +92,7 @@ const I18N = {
 
     d_concepts_h:"Core concepts",
     d_c_ceo_h:"You are the CEO", d_c_ceo_p:"The gold seat is you. Type an order and the Director (the main Claude agent) walks over, takes it, plans, and delegates to the team.",
-    d_c_director_h:"The Director", d_c_director_p:"main is Claude itself — the office manager who answers you, creates projects, and routes work with DELEGATE lines.",
+    d_c_director_h:"The Director", d_c_director_p:"main is your second-in-command — Shino by default: a playful-but-focused manager who answers you, creates projects, and routes work to the team with DELEGATE lines. Tuned for delegation over hands-on work; you can re-tune or rename him in the editor.",
     d_c_ghost_h:"Ghosts (sub-agents)", d_c_ghost_p:"When a job parallelizes, an agent splits into translucent clones that work on the Ghost Deck and merge back with a synthesis.",
     d_c_grid_h:"The room grid", d_c_grid_p:"The floor is a 3×3 jigsaw of identical rooms; any room fits any slot, so you can rearrange the whole office in the editor.",
 
@@ -122,7 +122,7 @@ const I18N = {
 
     d_plugins_h:"Plugins, skills & tools",
     d_plugins_p:"Plugins extend the office for real — a folder with a manifest can add UI panels, HTTP routes, and commands agents can drive, with ctx access to the registry, feed, broadcasting and even running Claude turns. Two core plugins ship in the box (🎵 Music Player, 🧮 Calculator); install more from any GitHub repo. Start from the official template, or read the worked example repos.",
-    d_skills_p:"Every office ships with a library of builtin skills (deep research, office control, plugin building, code review, docs, debugging, data wrangling, project kickoff, diagrams) you can assign to any agent, plus Hermes-style skills the office learns automatically after real work. Add new raw capability via MCP servers.",
+    d_skills_p:"Every office ships with a library of builtin skills (office operations, deep research, office control, plugin building, code review, docs, debugging, data wrangling, project kickoff, diagrams) you can assign to any agent, plus Hermes-style skills the office learns automatically after real work. Add new raw capability via MCP servers.",
     d_lang_h:"Languages", d_lang_p:"The whole interface supports 14 languages. English is the default; pick another in settings and the office translates office-wide (and remembers your choice per machine). This website speaks the same 14 languages — use the picker in the top bar.",
 
     d_cli_h:"CLI reference", d_cli_p:"The installer puts bagidea on your PATH. It talks to the running office and can start it. A few highlights:",
@@ -328,7 +328,7 @@ const I18N = {
 
     d_concepts_h:"แนวคิดหลัก",
     d_c_ceo_h:"คุณคือ CEO", d_c_ceo_p:"ที่นั่งสีทองคือคุณ พิมพ์สั่งงานแล้ว Director (Claude หลัก) จะเดินมารับ วางแผน และมอบหมายให้ทีม",
-    d_c_director_h:"Director", d_c_director_p:"main คือ Claude เอง — ผู้จัดการออฟฟิศที่ตอบคุณ สร้างโปรเจค และจัดงานด้วยบรรทัด DELEGATE",
+    d_c_director_h:"Director", d_c_director_p:"main คือมือขวาของคุณ — ค่าเริ่มต้นชื่อ Shino: ผู้จัดการบุคลิกหนุ่มขี้เล่นแต่จริงจังกับงาน ตอบคุณ สร้างโปรเจค และจัดงานให้ทีมด้วยบรรทัด DELEGATE เน้นสั่งงานมากกว่าลงมือเอง ปรับแต่งหรือเปลี่ยนชื่อได้ใน editor",
     d_c_ghost_h:"ผี (sub-agent)", d_c_ghost_p:"เมื่องานแยกขนานได้ agent จะแตกเป็นร่างโคลนโปร่งแสง ทำงานบน Ghost Deck แล้วรวมร่างพร้อมสรุป",
     d_c_grid_h:"กริดห้อง", d_c_grid_p:"พื้นเป็น jigsaw 3×3 ของห้องขนาดเท่ากัน ห้องไหนก็ไปสล็อตไหนได้ จัดผังทั้งออฟฟิศใหม่ใน editor ได้",
 
@@ -358,7 +358,7 @@ const I18N = {
 
     d_plugins_h:"Plugin สกิล และเครื่องมือ",
     d_plugins_p:"Plugin ต่อยอดออฟฟิศได้จริง — โฟลเดอร์ที่มี manifest เพิ่มแผง UI, HTTP route, และคำสั่งที่ agent ใช้ได้ พร้อม ctx เข้าถึง registry, feed, broadcast และแม้แต่รัน Claude ได้ มี plugin หลัก 2 ตัวมาในกล่อง (🎵 Music Player, 🧮 Calculator) ติดตั้งเพิ่มจาก GitHub repo ใดก็ได้ เริ่มจากเทมเพลตทางการ หรืออ่าน repo ตัวอย่าง",
-    d_skills_p:"ทุกออฟฟิศมาพร้อมห้องสมุดสกิลพื้นฐาน (ค้นคว้าเชิงลึก, ควบคุมออฟฟิศ, สร้าง plugin, รีวิวโค้ด, เขียนเอกสาร, ดีบัก, จัดการข้อมูล, เริ่มโปรเจค, ทำไดอะแกรม) assign ให้ agent คนไหนก็ได้ บวกสกิลสไตล์ Hermes ที่ออฟฟิศเรียนรู้เองหลังทำงานจริง เพิ่มความสามารถใหม่ผ่าน MCP servers",
+    d_skills_p:"ทุกออฟฟิศมาพร้อมห้องสมุดสกิลพื้นฐาน (บริหารออฟฟิศ, ค้นคว้าเชิงลึก, ควบคุมออฟฟิศ, สร้าง plugin, รีวิวโค้ด, เขียนเอกสาร, ดีบัก, จัดการข้อมูล, เริ่มโปรเจค, ทำไดอะแกรม) assign ให้ agent คนไหนก็ได้ บวกสกิลสไตล์ Hermes ที่ออฟฟิศเรียนรู้เองหลังทำงานจริง เพิ่มความสามารถใหม่ผ่าน MCP servers",
     d_lang_h:"ภาษา", d_lang_p:"ทั้งอินเทอร์เฟซรองรับ 14 ภาษา ค่าเริ่มต้นเป็นอังกฤษ เลือกภาษาอื่นในตั้งค่าแล้วออฟฟิศแปลทั้งระบบ (และจำค่าต่อเครื่อง) เว็บนี้ก็พูดได้ 14 ภาษาเดียวกัน — ใช้ตัวเลือกที่แถบบน",
 
     d_cli_h:"คำสั่ง CLI", d_cli_p:"ตัวติดตั้งใส่ bagidea ไว้ใน PATH ให้ มันคุยกับออฟฟิศที่รันอยู่และเปิดเองได้ ตัวอย่างเด่น ๆ:",

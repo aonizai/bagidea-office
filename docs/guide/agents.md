@@ -2,6 +2,14 @@
 
 ![หน้าต่างแชทกับ agent](../img/overlay.png)
 
+## ทีมเริ่มต้น
+
+ออฟฟิศใหม่มี 2 คน: **คุณ (CEO 👑)** และ **Shino** — Director (มือขวาของคุณ)
+ที่ตั้งค่ามาครบแล้ว: บุคลิกหนุ่มขี้เล่นแต่จริงจังกับงาน เน้น**สั่งงานและบริหารทีม**
+เป็นหลัก (มี tool ทำงานน้อย แต่สั่งงานเป็นเลิศ), สกิล `office-ops` + `plugin-builder`
++ `project-kickoff`, aura 🌿 nature, เสียง 🎈 หนุ่มขี้เล่น. จากนั้นค่อยจ้างทีมเพิ่ม
+ตามงาน — Shino จะกระจายงานให้เองตามความถนัด
+
 ## จ้างพนักงานใหม่
 
 ⚙ Settings → AGENTS → **＋ Hire a new agent**
@@ -33,9 +41,9 @@
 
 ## Skills — ห้องสมุดความสามารถ
 
-⚙ → SKILLS: ทุกออฟฟิศมาพร้อม **9 ชุดสกิลพื้นฐาน** (deep-research, office-control,
-plugin-builder, code-review, doc-writer, debug-detective, data-wrangler,
-project-kickoff, diagram-maker) — assign ให้ใครก็ได้ในหน้าแก้ไข. เขียนสกิลของ
+⚙ → SKILLS: ทุกออฟฟิศมาพร้อม **10 ชุดสกิลพื้นฐาน** (office-ops, deep-research,
+office-control, plugin-builder, code-review, doc-writer, debug-detective,
+data-wrangler, project-kickoff, diagram-maker) — assign ให้ใครก็ได้ในหน้าแก้ไข. เขียนสกิลของ
 ตัวเองเพิ่มก็ได้ (เช่น "วิธี deploy เว็บของบริษัท") แล้ว assign ให้ agent คนไหนก็ได้ —
 มันจะติดไปกับทุก session ใหม่ของเขา
 
