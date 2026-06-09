@@ -348,6 +348,12 @@ func handle(evt: Dictionary) -> void:
 			_to_desk(a)
 			_maybe_focus(a.node, 0.55, 7.0)
 			a.node.set_status("รอผล sub-agents 👻")
+		"voice.say":
+			# An agent spoke out loud — show what they said as a speech bubble too.
+			if not evt.get("replay", false):
+				a.node.set_status("🗣 " + str(evt.get("text", "")).left(30))
+				_fx(a, "music")
+				_clear_status_later(a, 6.0)
 		"skill.created":
 			# Hermes moment: the agent distilled its work into a new skill.
 			if not theatrical:
@@ -762,7 +768,10 @@ func _walk(node: Sprite3D, target: String, face_dir := -1) -> float:
 		# the same spot, and the same person is stable across visits.
 		var hh: int = abs(hash(node.agent_name))
 		var ang := float(hh % 360) * 0.01745329
-		var rad := 0.8 + float((hh / 360) % 100) * 0.01   # 0.8 .. 1.8
+		# Room CENTRES usually hold a table — ring agents WIDE around it so they
+		# never stand on it; seats get just a small scatter so nobody overlaps.
+		var base: float = 1.5 if target.ends_with("_c") else 0.7
+		var rad: float = base + float((hh / 360) % 80) * 0.01
 		path[path.size() - 1] += Vector3(cos(ang) * rad, 0, sin(ang) * rad)
 	return node.walk_to(path, face_dir)
 
@@ -1148,7 +1157,7 @@ func _act_chat(a: Dictionary, pool: Array) -> void:
 func _act_cafe(a: Dictionary) -> void:
 	a.node.set_status("พักดื่มกาแฟ ☕")
 	var seat: String = ["cafe_s1", "cafe_s2", "cafe_c"].pick_random()
-	var d: float = a.node.walk_to(world.path_to(a.node.position, seat))
+	var d: float = _walk(a.node, seat)
 	await get_tree().create_timer(d + randf_range(8.0, 16.0)).timeout
 	if a.state == "idle":
 		a.node.set_status("")
@@ -1158,7 +1167,7 @@ func _act_cafe(a: Dictionary) -> void:
 func _act_explore(a: Dictionary) -> void:
 	var spot: String = "server_c" if randf() < 0.5 else "meeting_c"
 	a.node.set_status("เปลี่ยนบรรยากาศ 🚶")
-	var d: float = a.node.walk_to(world.path_to(a.node.position, spot))
+	var d: float = _walk(a.node, spot)
 	await get_tree().create_timer(d + randf_range(6.0, 12.0)).timeout
 	if a.state == "idle":
 		a.node.set_status("")

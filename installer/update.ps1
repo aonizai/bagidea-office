@@ -11,10 +11,15 @@ Write-Host ""
 Write-Host "  ===== BagIdea Office - UPDATE =====" -ForegroundColor Cyan
 
 # 1) Stop the running suite (shell + wallpaper + daemon).
+#    IMPORTANT: the wallpaper exe is the BRANDED "BagIdeaOffice.exe" (rcedit
+#    copy of Godot), NOT "Godot*". Missing it left the wallpaper running while
+#    the shell died — the UI vanished and the update looked stuck. Match all.
 Write-Host "  [1/4] Stopping the app..." -ForegroundColor DarkCyan
 Get-CimInstance Win32_Process | Where-Object {
   ($_.Name -eq "node.exe" -and $_.CommandLine -match "server\.js") -or
-  $_.Name -eq "bagidea-office-shell.exe" -or $_.Name -like "Godot*"
+  $_.Name -eq "bagidea-office-shell.exe" -or
+  $_.Name -eq "BagIdeaOffice.exe" -or
+  $_.Name -like "Godot*"
 } | ForEach-Object { taskkill /PID $_.ProcessId /T /F 2>$null | Out-Null }
 Start-Sleep 2
 

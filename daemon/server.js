@@ -1886,16 +1886,20 @@ function socialTick(now) {
 const MOOD_LINES = {
   th: ["วันนี้อยากทำงานจัง 💪", "ขอกาแฟแก้วนึงงง ☕", "เงียบดีนะวันนี้ 🌿", "มีใครอยากได้ idea เด็ดๆ ไหม 💡",
     "ออฟฟิศเราน่าอยู่จริงๆ นะ ✨", "พักสายตาแป๊บ 👀", "เจ้าเหมียวน่ารักอีกแล้ว 🐱", "วันนี้ productive สุดๆ 🚀",
-    "ใครว่างมาคุยเล่นกันมั้ย 💬", "อยากลองทำอะไรใหม่ๆ ดูบ้าง 🎨"],
+    "ใครว่างมาคุยเล่นกันมั้ย 💬", "อยากลองทำอะไรใหม่ๆ ดูบ้าง 🎨", "หิวแล้วแฮะ 🍜", "เพลงนี้เพราะจัง 🎵",
+    "งานวันนี้ลื่นไหลดี 😎", "ขอยืดเส้นยืดสายหน่อย 🤸", "เดี๋ยวพักแล้วลุยต่อ 🔥", "อากาศดีน่านอน 😴",
+    "เก่งขึ้นทุกวันเลยเรา 🌟", "ใครเห็นปากกาเรามั้ย ✏️"],
   en: ["Feeling productive today 💪", "Could really go for a coffee ☕", "Nice and quiet today 🌿",
     "Anyone got a cool idea? 💡", "Love this office ✨", "Quick eye break 👀", "Cat's adorable again 🐱",
-    "On a roll today 🚀", "Anyone free to chat? 💬", "Itching to build something new 🎨"],
+    "On a roll today 🚀", "Anyone free to chat? 💬", "Itching to build something new 🎨", "Kinda hungry now 🍜",
+    "This track slaps 🎵", "Work's flowing today 😎", "Need a quick stretch 🤸", "Break then back at it 🔥",
+    "Comfy weather today 😴", "Getting better every day 🌟", "Anyone seen my pen? ✏️"],
 };
 let lastAmbient = Date.now();
 function ambientTick(now) {
   if (discussing || agentBusy.size > 0) return;
-  if (now - lastAmbient < 90 * 1000) return;        // at most once every ~90s
-  if (Math.random() > 0.30) return;                 // ...and only ~30% of those
+  if (now - lastAmbient < 55 * 1000) return;        // at most once every ~55s
+  if (Math.random() > 0.45) return;                 // ...and only ~45% of those
   const pool = Object.keys(reg.agents).filter((id) => id !== "ceo");
   if (!pool.length) return;
   lastAmbient = now;
@@ -1905,7 +1909,7 @@ function ambientTick(now) {
   broadcast({ type: "chat.message", agent: id, text, social: true, ambient: true });
   // Speak it sometimes, only if this agent has a voice and TTS is unlocked.
   const a = reg.agents[id] || {};
-  if (a.voice && featuresMap().tts && reg.tts !== false && Math.random() < 0.5)
+  if (a.voice && featuresMap().tts && reg.tts !== false && Math.random() < 0.6)
     broadcast({ type: "voice.say", agent: id, text });
 }
 
@@ -3339,7 +3343,11 @@ const server = http.createServer((req, res) => {
     // Human-triggered only (in-app 🔄 button or the CLI).
     if (!req.headers["x-bagidea-ui"]) { res.writeHead(403); return res.end("human UI only"); }
     const ps = path.join(__dirname, "..", "installer", "update.ps1");
-    spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps],
+    // Launch in a REAL, visible console window via `cmd start` so the user can
+    // watch git pull + the rebuild — a silent detached process looked hung. It
+    // also outlives this daemon (the updater kills + relaunches the whole suite).
+    spawn("cmd.exe", ["/c", "start", "BagIdea Update", "powershell",
+      "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps],
       { detached: true, stdio: "ignore", windowsHide: false }).unref();
     res.writeHead(200); res.end("ok");
 

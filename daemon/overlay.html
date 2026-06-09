@@ -3720,8 +3720,19 @@
       document.getElementById("updSha").textContent = ver ? "v" + ver : "";
       bar.classList.add("on");
       bar.onclick = async () => {
-        bar.textContent = "⏳ กำลังอัปเดต… โปรแกรมจะปิดและเปิดใหม่เอง";
+        bar.textContent = "⏳ กำลังอัปเดต… โปรแกรมจะปิดและเปิดใหม่เอง (มีหน้าต่างอัปเดตเด้งขึ้นมา)";
         await api("/update", {});
+        // If the updater took over, this page is gone before the timer fires.
+        // If we're STILL here after 45s, it didn't start — un-stick the banner.
+        setTimeout(async () => {
+          try {
+            const h = await fetch("/health");
+            if (h && h.ok) {
+              bar.classList.add("on");
+              bar.innerHTML = "⚠️ อัปเดตยังไม่เริ่ม — เปิด Terminal แล้วรัน <b>bagidea update</b> (หรือคลิกที่นี่เพื่อลองอีกครั้ง)";
+            }
+          } catch {}
+        }, 45000);
       };
       addFeed("main", "🔄 มีเวอร์ชันใหม่ " + (ver ? "v" + ver : "") + " — อัปเดตได้จากแถบในหน้าแชท หรือ `bagidea update`", "");
       return;
