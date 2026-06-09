@@ -182,8 +182,10 @@ if ($Assets) {
   } catch {
     Warn "art pack step failed (skipping; procedural visuals)"
   }
+} elseif (Test-Path (Join-Path $assetDir "characters")) {
+  Skip "art assets are bundled with the install"
 } else {
-  Skip "no -Assets given; using built-in procedural visuals (licensed packs: see README)"
+  Skip "no art assets found; using built-in procedural visuals"
 }
 
 # ---- build the Rust shell ----------------------------------------------------

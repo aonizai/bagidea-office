@@ -24,19 +24,14 @@ workspace/*
 workspace/.claude/*
 !workspace/.claude/settings.json
 
-# Licensed third-party character art — download from itch.io (see README),
-# not redistributable in this repo. The game falls back to procedural
-# sprites when these are missing.
-godot/assets/characters/
-godot/assets/scifi/
+# Free art packs (free-license / CC0 — see README "Art assets") now ship IN the
+# repo, so a fresh install and `bagidea update` carry the full visuals + sounds.
 _assets_tmp/
 *.zip
 
 # Third-party asset archives
 *.rar
 *.7z
-godot/assets/env/
-godot/assets/decor/
 # branded Godot runtime (172MB, built by copying Godot + rcedit --set-icon)
 godot/bin/
 tools/rcedit-x64.exe
@@ -47,8 +42,6 @@ shots/
 godot/_*.gd
 _grid_*.png
 _*.png
-godot/assets/pixelfx/
-godot/assets/sounds/
 
 # Working art files at repo root (untracked until the owner decides)
 CharacterBase*
