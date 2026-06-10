@@ -1,0 +1,21 @@
+[package]
+name = "wallpaper_shim"
+version = "0.1.0"
+edition = "2021"
+
+# A tiny library injected into Godot via DYLD_INSERT_LIBRARIES. On load it
+# drops Godot's main window to the macOS desktop window level (behind the
+# desktop icons) — the cross-platform answer to the Windows WorkerW trick.
+[lib]
+name = "wallpaper_shim"
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+
+[dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSGeometry"] }
+ctor = "0.2"

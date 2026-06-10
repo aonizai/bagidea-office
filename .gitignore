@@ -3,6 +3,12 @@ godot/.godot/
 
 # Rust build artifacts
 shell/target/
+shell/macos/wallpaper_shim/target/
+
+# macOS: built wallpaper shim (rebuilt by build-mac.sh) and the locally
+# downloaded Godot runtime (not ours to redistribute — see README "Run on macOS")
+shell/macos/*.dylib
+godot/bin-mac/
 
 # Personal Claude Code permission overrides (per-machine)
 .claude/settings.local.json

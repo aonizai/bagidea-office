@@ -36,6 +36,7 @@ This keeps two promises:
 ## Checklist before bumping VERSION
 
 - [ ] `dev` merged to `main`, working tree clean.
+- [ ] Automated tests pass: `node --test daemon/tests/api.test.js`.
 - [ ] Daemon boots clean: `node daemon/server.js` (no errors), or `bagidea restart`.
 - [ ] Shell builds: `cargo build --release` in `shell/`.
 - [ ] Godot scene loads: `godot/bin/BagIdeaOffice.exe --headless --check-only --quit`

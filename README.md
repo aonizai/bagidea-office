@@ -199,6 +199,8 @@ Three independent processes: the **daemon** keeps agents running even if renderi
 ├── docs/                      ← full V1 product-design spec (10 documents)
 ├── daemon/                    ← Layer 0 (Node.js, no npm install needed)
 │   ├── server.js                  … WS hub + journal + registry + adapter + perms
+│   ├── constants.js               … shared office constants (skills, tools, agents)
+│   ├── tests/                     … automated API tests (node --test)
 │   ├── overlay.html               … Layer-2 web overlay (served at /)
 │   ├── hook.ps1 / perm.ps1        … Claude Code hook forwarders
 │   ├── send.js                    … test event CLI
@@ -234,7 +236,7 @@ Three independent processes: the **daemon** keeps agents running even if renderi
 
 | Component | Requirement |
 |---|---|
-| OS | Windows 11 (wallpaper embedding uses WorkerW; macOS/Linux planned) |
+| OS | Windows 11 / macOS 13+ (wallpaper backend: WorkerW / DYLD shim) |
 | Renderer | [Godot 4.6+](https://godotengine.org/download) (standard build) |
 | Daemon | [Node.js](https://nodejs.org) 18+ (no npm packages needed) |
 | Agent | [Claude Code CLI](https://claude.com/claude-code) (`claude --version` ≥ 2.x) |
@@ -248,12 +250,19 @@ Three independent processes: the **daemon** keeps agents running even if renderi
 On a **bare machine** it installs everything needed — Git, Node LTS, Rust, the
 **Visual Studio C++ Build Tools** (the Rust linker, and the most common reason a
 build fails), Godot 4.6.3 and the Claude Code CLI — then clones the app to
-`%LOCALAPPDATA%\BagIdeaOffice`, builds the shell, brands the window icon, wires the
-`bagidea` command into your PATH and creates a Start Menu shortcut. Freshly
-installed tools are pulled onto the current PATH so it finishes in one pass:
+`%LOCALAPPDATA%\BagIdeaOffice` (Windows) or `~/BagIdeaOffice` (macOS), builds the
+shell, brands the window icon, wires the `bagidea` command into your PATH and
+creates a Start Menu shortcut or Bin link. Freshly installed tools are pulled
+onto the current PATH so it finishes in one pass:
 
+**Windows:**
 ```powershell
 irm https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install.ps1 | iex
+```
+
+**macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/spondanai/bagidea-office/feat/macos-support/installer/install-mac.sh | bash
 ```
 
 > First time only: open a **new** terminal, run `claude` once to log in to Claude,
@@ -261,7 +270,20 @@ irm https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/inst
 > Install didn't finish? See **[troubleshooting → install](docs/guide/troubleshooting.md#แก้ปัญหาการติดตั้ง)**
 > (covers winget, the C++ Build Tools / linker error, PATH, SmartScreen).
 
-### Manual
+### macOS installation
+
+1. Download **Godot 4.6.x macOS (universal)** and unzip `Godot.app` to `godot/bin-mac/Godot.app`.
+2. Run the build script to compile the shell, shim, and wire hooks:
+```bash
+./build-mac.sh
+```
+3. Add the `bagidea` command to your PATH:
+```bash
+export PATH="$(pwd)/bin:$PATH"
+```
+4. Run it: `shell/target/release/bagidea-office-shell`
+
+### Manual (Windows)
 
 ```powershell
 git clone https://github.com/bagidea/bagidea-office.git
