@@ -1451,7 +1451,11 @@ function runSub(parentId, subId, taskText, entry, onDone) {
   // Ghosts are short-lived by contract — a stuck one is reaped, its slot
   // reported as failed, so the parent's synthesis always happens.
   const watchdog = setTimeout(() => {
-    try { spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { shell: true }); } catch {}
+    try {
+      if (process.platform === "win32")
+        spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { shell: true });
+      else child.kill("SIGKILL");
+    } catch {}
     finish(false);
   }, 6 * 60000);
   child.stdout.on("data", (c) => {
@@ -1807,22 +1811,51 @@ setInterval(checkUpdate, 6 * 3600000);
 const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const RUN_NAME = "BagIdeaOffice";
 function shellExePath() {
-  return path.join(__dirname, "..", "shell", "target", "release", "bagidea-office-shell.exe");
+  const exe = process.platform === "win32" ? "bagidea-office-shell.exe" : "bagidea-office-shell";
+  return path.join(__dirname, "..", "shell", "target", "release", exe);
 }
+// macOS: a per-user LaunchAgent, same label the tray's set_autostart writes —
+// both point at the shell binary so the toggle and the tray stay in sync.
+const MAC_PLIST = path.join(require("os").homedir(),
+  "Library", "LaunchAgents", "com.bagidea.office.plist");
 function isAutostart(cb) {
-  if (process.platform !== "win32") return cb(false);
-  require("child_process").execFile("reg", ["query", RUN_KEY, "/v", RUN_NAME],
-    (e) => cb(!e));
+  if (process.platform === "win32") {
+    return require("child_process").execFile("reg",
+      ["query", RUN_KEY, "/v", RUN_NAME], (e) => cb(!e));
+  }
+  if (process.platform === "darwin") return cb(fs.existsSync(MAC_PLIST));
+  return cb(false);
 }
 function setAutostart(on, cb) {
-  if (process.platform !== "win32") return cb(false);
   const { execFile } = require("child_process");
-  if (on) {
-    execFile("reg", ["add", RUN_KEY, "/v", RUN_NAME, "/t", "REG_SZ",
-      "/d", shellExePath(), "/f"], (e) => cb(!e));
-  } else {
-    execFile("reg", ["delete", RUN_KEY, "/v", RUN_NAME, "/f"], () => cb(true));
+  if (process.platform === "win32") {
+    if (on) {
+      execFile("reg", ["add", RUN_KEY, "/v", RUN_NAME, "/t", "REG_SZ",
+        "/d", shellExePath(), "/f"], (e) => cb(!e));
+    } else {
+      execFile("reg", ["delete", RUN_KEY, "/v", RUN_NAME, "/f"], () => cb(true));
+    }
+    return;
   }
+  if (process.platform === "darwin") {
+    try {
+      if (on) {
+        fs.mkdirSync(path.dirname(MAC_PLIST), { recursive: true });
+        fs.writeFileSync(MAC_PLIST,
+          '<?xml version="1.0" encoding="UTF-8"?>\n' +
+          '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n' +
+          '<plist version="1.0"><dict>\n' +
+          '  <key>Label</key><string>com.bagidea.office</string>\n' +
+          '  <key>ProgramArguments</key><array><string>' + shellExePath() + '</string></array>\n' +
+          '  <key>RunAtLoad</key><true/>\n' +
+          '</dict></plist>\n');
+      } else if (fs.existsSync(MAC_PLIST)) {
+        fs.unlinkSync(MAC_PLIST);
+      }
+      return cb(true);
+    } catch { return cb(false); }
+  }
+  cb(false);
 }
 
 // ---------------------------------------------------------------- channels

@@ -14,7 +14,7 @@
   * { box-sizing: border-box; margin: 0; }
   html { background: #0a111d; }
   body {
-    font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, "Helvetica Neue", "Thonburi", sans-serif;
     background: radial-gradient(1200px 700px at 70% -10%, #14233c 0%, #0a111d 60%, #070b13 100%);
     color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden;
     border: 1px solid rgba(110, 185, 255, 0.35); border-radius: 18px;
@@ -2002,7 +2002,7 @@
         <div class="switch ${TTSON ? "on" : ""}" id="ttsSw" style="margin-top:6px">
           <div class="knob"></div> 🗣 Agent voices — เสียงพูดของ agents (ต้องมี Gemini key)</div>
         <div class="switch" id="startupSw" style="margin-top:6px">
-          <div class="knob"></div> 🪟 Start with Windows — เปิดออฟฟิศอัตโนมัติเมื่อเปิดเครื่อง</div>
+          <div class="knob"></div> 🚀 Start at login — เปิดออฟฟิศอัตโนมัติเมื่อเข้าสู่ระบบ</div>
         <div class="field" style="margin-top:8px"><label>💓 DIRECTOR HEARTBEAT — รอบตรวจภาพรวม/ตารางงาน (แจ้งเฉพาะที่ควรรู้)</label>
           <select id="hbSel">
             <option value="0">ปิด</option>
@@ -2030,8 +2030,8 @@
             <option value="f7">F7</option>
             <option value="f8">F8</option>
             <option value="f9">F9</option>
-            <option value="ctrl+space">Ctrl + Space</option>
-            <option value="ctrl+shift+space">Ctrl + Shift + Space</option>
+            <option value="ctrl+space">⌃ Control + Space</option>
+            <option value="ctrl+shift+space">⌃ Control + ⇧ Shift + Space</option>
             <option value="none">ปิดคีย์ลัด</option>
           </select></div>
         <input id="aFilter" class="filterbox" placeholder="🔍 ค้นหา agent…">
@@ -2129,7 +2129,7 @@
           try {
             const r = await api("/startup", { on });
             e.currentTarget.classList.toggle("on", !!r.on);
-            addChip(on ? "🪟 จะเปิดออฟฟิศอัตโนมัติเมื่อเปิดเครื่อง" : "ปิดการเปิดอัตโนมัติแล้ว");
+            addChip(on ? "🚀 จะเปิดออฟฟิศอัตโนมัติเมื่อเข้าสู่ระบบ" : "ปิดการเปิดอัตโนมัติแล้ว");
           } catch { addChip("✗ ตั้งค่าไม่สำเร็จ"); }
         };
       }
