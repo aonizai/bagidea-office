@@ -356,6 +356,14 @@
   #updBar.on { display: block; }
   #updBar:hover { background: rgba(255,176,84,0.2); }
   body.feedmode #updBar { display: none !important; }
+  /* voice-hotkey tip — only visible in feed mode (where there's no input box) */
+  #feedTip { display: none; }
+  body.feedmode #feedTip {
+    display: block; margin: 8px 14px 2px; padding: 8px 11px;
+    font-size: 11px; line-height: 1.5; color: rgba(190, 215, 255, 0.9);
+    background: rgba(94,200,255,0.08); border: 1px solid var(--line); border-radius: 10px;
+  }
+  body.feedmode #feedTip b { color: var(--accent); }
 
   /* type-to-filter + bounded lists keep big collections usable */
   /* voice buttons greyed when the main key is missing */
@@ -778,6 +786,9 @@
   <button id="feedClear" title="ล้างรายการ log">🧹 ล้าง</button><span id="feedConn"></span>
 </div>
 <div id="feedTasks"></div>
+<!-- Feed mode has no input box, so surface the voice hotkey here (otherwise the
+     feature is invisible). Shown only in feed mode via CSS. -->
+<div id="feedTip">🎤 กดปุ่มลัดเสียงค้างไว้ (ค่าเริ่มต้น <b>F6</b>) เพื่อพูดสั่งงานออฟฟิศ · Hold the voice hotkey (default <b>F6</b>) to speak a command</div>
 <div id="feed">
   <div id="feedEmpty">— เงียบสงบ… รอความเคลื่อนไหวในออฟฟิศ —</div>
 </div>
@@ -795,7 +806,7 @@
             autofocus autocomplete="off" spellcheck="false"></textarea>
   <input id="filePick" type="file" multiple style="display:none">
   <button class="send" id="attachBtn" title="แนบไฟล์ (หรือลากมาวางได้เลย)">📎</button>
-  <button class="send" id="micBtn" title="พูดแทนพิมพ์">🎤</button>
+  <button class="send" id="micBtn" title="พูดแทนพิมพ์ — หรือกดปุ่มลัดเสียงค้าง (ค่าเริ่มต้น F6) พูดได้ทุกที่ในเครื่อง">🎤</button>
   <button class="send" id="liveBtn" title="คุยเสียงสด (realtime)">📞</button>
   <button class="send" id="sessBtn" title="Chat sessions (threads)">🧵</button>
   <button class="send" id="send">➤</button>

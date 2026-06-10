@@ -1120,14 +1120,20 @@ func _idle_life_loop() -> void:
 		# Weighted so the CAFE gets as much love as the REC room, with the odd
 		# wander to the server/meeting rooms (rare). Beds are handled by naps.
 		var r := randf()
-		if r < 0.18:
+		if r < 0.13:
 			_act_tv(a)             # rec
-		elif r < 0.28:
+		elif r < 0.21:
 			_act_ball(a)           # rec
-		elif r < 0.38:
+		elif r < 0.29:
 			_act_pet(a)            # rec
-		elif r < 0.76:
-			_act_cafe(a)           # cafe — equal weight to the rec activities
+		elif r < 0.41:
+			_act_chase(a, pool)    # play tag with a friend (falls back if alone)
+		elif r < 0.49:
+			_act_dance(a)          # a little dance in the rec room
+		elif r < 0.55:
+			_act_stretch(a)        # quick stretch on the spot
+		elif r < 0.80:
+			_act_cafe(a)           # cafe — still the biggest single share
 		elif r < 0.92:
 			_act_chat(a, pool)     # chat with a colleague (anywhere)
 		else:
@@ -1217,6 +1223,51 @@ func _act_explore(a: Dictionary) -> void:
 	await get_tree().create_timer(d + randf_range(6.0, 12.0)).timeout
 	if a.state == "idle":
 		a.node.set_status("")
+
+## Two idle agents play tag — one chases, the other dashes away. Pure fun.
+func _act_chase(a: Dictionary, pool: Array) -> void:
+	var others := pool.filter(func(o): return o.id != a.id and o.state == "idle")
+	if others.is_empty():
+		return
+	var b: Dictionary = others.pick_random()
+	a.node.set_status(ui("ไล่จับเพื่อน 🏃"))
+	b.node.set_status(ui("หนีสุดชีวิต 😆"))
+	for _i in range(2):
+		if a.state != "idle" or b.state != "idle" or not is_instance_valid(a.node) or not is_instance_valid(b.node):
+			break
+		var away: Vector3 = b.node.position - a.node.position
+		away = (Vector3(1, 0, 0) if away.length() < 0.1 else away.normalized())
+		var flee: Vector3 = b.node.position + away * randf_range(2.2, 3.4)
+		var db: float = b.node.walk_to(world.path_between(b.node.position, flee))
+		var da: float = a.node.walk_to(world.path_between(a.node.position, b.node.position))
+		await get_tree().create_timer(max(da, db) + 0.15).timeout
+	if a.state == "idle" and is_instance_valid(a.node):
+		_fx(a, "sparkle")
+		_maybe_focus(a.node, 0.7, 6.0)
+	_clear_status_later(a, 5.0)
+	_clear_status_later(b, 5.0)
+
+## A little spot-dance in the rec room.
+func _act_dance(a: Dictionary) -> void:
+	a.node.set_status(ui("เต้นเล่น 🎶"))
+	var d: float = _walk(a.node, "rec_c")
+	await get_tree().create_timer(d).timeout
+	for _i in range(3):
+		if a.state != "idle" or not is_instance_valid(a.node):
+			break
+		_fx(a, "music")
+		await get_tree().create_timer(0.85).timeout
+	if a.state == "idle":
+		_maybe_focus(a.node, 0.5, 5.0)
+	_clear_status_later(a, 3.0)
+
+## A quick stretch / yawn on the spot — small, cute, and cheap.
+func _act_stretch(a: Dictionary) -> void:
+	a.node.set_status(ui("ยืดเส้นยืดสาย 🙆"))
+	if is_instance_valid(a.node):
+		_fx(a, "sparkle")
+	await get_tree().create_timer(randf_range(3.0, 5.0)).timeout
+	_clear_status_later(a, 1.0)
 
 # ---------------------------------------------------------------- naps
 # No orders for 3 minutes → an agent may decide to take a bunk nap (beds
