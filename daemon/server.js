@@ -3130,6 +3130,19 @@ const server = http.createServer((req, res) => {
       } catch (e) { res.writeHead(400); res.end(String(e.message)); }
     });
 
+  } else if (req.method === "GET" && req.url.split("?")[0] === "/i18n/all") {
+    // The whole cached map for a language (seed + anything translated since).
+    // The overlay pulls this once on load so tr() knows every seeded string up
+    // front — no first-switch Thai flash, and strings in NO_I18N subtrees (the
+    // now-strip chrome) can be translated inline too.
+    const L = String((req.url.split("?")[1] || "").replace(/^lang=/, "")).toLowerCase();
+    let map = {};
+    if (L && L !== "th" && /^[a-z]{2}$/.test(L)) {
+      try { map = JSON.parse(fs.readFileSync(path.join(__dirname, "i18n", L + ".json"), "utf8")); } catch {}
+    }
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ map }));
+
   } else if (req.method === "POST" && req.url === "/i18n") {
     // 🌐 auto-translate UI strings to any language via Gemini, cached to
     // disk (daemon/i18n/<lang>.json) so it's instant + shared next time.

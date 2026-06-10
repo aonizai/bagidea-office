@@ -613,7 +613,10 @@
   }
   .field textarea { min-height: 110px; resize: vertical; }
   .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--accent); }
-  .field select option { background: #131c30; }
+  /* style BOTH option and optgroup — an unstyled optgroup label renders on a
+     white system background (the "เสียงผู้หญิง/ผู้ชาย" headers vanished). */
+  .field select option, .field select optgroup,
+  select option, select optgroup { background: #131c30; color: var(--text); }
   #avGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; }
   #avGrid .av {
     aspect-ratio: 1; border-radius: 10px; cursor: pointer; background-color: #1c2740;
@@ -989,7 +992,21 @@
       for (const m of muts) for (const nd of m.addedNodes)
         if (nd.nodeType === 1 && !inNoI18n(nd)) applyI18n(nd);
     });
-    addEventListener("DOMContentLoaded", () => {
+    // Pull the whole seeded map for this language ONCE up front, so the very
+    // first paint is already translated (no Thai flash) and tr() knows every
+    // seeded string — including ones in NO_I18N subtrees we translate by hand.
+    async function preloadSeed() {
+      try {
+        const r = await fetch("/i18n/all?lang=" + encodeURIComponent(LANG)).then((x) => x.json());
+        if (r && r.map) {
+          Object.assign(TR, r.map);
+          localStorage.setItem("i18n_" + LANG, JSON.stringify(
+            Object.fromEntries(Object.entries(TR).filter(([k]) => !(DICT[k] && DICT[k][LANG])))));
+        }
+      } catch {}
+    }
+    addEventListener("DOMContentLoaded", async () => {
+      await preloadSeed();
       applyI18n(document.body);
       _obs.observe(document.body, { childList: true, subtree: true });
       setInterval(() => { if (!document.hidden) applyI18n(document.body); }, 1500);
@@ -1668,10 +1685,12 @@
       const latest = items[0];
       const sum = document.createElement("div");
       sum.className = "nowsum";
+      // nowStrip lives in a NO_I18N subtree (its body is live agent content),
+      // so the chrome words won't be auto-translated — do it inline via tr().
       sum.innerHTML = `<span class="dot"></span>` +
-        `<b>กำลังทำ ${items.length} งาน</b>` +
+        `<b>${tr("กำลังทำ %n งาน").replace("%n", items.length)}</b>` +
         `<span class="latest">${nameOf(latest.agent)}: ${(latest.title || "…").replace(/</g, "&lt;")}</span>` +
-        `<span class="caret">${NOW_OPEN ? "▲ พับ" : "▼ ดูทั้งหมด"}</span>`;
+        `<span class="caret">${NOW_OPEN ? tr("▲ พับ") : tr("▼ ดูทั้งหมด")}</span>`;
       sum.onclick = () => { NOW_OPEN = !NOW_OPEN; renderRunning(); };
       box.appendChild(sum);
       const list = document.createElement("div");
@@ -1686,7 +1705,7 @@
         const b = document.createElement("b");
         b.textContent = nameOf(v.agent);
         const s = document.createElement("span");
-        s.textContent = v.title || "กำลังทำงาน…";
+        s.textContent = v.title || tr("กำลังทำงาน…");
         r.append(f, b, s);
         if (box === strip) r.onclick = () => setTarget(v.agent);
         list.appendChild(r);
