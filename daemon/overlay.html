@@ -1773,7 +1773,22 @@
     [17.3, "🌇 เย็น"],
     [22, "🌙 กลางคืน"],
   ];
+  // Remembered across restarts/updates so the world's atmosphere — and the
+  // checkmark — survive a wiped journal (a fresh install just gets "auto").
   let dayMode = "auto";
+  try { const s = localStorage.getItem("dayMode"); if (s !== null && s !== "") dayMode = s; } catch {}
+  // "auto" hands the clock back to real time; a number pins it. godot needs a
+  // real number ("13" as a string reads as auto there), so coerce here.
+  function pushDaylight(v) {
+    const hour = (v === "auto") ? "auto" : Number(v);
+    fetch("/ui/daylight", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ hour }) });
+  }
+  function setDayMode(v) {
+    dayMode = v;
+    try { localStorage.setItem("dayMode", String(v)); } catch {}
+    pushDaylight(v);
+  }
   function renderDayMenu() {
     const m = document.getElementById("dayMenu");
     m.innerHTML = "";
@@ -1783,12 +1798,14 @@
       o.className = "opt" + (active ? " active" : "");
       // ✓ marks the current selection; the others reserve the space so the
       // list stays aligned.
-      o.textContent = (active ? "✓ " : " ") + label;
+      const mark = document.createElement("span");
+      mark.textContent = active ? "✓ " : "  ";  // own span: i18n never eats it
+      const lbl = document.createElement("span");
+      lbl.textContent = label;                   // clean key → hits the seed
+      o.append(mark, lbl);
       o.onclick = () => {
         m.classList.remove("open");
-        dayMode = val;  // reflect immediately so the ✓ is right next open
-        fetch("/ui/daylight", { method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ hour: val }) });
+        setDayMode(val);  // persist + reflect ✓ + tell the world
       };
       m.appendChild(o);
     }
@@ -1820,6 +1837,10 @@
     document.getElementById("dayMenu").classList.toggle("open");
   };
   document.addEventListener("click", () => document.getElementById("dayMenu").classList.remove("open"));
+  // On load, make the world match our remembered choice (or "auto" on a fresh
+  // install). This overrides any stale atmosphere a wiped/old journal replayed —
+  // the symptom was the world stuck on a pinned hour after an update.
+  pushDaylight(dayMode);
 
   // ⋯ overflow menu — holds the secondary tools so the header never overflows
   const moreMenu = document.getElementById("moreMenu");
@@ -3796,7 +3817,13 @@
       addFeed("main", "🔄 มีเวอร์ชันใหม่ " + (ver ? "v" + ver : "") + " — อัปเดตได้จากแถบในหน้าแชท หรือ `bagidea update`", "");
       return;
     }
-    if (ev.type === "ui.daylight") { dayMode = ev.hour; return; }
+    if (ev.type === "ui.daylight") {
+      // localStorage is authoritative for OUR pick (survives journal wipes); only
+      // adopt the world's replayed value when we've never stored a preference.
+      try { if (localStorage.getItem("dayMode") === null) { dayMode = ev.hour; localStorage.setItem("dayMode", String(ev.hour)); } }
+      catch { dayMode = ev.hour; }
+      return;
+    }
     if (String(ev.type).startsWith("ui.")) return;  // debug beacons aren't agents
     const key = ev.task || ev.agent;
     // Replay Theater is gone — ignore any stale theater frames from old
