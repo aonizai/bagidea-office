@@ -156,6 +156,7 @@ const FIT_BY_CAT := {
 	"Beds": 2.0, "Sofas": 1.8, "Tables": 1.2, "Carpets": 2.2, "Shelves": 1.0,
 	"Chairs": 0.6, "Drawers": 0.9, "Doors": 1.0, "Windows": 1.2, "Lights": 0.5,
 	"Kitchen": 0.9, "Bathroom": 0.9, "Electronics": 0.6, "Miscellaneous": 0.6,
+	"Restaurant": 0.85,  # KayKit Restaurant Bits (chairs/tables/props/food)
 }
 
 const PRESETS := [
@@ -541,7 +542,11 @@ func _scan_decor() -> Dictionary:
 		if sub == null: continue
 		var names: Array = []
 		for f in sub.get_files():
-			if f.to_lower().ends_with(".fbx"): names.append(f.get_basename())
+			var lf := f.to_lower()
+			# keep the FULL filename (with extension) — _fill_decor builds the path
+			# from it, so .gltf / .glb packs work alongside the .fbx furniture.
+			if lf.ends_with(".fbx") or lf.ends_with(".gltf") or lf.ends_with(".glb"):
+				names.append(f)
 		if not names.is_empty():
 			names.sort()
 			_decor_cache[cat] = names
@@ -755,8 +760,8 @@ func _fill_decor(cat: String) -> void:
 	for c in box.get_children(): c.queue_free()
 	for name in _decor_cache.get(cat, []):
 		var b := Button.new(); b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.text = "＋ " + String(name); b.add_theme_font_size_override("font_size", 10)
-		var path := "res://assets/decor/%s/%s.fbx" % [cat, name]
+		b.text = "＋ " + String(name).get_basename(); b.add_theme_font_size_override("font_size", 10)
+		var path := "res://assets/decor/%s/%s" % [cat, name]
 		var fit: float = FIT_BY_CAT.get(cat, 1.0)
 		b.pressed.connect(func(): _add_at_focus("model", path, fit))
 		box.add_child(b)
