@@ -1093,6 +1093,7 @@
   let FEATURES = { openai: false, gemini: false, stt: false, tts: false, live: false, image: false };
   let TTSON = true, SOCIALMIN = 60, MAXSTAFF = 18, PROPOSALMIN = 120;
   let PROJECTS_CACHE = [];
+  let _plistScroll = 0, _plistQ = "";  // preserve project-list scroll + search across live refreshes
   function npcOf(id) {
     if (ROSTER[id] && ROSTER[id].avatar) return ROSTER[id].avatar;
     if (id === "main") return 7;
@@ -3129,6 +3130,7 @@
     } else if (tab === "proj") {
       body = `<div style="font-size:11px;color:var(--dim);margin-bottom:6px">
           💡 สั่งงานในแชทโดยพูดชื่อโปรเจคได้เลย — agents รู้จักทุกโปรเจคในรายการนี้และเข้าไปทำงานเอง</div>
+        <input id="pFilter" class="filterbox" placeholder="🔍 ค้นหาโปรเจค…" style="margin-bottom:6px">
         <div id="plist"></div>
         <div class="field" style="margin-top:10px"><label>＋ สร้างโปรเจคใหม่ / ลงทะเบียนของเดิม</label>
           <div class="assistrow">
@@ -3203,6 +3205,7 @@
     }
     modalCard.innerHTML = hdr("🗂 OFFICE OPS") + tabs + body;
     modalCard.querySelectorAll(".tab").forEach((t) => (t.onclick = () => openOps(t.dataset.t)));
+    modalCard.onscroll = null;  // each tab starts fresh; the proj tab re-arms its own scroll memory
 
     if (tab === "dash") {
       renderDash();
@@ -3342,6 +3345,21 @@
           box.appendChild(row);
         }
       }
+      // Search box + scroll memory: live status refreshes re-render the whole
+      // list, which used to fling the scrollbar to the top and drop any search.
+      const pf = modalCard.querySelector("#pFilter");
+      if (pf) {
+        const applyPF = () => {
+          const q = pf.value.trim().toLowerCase();
+          for (const r of box.querySelectorAll(".arow"))
+            r.style.display = !q || r.textContent.toLowerCase().includes(q) ? "" : "none";
+        };
+        pf.value = _plistQ;
+        pf.oninput = () => { _plistQ = pf.value; applyPF(); };
+        applyPF();
+      }
+      modalCard.scrollTop = _plistScroll;
+      modalCard.onscroll = () => { _plistScroll = modalCard.scrollTop; };
       // Create form: place shorthand, manual path (with native browse), or
       // register an existing folder in one click.
       const placeSel = modalCard.querySelector("#pPlace");

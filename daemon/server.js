@@ -2870,7 +2870,10 @@ const server = http.createServer((req, res) => {
           p.toLowerCase().startsWith(r.toLowerCase() + path.sep));
         if (!ok) { res.writeHead(403); return res.end("outside allowed roots"); }
         if (!fs.existsSync(p)) { res.writeHead(404); return res.end("not found"); }
-        if (process.platform === "win32") spawn("explorer", ["/select,", p], { detached: true, windowsHide: true });
+        // explorer needs "/select," and the path as ONE argument or it ignores
+        // the selection and opens Documents. spawn passes argv as-is (no shell),
+        // so a single combined token is the reliable form (spaces included).
+        if (process.platform === "win32") spawn("explorer.exe", ["/select," + p], { detached: true });
         else if (process.platform === "darwin") spawn("open", ["-R", p], { detached: true });
         else spawn("xdg-open", [path.dirname(p)], { detached: true });
         res.writeHead(200); res.end("ok");
