@@ -1263,15 +1263,11 @@ fn main() {
                 orb.set_visible(true);
                 raise_orb(&orb);
             }
-            // Auto-throttle: when a maximized window covers the screen the
-            // wallpaper is invisible, so drop the renderer to 2 fps (and lift it
-            // back to 30 when the desktop reappears). Same handoff as the manual
-            // tray toggle, so it shares `vis_on` to avoid double-firing.
-            let occluded = platform::desktop_occluded(logical_w, logical_h, office_pid);
-            if occluded == vis_on {
-                vis_on = !occluded;
-                post_visibility(vis_on);
-            }
+            // NOTE: the auto-occlusion throttle (desktop_occluded → 2 fps when a
+            // window covers the wallpaper) is DISABLED. It mis-fired and pinned
+            // the renderer at 2 fps (stutter + idle GPU). The detector functions
+            // are kept for a future, properly-tested revisit; for now only the
+            // manual tray "Hide office" toggle throttles.
         }
 
         let mut shutdown = false;
