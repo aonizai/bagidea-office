@@ -28,6 +28,7 @@ const {
 } = require("./constants");
 const maintenance = require("./maintenance");
 const retrieval = require("./retrieval");
+const skillsSync = require("./skills");
 
 const WORKSPACE = path.join(__dirname, "..", "workspace");
 // Server-local paths (the refactor moved REPLAY_COUNT to constants.js but these
@@ -187,6 +188,8 @@ async function maybeLearnSkill(agent, task, prompt, acts, finalText, projId) {
     if (a && !a.skills.includes(id)) a.skills.push(id);
     saveReg();
     pushRoster();
+    if (retrievalOk) try { retrieval.reindexSkill(id, reg.skills[id]); retrieval.persist(); } catch {}
+    try { if (reg.nativeSkills !== false) skillsSync.syncAgent(AGENTS_DIR, agent, (reg.agents[agent] || {}).skills || [], reg.skills); } catch {}
     broadcast({ type: "skill.created", agent, task, skill: reg.skills[id].name });
   } catch {}
 }
@@ -409,6 +412,19 @@ try {
     try { retrieval.reindexFile("user", "OFFICE", OFFICE_MD); retrieval.persist(); } catch {}
   });
 } catch {}
+
+// ---- native skills (P3) ---------------------------------------------------
+// Each agent's assigned skills are projected to workspace/agents/<id>/.claude/
+// skills/*/SKILL.md and exposed to its sessions via --add-dir, so skill bodies
+// disclose on demand instead of bloating every preamble. Flag-reversible:
+// set reg.nativeSkills = false to fall back to inline injection.
+const AGENTS_DIR = path.join(WORKSPACE, "agents");
+try {
+  if (reg.nativeSkills !== false) {
+    const s = skillsSync.syncAll(AGENTS_DIR, reg.agents, reg.skills);
+    console.log(`[skills] native sync: wrote ${s.wrote}, pruned ${s.pruned}`);
+  }
+} catch (e) { console.error("[skills] boot sync:", e.message); }
 // The note every fresh session carries — pointers + a short tail, never the
 // whole archive.
 // Per-project memory (office-owned — NEVER written into the user's repo).
@@ -932,10 +948,14 @@ function runClaude(agent, prompt, opts = {}) {
     fs.writeFileSync(mcpConfig, JSON.stringify(conf));
     tools += (tools ? "," : "") + mcpNames.map((n) => `mcp__${n}`).join(",");
   }
+  // Native skills (P3): deliver skills as real Claude Code Skill files disclosed
+  // on demand via --add-dir, instead of inlining every body here. Reversible via
+  // reg.nativeSkills = false.
+  const nativeSkills = reg.nativeSkills !== false;
   let preamble = "";
   if (isFresh && a && (a.prompt || a.persona || (a.skills || []).length)) {
     preamble = `<persona>\nYou are "${a.name}" (${a.role}).\n${personaText(a)}\n`;
-    for (const sid of a.skills || []) {
+    if (!nativeSkills) for (const sid of a.skills || []) {
       const sk = reg.skills[sid];
       if (sk) preamble += `\n<skill name="${sk.name}">\n${sk.content}\n</skill>\n`;
     }
@@ -952,6 +972,14 @@ function runClaude(agent, prompt, opts = {}) {
     // explicitly or the Security Center goes silent.
     "--settings", path.join(WORKSPACE, ".claude", "settings.json")];
   if (mcpConfig) args.push("--mcp-config", mcpConfig);
+  // Native skills: refresh this agent's SKILL.md files (hash-gated) and expose
+  // them to the session — progressive disclosure, so bodies never hit the prompt.
+  if (nativeSkills) {
+    try {
+      skillsSync.syncAgent(AGENTS_DIR, agent, (a && a.skills) || [], reg.skills);
+      args.push("--add-dir", skillsSync.agentDir(AGENTS_DIR, agent));
+    } catch (e) { console.error("[skills] sync:", e.message); }
+  }
   if (entry && entry.sid) args.push("--resume", entry.sid);
   const child = spawn("claude", args, {
     cwd,
@@ -1370,6 +1398,13 @@ function runSub(parentId, subId, taskText, entry, onDone) {
     "--allowedTools", tools,
     "--settings", path.join(WORKSPACE, ".claude", "settings.json")];
   if (mcpConfig) args.push("--mcp-config", mcpConfig);
+  // Ghosts inherit the parent's native skills (additive — ghosts had none before).
+  if (reg.nativeSkills !== false) {
+    try {
+      skillsSync.syncAgent(AGENTS_DIR, parentId, (a.skills) || [], reg.skills);
+      args.push("--add-dir", skillsSync.agentDir(AGENTS_DIR, parentId));
+    } catch {}
+  }
   // Ghosts work where their parent works (project-bound threads included).
   const subCwd = (entry.proj && projectDir(entry.proj)) || WORKSPACE;
   const child = spawn("claude", args, {
