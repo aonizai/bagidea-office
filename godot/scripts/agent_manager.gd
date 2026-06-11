@@ -683,6 +683,23 @@ func _route_hook_to_ghost(id: String, type: String, evt: Dictionary) -> void:
 
 # ---------------------------------------------------------------- agents
 
+## A spread-out spawn spot so agents don't all pile onto the lobby door at boot.
+## Shuffled once, then handed out in order across the office rooms (never exec).
+var _spawn_pool: Array = []
+var _spawn_n := 0
+func _spawn_spot() -> String:
+	if _spawn_pool.is_empty():
+		for w in ["cafe_s1", "cafe_s2", "cafe_c", "rec_s1", "rec_s2", "rec_s3", "rec_s4",
+				"rec_c", "m_s1", "m_s2", "m_s3", "m_s4", "ops_c", "server_c", "lobby_c"]:
+			if world.WP.has(w):
+				_spawn_pool.append(w)
+		_spawn_pool.shuffle()
+	if _spawn_pool.is_empty():
+		return "ops_c"
+	var s: String = _spawn_pool[_spawn_n % _spawn_pool.size()]
+	_spawn_n += 1
+	return s
+
 func _ensure(id: String) -> Dictionary:
 	if agents.has(id):
 		return agents[id]
@@ -691,18 +708,22 @@ func _ensure(id: String) -> Dictionary:
 		var c := {"node": ceo, "state": "idle", "desk": "", "bed": "", "id": "ceo", "tasks": {}}
 		agents["ceo"] = c
 		return c
-	# New hire: walk in through the lobby front door.
+	# Spawn already SPREAD across the rooms (main in the exec office; everyone
+	# else at a distributed room spot) so they don't stack on the door at boot.
 	var node := _make_char(id)
-	node.position = world.WP["spawn"]
+	var spot := "exec_c" if id == "main" else _spawn_spot()
+	if not world.WP.has(spot):
+		spot = "ops_c" if world.WP.has("ops_c") else "spawn"
+	var base: Vector3 = world.WP.get(spot, world.WP.get("spawn", Vector3.ZERO))
+	# small scatter so two agents in the same room still don't overlap
+	node.position = base + Vector3(randf_range(-0.7, 0.7), 0, randf_range(-0.7, 0.7))
 	get_parent().add_child(node)
 	node.set_status(id)
 	var a := {"node": node, "state": "idle", "desk": "", "bed": "", "id": id, "tasks": {}}
 	agents[id] = a
-	# New hires teleport in — a little sci-fi warp at the door.
+	# A little sci-fi warp as they materialize.
 	Sfx.play("door_in")
 	Fx.spawn(node, "warp_in", Vector3(0, -0.2, 0), 0.022)
-	# The main agent heads to the executive office; everyone else idles in cafe.
-	_walk(node, "exec_c" if id == "main" else _next_seat())
 	_clear_status_later(a, 5.0)
 	return a
 
@@ -1224,6 +1245,14 @@ func _act_explore(a: Dictionary) -> void:
 	if a.state == "idle":
 		a.node.set_status("")
 
+## Keep a free target point inside the office (the chase dash could otherwise
+## fling an agent through a wall and out onto the lawn).
+func _clamp_floor(p: Vector3) -> Vector3:
+	var h := Vector2(15.0, 11.0)
+	if world.has_method("floor_half"):
+		h = world.floor_half()
+	return Vector3(clampf(p.x, -h.x + 1.3, h.x - 1.3), p.y, clampf(p.z, -h.y + 1.3, h.y - 1.3))
+
 ## Two idle agents play tag — one chases, the other dashes away. Pure fun.
 func _act_chase(a: Dictionary, pool: Array) -> void:
 	var others := pool.filter(func(o): return o.id != a.id and o.state == "idle")
@@ -1237,7 +1266,7 @@ func _act_chase(a: Dictionary, pool: Array) -> void:
 			break
 		var away: Vector3 = b.node.position - a.node.position
 		away = (Vector3(1, 0, 0) if away.length() < 0.1 else away.normalized())
-		var flee: Vector3 = b.node.position + away * randf_range(2.2, 3.4)
+		var flee: Vector3 = _clamp_floor(b.node.position + away * randf_range(2.2, 3.4))
 		var db: float = b.node.walk_to(world.path_between(b.node.position, flee))
 		var da: float = a.node.walk_to(world.path_between(a.node.position, b.node.position))
 		await get_tree().create_timer(max(da, db) + 0.15).timeout

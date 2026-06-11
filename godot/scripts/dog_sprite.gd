@@ -36,8 +36,8 @@ func _ready() -> void:
 	texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	vframes = 1
 	if _load_breed():
-		pixel_size = 0.0075     # 100px tall → ~0.75 units
-		_oy_base = 36.0         # lift the centered 100px frame so paws meet the floor
+		pixel_size = 0.014      # ~match the office cat's on-screen size (was too small)
+		_oy_base = 38.0         # lift the centered 100px frame so paws meet the floor
 		_bob = 4.0
 		_set_anim("idle")
 	else:

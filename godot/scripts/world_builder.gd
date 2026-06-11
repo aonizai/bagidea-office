@@ -172,6 +172,12 @@ func grid_slots() -> int:
 func grid_cols() -> int:
 	return _grid.GRID_COLS if _grid else 3
 
+## Half-extents of the office floor (X, Z) — keeps wandering agents/props inside.
+func floor_half() -> Vector2:
+	if _grid:
+		return Vector2(_grid.GRID_COLS * _grid.CELL_X * 0.5, _grid.GRID_ROWS * _grid.CELL_Z * 0.5)
+	return Vector2(15.75, 12.0)
+
 ## Rearrange rooms to match a saved order (list of kind strings per slot).
 func apply_room_order(target: Array) -> void:
 	if _grid == null or target.is_empty(): return
