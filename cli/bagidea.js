@@ -124,8 +124,17 @@ function help() {
 }
 
 function findShellExe() {
-  const exe = path.join(ROOT, "shell", "target", "release", "bagidea-office-shell.exe");
-  return fs.existsSync(exe) ? exe : null;
+  const isWin = process.platform === "win32";
+  const name = isWin ? "bagidea-office-shell.exe" : "bagidea-office-shell";
+  // Try release first, then debug if release isn't there
+  const paths = [
+    path.join(ROOT, "shell", "target", "release", name),
+    path.join(ROOT, "shell", "target", "debug", name)
+  ];
+  for (const p of paths) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
 }
 
 const NOT_RUNNING = () => bad(`The office isn't running — run ${c.accent}bagidea start${c.reset} first`);
@@ -173,9 +182,21 @@ async function main() {
   }
 
   // --- process control shared by start / stop / restart -----------------------
-  const KILL_PS = "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'node.exe' -and $_.CommandLine -match 'server\\.js') -or $_.Name -eq 'bagidea-office-shell.exe' -or $_.Name -like 'Godot*' -or $_.Name -eq 'BagIdeaOffice.exe' } | ForEach-Object { taskkill /PID $_.ProcessId /T /F } | Out-Null";
-  const killAll = () => new Promise((res) =>
-    spawn("powershell", ["-NoProfile", "-Command", KILL_PS], { stdio: "ignore" }).on("close", res));
+  const killAll = () => new Promise((res) => {
+    if (process.platform === "win32") {
+      const KILL_PS = "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'node.exe' -and $_.CommandLine -match 'server\\.js') -or $_.Name -eq 'bagidea-office-shell.exe' -or $_.Name -like 'Godot*' -or $_.Name -eq 'BagIdeaOffice.exe' } | ForEach-Object { taskkill /PID $_.ProcessId /T /F } | Out-Null";
+      spawn("powershell", ["-NoProfile", "-Command", KILL_PS], { stdio: "ignore" }).on("close", res);
+    } else {
+      // macOS/Linux: pkill for name patterns, killall for exact names
+      // We don't want to kill ALL 'node' processes, just the ones with 'server.js'
+      const script = `
+        pkill -f "node.*server\\.js" || true
+        killall bagidea-office-shell || true
+        pkill -f "Godot" || true
+      `;
+      spawn("sh", ["-c", script], { stdio: "ignore" }).on("close", res);
+    }
+  });
   const startOffice = async (verb) => {
     const exe = findShellExe();
     if (!exe) { bad(`shell exe not found — run ${c.accent}cargo build --release${c.reset} in shell/`); return false; }
@@ -222,27 +243,29 @@ async function main() {
   }
 
   if (cmd === "fixmic") {
+    if (process.platform !== "win32") return info("Voice-typing reset is only applicable on Windows");
     spawn("powershell", ["-NoProfile", "-Command",
       "Get-Process TextInputHost -ErrorAction SilentlyContinue | Stop-Process -Force"],
       { stdio: "ignore" }).on("close", () =>
       ok("Voice-typing panel reset (Windows reopens it on its own)"));
     return;
   }
+if (cmd === "update") {
+  if (process.platform !== "win32") return info(`On macOS, run ${c.accent}git pull${c.reset} and then ${c.accent}./build-mac.sh${c.reset} to update.`);
+  const ps = path.join(ROOT, "installer", "update.ps1");
+  if (!fs.existsSync(ps)) return bad("installer/update.ps1 not found");
+  info("Updating… (the app will restart itself)");
+  spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps],
+    { cwd: ROOT, detached: true, stdio: "inherit" });
+  return;
+}
 
-  if (cmd === "update") {
-    const ps = path.join(ROOT, "installer", "update.ps1");
-    if (!fs.existsSync(ps)) return bad("installer/update.ps1 not found");
-    info("Updating… (the app will restart itself)");
-    spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps],
-      { cwd: ROOT, detached: true, stdio: "inherit" });
-    return;
-  }
-
-  if (cmd === "uninstall") {
-    const ps = path.join(ROOT, "installer", "uninstall.ps1");
-    if (!fs.existsSync(ps)) return bad("installer/uninstall.ps1 not found");
-    const keepData = rest.includes("--keep-data");
-    const psArgs = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps];
+if (cmd === "uninstall") {
+  if (process.platform !== "win32") return info("On macOS, simply delete the folder and remove the PATH entry from your .zshrc");
+  const ps = path.join(ROOT, "installer", "uninstall.ps1");
+  if (!fs.existsSync(ps)) return bad("installer/uninstall.ps1 not found");
+  const keepData = rest.includes("--keep-data");
+  const psArgs = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps];
     if (keepData) psArgs.push("-KeepData");
     const go = () => {
       info("Uninstalling… a new window finishes up (this terminal can close).");
@@ -417,9 +440,14 @@ async function main() {
     if (r.status !== 200) return bad(r.buf.toString("utf8"));
     const wav = path.join(require("os").tmpdir(), "bagidea_say.wav");
     fs.writeFileSync(wav, r.buf);
-    spawn("powershell", ["-NoProfile", "-Command",
-      `(New-Object Media.SoundPlayer '${wav}').PlaySync()`], { stdio: "ignore" })
-      .on("close", () => ok("Done speaking"));
+    if (process.platform === "win32") {
+      spawn("powershell", ["-NoProfile", "-Command",
+        `(New-Object Media.SoundPlayer '${wav}').PlaySync()`], { stdio: "ignore" })
+        .on("close", () => ok("Done speaking"));
+    } else {
+      spawn("afplay", [wav], { stdio: "ignore" })
+        .on("close", () => ok("Done speaking"));
+    }
     return;
   }
 

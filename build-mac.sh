@@ -26,8 +26,9 @@ fi
 
 if ! command -v cargo &> /dev/null; then
     echo "    + installing Rust..."
-    brew install rustup
-    rustup-init -y --no-modify-path
+    # The 'rustup' homebrew formula is deprecated/removed in many taps.
+    # We use the official rustup installer instead.
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
     source "$HOME/.cargo/env"
 fi
 source "$HOME/.cargo/env" 2>/dev/null || true

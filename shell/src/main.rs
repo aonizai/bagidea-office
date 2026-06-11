@@ -667,6 +667,71 @@ mod platform {
         }
     }
 
+    // Scan state for `occl_cb` — an EnumWindows pass that flips `occluded` true
+    // the moment any normal window covers the primary monitor.
+    struct OcclScan { own_pid: u32, occluded: bool }
+
+    unsafe extern "system" fn occl_cb(h: HWND, lp: windows_sys::Win32::Foundation::LPARAM) -> i32 {
+        use windows_sys::Win32::Foundation::RECT;
+        use windows_sys::Win32::Graphics::Gdi::{
+            GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONULL,
+        };
+        use windows_sys::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetWindowRect, IsIconic};
+        let scan = &mut *(lp as *mut OcclScan);
+        // Skip hidden, minimized, and our own (the wallpaper) windows.
+        if IsWindowVisible(h) == 0 || IsIconic(h) != 0 {
+            return 1;
+        }
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(h, &mut pid);
+        if pid == scan.own_pid {
+            return 1;
+        }
+        // Skip the desktop shell itself (Progman / WorkerW / SHELLDLL_DefView) —
+        // those ARE full-screen and would always read as "covered".
+        let mut cls = [0u16; 32];
+        let n = GetClassNameW(h, cls.as_mut_ptr(), cls.len() as i32);
+        let name = String::from_utf16_lossy(&cls[..n.max(0) as usize]);
+        if name == "Progman" || name == "WorkerW" || name == "SHELLDLL_DefView" {
+            return 1;
+        }
+        // Only windows on the PRIMARY monitor (where the wallpaper lives) count;
+        // a full-screen app on a second monitor leaves the wallpaper visible.
+        let mon = MonitorFromWindow(h, MONITOR_DEFAULTTONULL);
+        let mut mi: MONITORINFO = std::mem::zeroed();
+        mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+        if GetMonitorInfoW(mon, &mut mi) == 0 {
+            return 1;
+        }
+        if mi.dwFlags & 1 == 0 { // 1 = MONITORINFOF_PRIMARY
+            return 1;
+        }
+        let mut wr: RECT = std::mem::zeroed();
+        if GetWindowRect(h, &mut wr) == 0 {
+            return 1;
+        }
+        let mw = (mi.rcMonitor.right - mi.rcMonitor.left) as f64;
+        let mh = (mi.rcMonitor.bottom - mi.rcMonitor.top) as f64;
+        let ww = (wr.right - wr.left) as f64;
+        let hh = (wr.bottom - wr.top) as f64;
+        // Maximized leaves the taskbar (~4%) uncovered: ≥98% width, ≥88% height.
+        if ww >= mw * 0.98 && hh >= mh * 0.88 {
+            scan.occluded = true;
+            return 0; // found a coverer — stop enumerating
+        }
+        1
+    }
+
+    /// True when ANY normal window — not just the focused one — covers the
+    /// primary monitor. Mirrors the macOS CGWindowList scan, so a maximized
+    /// window that lost focus to a small floating window still throttles the
+    /// wallpaper (a foreground-only check would miss that, wasting CPU).
+    pub fn desktop_occluded(_lw: f64, _lh: f64, own_pid: u32) -> bool {
+        let mut scan = OcclScan { own_pid, occluded: false };
+        unsafe { EnumWindows(Some(occl_cb), &mut scan as *mut OcclScan as _); }
+        scan.occluded
+    }
+
     pub const AUTOSTART_LABEL: &str = "Start with Windows";
 }
 
@@ -678,6 +743,7 @@ mod platform {
     use super::UserEvent;
     use objc2::runtime::AnyObject;
     use objc2::{class, msg_send};
+    use objc2_foundation::NSString;
     use std::path::PathBuf;
     use std::process::Command;
     use tao::platform::macos::WindowExtMacOS;
@@ -870,6 +936,82 @@ mod platform {
     }
 
     pub fn restore_wallpaper() {}
+
+    /// True when a foreground app window (nearly) covers the whole screen, so
+    /// the wallpaper is invisible and the renderer can crawl. Considers only
+    /// layer-0 windows (skips the menu bar, Dock, and our desktop-level Godot
+    /// embed) and ignores windows owned by `own_pid` (the wallpaper itself).
+    /// `lw`/`lh` are the screen size in points — CGWindow bounds are in points.
+    pub fn desktop_occluded(lw: f64, lh: f64, own_pid: u32) -> bool {
+        #[link(name = "CoreGraphics", kind = "framework")]
+        extern "C" {
+            fn CGWindowListCopyWindowInfo(option: u32, relative: u32) -> *mut AnyObject;
+            static kCGWindowBounds: *const AnyObject;
+            static kCGWindowLayer: *const AnyObject;
+            static kCGWindowOwnerPID: *const AnyObject;
+        }
+        // kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements
+        const OPTS: u32 = (1 << 0) | (1 << 4);
+        unsafe {
+            let list = CGWindowListCopyWindowInfo(OPTS, 0);
+            if list.is_null() {
+                return false;
+            }
+            let x_key = NSString::from_str("X");
+            let y_key = NSString::from_str("Y");
+            let w_key = NSString::from_str("Width");
+            let h_key = NSString::from_str("Height");
+            let count: usize = msg_send![list, count];
+            let mut occluded = false;
+            for i in 0..count {
+                let win: *mut AnyObject = msg_send![list, objectAtIndex: i];
+                let layer_n: *mut AnyObject = msg_send![win, objectForKey: kCGWindowLayer];
+                if layer_n.is_null() {
+                    continue;
+                }
+                let layer: i64 = msg_send![layer_n, longLongValue];
+                if layer != 0 {
+                    continue; // menu bar / Dock / desktop-level embed
+                }
+                let pid_n: *mut AnyObject = msg_send![win, objectForKey: kCGWindowOwnerPID];
+                if !pid_n.is_null() {
+                    let pid: i64 = msg_send![pid_n, longLongValue];
+                    if pid as u32 == own_pid {
+                        continue; // the wallpaper window itself
+                    }
+                }
+                let bounds: *mut AnyObject = msg_send![win, objectForKey: kCGWindowBounds];
+                if bounds.is_null() {
+                    continue;
+                }
+                let xn: *mut AnyObject = msg_send![bounds, objectForKey: &*x_key];
+                let yn: *mut AnyObject = msg_send![bounds, objectForKey: &*y_key];
+                let wn: *mut AnyObject = msg_send![bounds, objectForKey: &*w_key];
+                let hn: *mut AnyObject = msg_send![bounds, objectForKey: &*h_key];
+                if xn.is_null() || yn.is_null() || wn.is_null() || hn.is_null() {
+                    continue;
+                }
+                let wx: f64 = msg_send![xn, doubleValue];
+                let wy: f64 = msg_send![yn, doubleValue];
+                let ww: f64 = msg_send![wn, doubleValue];
+                let hh: f64 = msg_send![hn, doubleValue];
+                // The primary monitor always contains the origin (0,0); a window
+                // on a secondary monitor has X or Y far from it. Only occlude when
+                // the coverer sits on the primary (where the wallpaper lives).
+                if wx.abs() > lw * 0.5 || wy.abs() > lh * 0.5 {
+                    continue;
+                }
+                // A maximized window leaves the menu bar (~3%) and possibly the
+                // Dock uncovered, so ≥98% width and ≥88% height counts as covered.
+                if ww >= lw * 0.98 && hh >= lh * 0.88 {
+                    occluded = true;
+                    break;
+                }
+            }
+            let _: () = msg_send![list, release];
+            occluded
+        }
+    }
 }
 
 // =====================================================================
@@ -909,6 +1051,7 @@ mod platform {
     pub fn is_autostart() -> bool { false }
     pub fn set_autostart(_on: bool) {}
     pub fn restore_wallpaper() {}
+    pub fn desktop_occluded(_lw: f64, _lh: f64, _own_pid: u32) -> bool { false }
 }
 
 // --------------------------------------------------------------------- helpers
@@ -1097,6 +1240,9 @@ fn main() {
     let mut feed = false;
     let mut editor_pid: u32 = 0;
     let mut world_ready = false;
+    // Tracks whether the wallpaper is believed visible (30 fps) vs throttled
+    // (2 fps). Driven by the manual "Hide office" tray item AND auto-occlusion.
+    let mut vis_on = true;
     let mut last_watch = std::time::Instant::now();
     event_loop.run(move |event, _, control_flow| {
         // A slow poll tick keeps the tray channels live without pinning a core.
@@ -1116,6 +1262,15 @@ fn main() {
                 orb.set_outer_position(LogicalPosition::new(orb_x, orb_y));
                 orb.set_visible(true);
                 raise_orb(&orb);
+            }
+            // Auto-throttle: when a maximized window covers the screen the
+            // wallpaper is invisible, so drop the renderer to 2 fps (and lift it
+            // back to 30 when the desktop reappears). Same handoff as the manual
+            // tray toggle, so it shares `vis_on` to avoid double-firing.
+            let occluded = platform::desktop_occluded(logical_w, logical_h, office_pid);
+            if occluded == vis_on {
+                vis_on = !occluded;
+                post_visibility(vis_on);
             }
         }
 
@@ -1137,6 +1292,7 @@ fn main() {
                     orb.set_outer_position(LogicalPosition::new(orb_x, orb_y));
                     raise_orb(&orb);
                 }
+                vis_on = !hidden;
                 post_visibility(!hidden);
             } else if ev.id == autostart_id {
                 platform::set_autostart(autostart_item.is_checked());

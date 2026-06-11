@@ -2334,19 +2334,27 @@ const server = http.createServer((req, res) => {
         const dir = projectDir(id);
         if (!dir) { res.writeHead(404); return res.end("unknown project"); }
         const launch = (psCmd, title) => {
-          // Windows Terminal when present (beautiful Thai fonts; a NEW
-          // window, default-profile fonts), classic conhost as fallback.
-          // --suppressApplicationTitle LOCKS the title: it's how hide/resume
-          // finds exactly OUR window — WT shares one process across every
-          // window, so titles are the only safe handle.
-          const line = HAS_WT
-            ? `/c start "" "${WT_EXE}" -w new new-tab --title "${title}" --suppressApplicationTitle -d "${dir}" powershell -NoLogo -NoExit -ExecutionPolicy Bypass ${psCmd}`
-            : `/c start "${title}" /D "${dir}" conhost.exe powershell -NoLogo -NoExit -ExecutionPolicy Bypass ${psCmd}`;
-          spawn("cmd.exe", [line],
-            { windowsVerbatimArguments: true, windowsHide: true, detached: true });
+          if (process.platform === "win32") {
+            // Windows Terminal when present (beautiful Thai fonts; a NEW
+            // window, default-profile fonts), classic conhost as fallback.
+            // --suppressApplicationTitle LOCKS the title: it's how hide/resume
+            // finds exactly OUR window — WT shares one process across every
+            // window, so titles are the only safe handle.
+            const line = HAS_WT
+              ? `/c start "" "${WT_EXE}" -w new new-tab --title "${title}" --suppressApplicationTitle -d "${dir}" powershell -NoLogo -NoExit -ExecutionPolicy Bypass ${psCmd}`
+              : `/c start "${title}" /D "${dir}" conhost.exe powershell -NoLogo -NoExit -ExecutionPolicy Bypass ${psCmd}`;
+            spawn("cmd.exe", [line],
+              { windowsVerbatimArguments: true, windowsHide: true, detached: true });
+          } else if (process.platform === "darwin") {
+            // macOS: Open a new terminal window in the project directory
+            // We use AppleScript to ensure it opens a fresh window at the right path
+            const script = `tell application "Terminal" to do script "cd '${dir}'"`;
+            spawn("osascript", ["-e", script], { detached: true });
+          }
         };
         if (mode === "folder") {
-          spawn("explorer", [dir], { detached: true });
+          const openCmd = process.platform === "win32" ? "explorer" : "open";
+          spawn(openCmd, [dir], { detached: true });
         } else if (mode === "shell") {
           // Plain shell, no marker — not counted as "project open".
           launch("", path.basename(dir));
@@ -2732,9 +2740,15 @@ const server = http.createServer((req, res) => {
       fs.writeFileSync(path.join(tmp, "bagidea_editor_open_request"), String(Date.now()));
       // fallback: if the shell isn't running, launch directly after a beat
       const gdir = path.join(__dirname, "..", "godot");
-      const branded = path.join(gdir, "bin", "BagIdeaOffice.exe");
-      const godot = fs.existsSync(branded) ? branded
-        : (process.env.BAGIDEA_GODOT || "E:\\Tools\\Godot\\Godot_v4.6.3-stable_win64.exe");
+      let godot = "";
+      if (process.platform === "win32") {
+        const branded = path.join(gdir, "bin", "BagIdeaOffice.exe");
+        godot = fs.existsSync(branded) ? branded
+          : (process.env.BAGIDEA_GODOT || "C:\\Program Files\\Godot\\Godot_v4.6.3-stable_win64.exe");
+      } else if (process.platform === "darwin") {
+        const app = path.join(gdir, "bin-mac", "Godot.app", "Contents", "MacOS", "Godot");
+        godot = fs.existsSync(app) ? app : "Godot";
+      }
       const shellUp = fs.existsSync(path.join(tmp, "bagidea_shell_alive"));
       if (!shellUp && fs.existsSync(godot)) {
         spawn(godot, ["--path", gdir, "--", "--editor3d"],
