@@ -354,6 +354,12 @@ mod platform {
                 "ctrl" | "control" => mods |= 0x0002,
                 "shift" => mods |= 0x0004,
                 "alt" => mods |= 0x0001,
+                // single keys that suit hold-to-talk (the low-level hook reports
+                // the distinct left/right vkCodes, so Right Ctrl matches only the
+                // right key). Right Ctrl is the recommended default — rarely typed.
+                "rctrl" | "rightctrl" | "right ctrl" => vk = Some(0xA3), // VK_RCONTROL
+                "ralt" | "rightalt" | "right alt" => vk = Some(0xA5),   // VK_RMENU
+                "rshift" | "rightshift" => vk = Some(0xA1),             // VK_RSHIFT
                 "space" => vk = Some(0x20u32),
                 "f5" => vk = Some(0x74),
                 "f6" => vk = Some(0x75),
@@ -399,7 +405,7 @@ mod platform {
     }
 
     pub fn spawn_hotkey_thread(proxy: tao::event_loop::EventLoopProxy<UserEvent>) {
-        if let Some((_m, v)) = parse_vk("f6") {
+        if let Some((_m, v)) = parse_vk("rctrl") {
             PTT_VK.store(v, std::sync::atomic::Ordering::SeqCst);
         }
         // The C hook callback reaches the event loop through this static.

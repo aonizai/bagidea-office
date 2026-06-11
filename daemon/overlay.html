@@ -793,7 +793,7 @@
 <div id="feedTasks"></div>
 <!-- Feed mode has no input box, so surface the voice hotkey here (otherwise the
      feature is invisible). Shown only in feed mode via CSS. -->
-<div id="feedTip">🎤 กดปุ่มลัดเสียงค้างไว้ (ค่าเริ่มต้น <b>F6</b>) เพื่อพูดสั่งงานออฟฟิศ · Hold the voice hotkey (default <b>F6</b>) to speak a command</div>
+<div id="feedTip">🎤 กดปุ่มลัดเสียงค้างไว้ (ค่าเริ่มต้น <b>Right Ctrl</b>) เพื่อพูดสั่งงานออฟฟิศ · Hold the voice hotkey (default <b>Right Ctrl</b>) to speak a command</div>
 <div id="feed">
   <div id="feedEmpty">— เงียบสงบ… รอความเคลื่อนไหวในออฟฟิศ —</div>
 </div>
@@ -811,7 +811,7 @@
             autofocus autocomplete="off" spellcheck="false"></textarea>
   <input id="filePick" type="file" multiple style="display:none">
   <button class="send" id="attachBtn" title="แนบไฟล์ (หรือลากมาวางได้เลย)">📎</button>
-  <button class="send" id="micBtn" title="พูดแทนพิมพ์ — หรือกดปุ่มลัดเสียงค้าง (ค่าเริ่มต้น F6) พูดได้ทุกที่ในเครื่อง">🎤</button>
+  <button class="send" id="micBtn" title="พูดแทนพิมพ์ — หรือกดปุ่มลัดเสียงค้าง (ค่าเริ่มต้น Right Ctrl) พูดได้ทุกที่ในเครื่อง">🎤</button>
   <button class="send" id="liveBtn" title="คุยเสียงสด (realtime)">📞</button>
   <button class="send" id="sessBtn" title="Chat sessions (threads)">🧵</button>
   <button class="send" id="send">➤</button>
@@ -1603,7 +1603,7 @@
   };
   // Tell the shell which chord to listen for (persisted per machine).
   function pttKey() {
-    try { return localStorage.getItem("pttKey") || "f6"; } catch { return "f6"; }
+    try { return localStorage.getItem("pttKey") || "rctrl"; } catch { return "rctrl"; }
   }
   setTimeout(() => { if (shellPost) shellPost("hotkey:" + pttKey()); }, 1500);
 
@@ -2118,14 +2118,15 @@
             <option value="120">อย่างน้อยทุก 2 ชั่วโมง</option>
             <option value="240">อย่างน้อยทุก 4 ชั่วโมง</option>
           </select></div>
-        <div class="field" style="margin-top:8px"><label>🎤 HOTKEY สั่งงานด้วยเสียง — กด = เริ่มอัด · กดอีกครั้ง = ถอดเสียง + ส่งหา Director (ถอดด้วย Whisper/Gemini จาก key ใน CONNECT)</label>
+        <div class="field" style="margin-top:8px"><label>🎤 HOTKEY สั่งงานด้วยเสียง — กดค้าง = พูด · ปล่อย = ถอดเสียง + ส่งหา Director (ถอดด้วย Whisper/Gemini จาก key ใน CONNECT)</label>
           <select id="pttSel">
-            <option value="f6">F6 (แนะนำ)</option>
+            <option value="rctrl">Right Ctrl (แนะนำ)</option>
+            <option value="ralt">Right Alt</option>
+            <option value="rshift">Right Shift</option>
+            <option value="f6">F6</option>
             <option value="f7">F7</option>
             <option value="f8">F8</option>
             <option value="f9">F9</option>
-            <option value="ctrl+space">⌃ Control + Space</option>
-            <option value="ctrl+shift+space">⌃ Control + ⇧ Shift + Space</option>
             <option value="none">ปิดคีย์ลัด</option>
           </select></div>
         <input id="aFilter" class="filterbox" placeholder="🔍 ค้นหา agent…">
@@ -2278,7 +2279,7 @@
     } else if (tab === "tools") {
       // ⚡ system tools — capability + which MAIN key unlocks it.
       const SYS = [
-        ["🎤 ถอดเสียงพูด (voice → text)", "ปุ่มไมค์ / F6", FEATURES.stt, "OPENAI หรือ GEMINI"],
+        ["🎤 ถอดเสียงพูด (voice → text)", "ปุ่มไมค์ / Right Ctrl", FEATURES.stt, "OPENAI หรือ GEMINI"],
         ["🗣 เสียงพูดของ agents (TTS)", "SPEAK: protocol + พรีวิวใน editor", FEATURES.tts, "GEMINI"],
         ["🖼 สร้างภาพ AI", "agents เรียก /gen/image เองได้ · ภาพโชว์ในแชท", FEATURES.image, "OPENAI หรือ GEMINI"],
         ["📞 Realtime voice chat", "คุยเสียงสดกับออฟฟิศ", FEATURES.live, "GEMINI"],
