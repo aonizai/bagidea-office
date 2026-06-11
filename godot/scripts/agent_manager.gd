@@ -1271,20 +1271,33 @@ func _act_chase(a: Dictionary, pool: Array) -> void:
 	if others.is_empty():
 		return
 	var b: Dictionary = others.pick_random()
-	a.node.set_status(ui("ไล่จับเพื่อน 🏃"))
+	a.node.set_status(ui("ไล่จับเพื่อน 🏃💨"))
 	b.node.set_status(ui("หนีสุดชีวิต 😆"))
-	for _i in range(2):
+	# Both actually SPRINT (work-run pace), not stroll — and re-home on the
+	# runner every beat so it reads as a real cross-room chase.
+	if a.node.has_method("set_hurry"): a.node.set_hurry(true)
+	if b.node.has_method("set_hurry"): b.node.set_hurry(true)
+	_maybe_focus(a.node, 0.85, 9.0)
+	for i in range(6):
 		if a.state != "idle" or b.state != "idle" or not is_instance_valid(a.node) or not is_instance_valid(b.node):
 			break
+		# Runner bolts to a FAR spot — across rooms, through doorways (A* routed).
 		var away: Vector3 = b.node.position - a.node.position
-		away = (Vector3(1, 0, 0) if away.length() < 0.1 else away.normalized())
-		var flee: Vector3 = _clamp_floor(b.node.position + away * randf_range(2.2, 3.4))
-		var db: float = b.node.walk_to(world.path_between(b.node.position, flee))
-		var da: float = a.node.walk_to(world.path_between(a.node.position, b.node.position))
-		await get_tree().create_timer(max(da, db) + 0.15).timeout
-	if a.state == "idle" and is_instance_valid(a.node):
-		_fx(a, "sparkle")
-		_maybe_focus(a.node, 0.7, 6.0)
+		away = (Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)).normalized()
+			if away.length() < 0.1 else away.normalized())
+		var flee: Vector3 = _clamp_floor(b.node.position + away * randf_range(6.0, 11.0))
+		b.node.walk_to(world.path_between(b.node.position, flee))
+		# Chaser homes on the runner's current position — closing the gap.
+		a.node.walk_to(world.path_between(a.node.position, b.node.position))
+		if i % 2 == 0: _fx(b, "music")   # comic puffs as they tear around
+		await get_tree().create_timer(0.85).timeout
+	# Caught! a little burst of fun.
+	if is_instance_valid(a.node) and is_instance_valid(b.node):
+		_fx(a, "sparkle"); _fx(b, "sparkle")
+		Burst.spawn(world, b.node.position)
+		Sfx.play("blip")
+	if a.node.has_method("set_hurry"): a.node.set_hurry(false)
+	if b.node.has_method("set_hurry"): b.node.set_hurry(false)
 	_clear_status_later(a, 5.0)
 	_clear_status_later(b, 5.0)
 

@@ -392,6 +392,11 @@ func set_status(text: String) -> void:
 
 var _hurry := false   # has work to do → moves at double pace (ghosts already 4x)
 
+# Force the hurried (running) gait on/off regardless of state — used by the
+# chase/tag game so agents actually SPRINT. set_state() recomputes it after.
+func set_hurry(on: bool) -> void:
+	_hurry = on
+
 func set_state(state: String) -> void:
 	_hurry = state == "working" or state == "meeting"
 	if _hud:
