@@ -162,10 +162,15 @@ pre code { color:#cfe3ff; white-space:pre; }
 .sp-logo.bronze .sp-badge { font-size:11px; }
 /* supporter = compact name chips, scales to many names */
 .sp-chips { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; max-width:780px; }
-.sp-chip { text-decoration:none; font-size:13px; font-weight:700; color:var(--text);
-  background:var(--card); border:1px solid var(--line); border-radius:999px; padding:7px 15px;
+.sp-chip { display:inline-flex; align-items:center; gap:8px; text-decoration:none;
+  font-size:13px; font-weight:700; color:var(--text);
+  background:var(--card); border:1px solid var(--line); border-radius:999px; padding:6px 15px;
   transition:transform .12s, border-color .12s; }
+.sp-chip.has-av { padding-left:6px; }
+.sp-chip-av { width:26px; height:26px; border-radius:50%; object-fit:cover; display:block;
+  border:1px solid var(--line); }
 a.sp-chip:hover { transform:translateY(-2px); border-color:var(--accent); color:var(--accent); }
+a.sp-chip:hover .sp-chip-av { border-color:var(--accent); }
 .tiers { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:42px; }
 @media(max-width:980px){ .tiers { grid-template-columns:repeat(2,1fr); } }
 @media(max-width:560px){ .tiers { grid-template-columns:1fr; } }

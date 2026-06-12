@@ -1,5 +1,5 @@
 {
-  "_comment": "Single source of truth for the sponsor wall on the website (and a mirror in README). Sorted by tier (gold > silver > bronze > supporter), then by `weight` descending WITHIN a tier. `weight` is a private sort key (never displayed) — you may set it to the monthly amount or any relative number; the public site never shows the figure. Tier is derived purely from this list, not from `weight`, so you stay in control. `logo` is optional: a sponsor with no logo renders as a name chip with their link. To add a sponsor: drop one object in `sponsors[]` and (when logos are used) put the image under web/img/sponsors/. Later this file can be auto-generated from the GitHub Sponsors API by a scheduled GitHub Action — the schema stays the same.",
+  "_comment": "Single source of truth for the sponsor wall on the website (and a mirror in README). Rendered grouped by tier (gold > silver > bronze > supporter), then by `weight` DESCENDING within a tier. `weight` is a private sort key (never displayed) — use the monthly amount or any relative number; the site never shows the figure. Tier is set explicitly here, not derived from `weight`, so you stay in control. `logo` is optional: gold/silver/bronze without a logo render as a name card; supporters render as an avatar+name chip (or text-only chip with no logo). To add a sponsor: drop one object in `sponsors[]`; download any logo into web/img/sponsors/ and reference the LOCAL path (never hotlink Facebook/CDN URLs — they expire). Later this file can be auto-generated from the GitHub Sponsors API by a scheduled GitHub Action — the schema stays the same. WARRIX is pinned first via a very high weight (main partner + sponsor).",
   "tiers": {
     "gold":      { "label": "Gold Partner",   "min": 3000 },
     "silver":    { "label": "Silver Partner", "min": 300 },
@@ -10,10 +10,18 @@
     {
       "name": "WARRIX",
       "tier": "gold",
-      "weight": 3000,
+      "weight": 1000000,
       "url": "https://www.warrix.co.th",
       "logo": "img/sponsors/warrix.png",
       "since": "2026-05"
+    },
+    {
+      "name": "Reuannamphung",
+      "tier": "supporter",
+      "weight": 16.95,
+      "url": "https://www.facebook.com/Reuannamphung",
+      "logo": "img/sponsors/reuannamphung.jpg",
+      "since": "2026-06"
     }
   ]
 }

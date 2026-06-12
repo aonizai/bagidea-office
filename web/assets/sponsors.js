@@ -34,9 +34,15 @@
   }
   function chip(s) {
     const url = safeUrl(s.url);
+    // small round avatar when a logo is given, so every supporter gets a clear
+    // display — text-only when none is provided
+    const av = s.logo
+      ? `<img class="sp-chip-av" src="${esc(s.logo)}" alt="${esc(s.name)}" loading="lazy">`
+      : "";
+    const cls = s.logo ? "sp-chip has-av" : "sp-chip";
     if (url)
-      return `<a class="sp-chip" href="${esc(url)}" target="_blank" rel="noopener">${esc(s.name)}</a>`;
-    return `<span class="sp-chip">${esc(s.name)}</span>`;
+      return `<a class="${cls}" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(s.name)} 🙏">${av}<span>${esc(s.name)}</span></a>`;
+    return `<span class="${cls}">${av}<span>${esc(s.name)}</span></span>`;
   }
 
   function render(data, host) {
