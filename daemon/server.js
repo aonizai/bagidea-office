@@ -526,9 +526,20 @@ function auxCost(provider, usd) {
     fs.writeFile(STATS, JSON.stringify(stats, null, 1), () => {}), 1500);
 }
 
-let jobs = loadJson(JOBS, []);    // {id, agent, prompt, mode, at, time, daily, everyMin, enabled, lastRun, lastDay, done, sessionKey}
+let jobs = loadJson(JOBS, []);    // {id, agent, prompt, mode, at, time, daily, everyMin, enabled, lastRun, lastDay, done, sessionKey, running}
 let notes = loadJson(NOTES, []);  // {id, who, text, ts}
 let cal = loadJson(CAL, []);      // {id, title, at, remindMin, notified}
+// Clean up one-shot jobs that already fired (no `running` survives a restart) —
+// run-now or one-time scheduled orders have nothing left to do, so they should
+// not linger as dead, uneditable rows.
+{
+  const _n = jobs.length;
+  jobs = jobs.filter((j) => {
+    const oneShot = j.mode === "now" || (j.mode === "at" && !j.daily);
+    return !(oneShot && (j.lastRun || j.done));
+  }).map((j) => { delete j.running; return j; });
+  if (jobs.length !== _n) fs.writeFileSync(JOBS, JSON.stringify(jobs, null, 2));
+}
 const saveJobs = () => fs.writeFileSync(JOBS, JSON.stringify(jobs, null, 2));
 const saveCal = () => fs.writeFileSync(CAL, JSON.stringify(cal, null, 2));
 
@@ -764,15 +775,24 @@ function dispatchJob(job) {
   }
   agentBusy.add(job.agent);
   job.lastRun = Date.now();
-  if (job.mode === "now") job.done = true;
+  job.running = true;  // drives the "กำลังทำงาน" state in the UI
   saveJobs();
   broadcast({ type: "job.started", agent: job.agent, title: job.prompt.slice(0, 60), job: job.id });
+  broadcast({ type: "jobs.changed" }, false);
+  // A repeating order (every-N, or a daily time) stays; a one-shot (run-now or a
+  // one-time scheduled time) has nothing left to do once it finishes — so it's
+  // removed instead of lingering as a dead, uneditable row.
+  const oneShot = job.mode === "now" || (job.mode === "at" && !job.daily);
   runClaude(job.agent, job.prompt, {
     session: job.sessionKey || "new",
     logPrompt: "📋 [งานที่สั่งไว้] " + job.prompt,
     onEntry: (key) => { job.sessionKey = key; saveJobs(); },
     onDone: () => {
       agentBusy.delete(job.agent);
+      job.running = false;
+      if (oneShot) jobs = jobs.filter((j) => j.id !== job.id);
+      saveJobs();
+      broadcast({ type: "jobs.changed" }, false);
       const next = jobQueue.shift();
       if (next) dispatchJob(next);
     },
@@ -2731,9 +2751,21 @@ const server = http.createServer((req, res) => {
         const p = JSON.parse(body);
         const job = jobs.find((j) => j.id === p.id);
         if (!job) { res.writeHead(404); return res.end("unknown job"); }
-        if (p.remove) jobs = jobs.filter((j) => j.id !== p.id);
-        else if (p.enabled !== undefined) job.enabled = !!p.enabled;
+        if (p.remove) {
+          jobs = jobs.filter((j) => j.id !== p.id);
+        } else {
+          if (p.enabled !== undefined) job.enabled = !!p.enabled;
+          if (typeof p.prompt === "string" && p.prompt.trim()) job.prompt = p.prompt.slice(0, 4000);
+          if (p.agent && reg.agents[p.agent] && p.agent !== "ceo") job.agent = p.agent;
+          if (p.everyMin !== undefined) job.everyMin = Math.max(5, Number(p.everyMin) || 10);
+          if (typeof p.time === "string") job.time = p.time.slice(0, 5);
+          if (p.daily !== undefined) job.daily = !!p.daily;
+          if (p.at !== undefined) job.at = Number(p.at) || 0;
+          // Re-scheduling a one-time 'at' that already fired re-arms it.
+          if (p.at !== undefined || p.time !== undefined) { job.lastRun = 0; delete job.lastDay; }
+        }
         saveJobs();
+        broadcast({ type: "jobs.changed" }, false);
         res.writeHead(200); res.end("ok");
       } catch (e) { res.writeHead(400); res.end(String(e.message)); }
     });
@@ -2784,7 +2816,13 @@ const server = http.createServer((req, res) => {
       try {
         const p = JSON.parse(body);
         if (p.remove) cal = cal.filter((c) => c.id !== p.remove);
-        else {
+        else if (p.edit) {
+          const c = cal.find((x) => x.id === p.edit);
+          if (!c) throw new Error("not found");
+          if (p.title) c.title = String(p.title).slice(0, 120);
+          if (p.at) { const at = Number(p.at) || Date.parse(p.at); if (at) { c.at = at; c.notified = false; } }
+          if (p.remindMin !== undefined) c.remindMin = Math.max(1, Number(p.remindMin) || 10);
+        } else {
           const at = Number(p.at) || Date.parse(p.at);
           if (!p.title || !at) throw new Error("need title + at");
           cal.push({ id: "c" + Date.now(), title: String(p.title).slice(0, 120),

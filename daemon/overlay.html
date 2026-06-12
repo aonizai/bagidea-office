@@ -3193,7 +3193,7 @@
             <button class="primary" id="plAdd">＋</button>
           </div></div>`;
     } else if (tab === "jobs") {
-      body = `<div id="prBox"></div><div id="jlist"></div>
+      body = `<div id="jlist"></div>
         <div class="field" style="margin-top:10px"><label>＋ สั่งงานใหม่</label>
           <select id="jAgent"></select>
           <div class="assistrow" style="margin-top:6px">
@@ -3207,7 +3207,8 @@
           </div>
           <div id="jWhen" style="margin-top:6px"></div>
           <button class="bigbtn" id="jAdd" style="margin-top:8px">📋 สั่งงาน</button>
-        </div>`;
+        </div>
+        <div id="prBox" style="margin-top:14px"></div>`;
     } else if (tab === "cal") {
       body = `<div id="clist"></div>
         <div class="field" style="margin-top:10px"><label>＋ เพิ่มนัดหมาย</label>
@@ -3549,21 +3550,57 @@
       for (const j of live.slice().reverse()) {
         const row = document.createElement("div");
         row.className = "arow";
-        const f = document.createElement("div");
-        f.className = "face"; face(f, j.agent, 30);
-        const desc = j.mode === "every" ? `🔁 ทุก ${j.everyMin} นาที`
-          : j.mode === "at" && j.daily ? `🔁 ทุกวัน ${j.time}`
-          : j.mode === "at" ? `🕐 ${new Date(j.at).toLocaleString()}`
-          : "⚡ ทันที";
-        row.appendChild(f);
-        row.insertAdjacentHTML("beforeend",
-          `<div class="meta"><b>${j.prompt.slice(0, 56).replace(/</g, "&lt;")}</b>
-             <span>${nameOf(j.agent)} · ${desc}${j.enabled === false ? " · ⏸ พัก" : ""}${j.lastRun ? " · ล่าสุด " + new Date(j.lastRun).toLocaleTimeString() : ""}</span></div>
-           <div class="winbtn" title="พัก/เล่น">${j.enabled === false ? "▶" : "⏸"}</div>
-           <div class="winbtn hide" title="ลบ">✕</div>`);
-        const btns = row.querySelectorAll(".winbtn");
-        btns[0].onclick = () => api("/jobs/update", { id: j.id, enabled: j.enabled === false }).then(() => openOps("jobs"));
-        btns[1].onclick = () => api("/jobs/update", { id: j.id, remove: true }).then(() => openOps("jobs"));
+        const refreshJobs = () => openOps("jobs");
+        const view = () => {
+          row.style.display = ""; row.innerHTML = "";
+          const f = document.createElement("div"); f.className = "face"; face(f, j.agent, 30);
+          row.appendChild(f);
+          const desc = j.running ? `🔴 กำลังทำงานนี้อยู่…`
+            : j.mode === "every" ? `🔁 ทุก ${j.everyMin} นาที`
+            : j.mode === "at" && j.daily ? `🔁 ทุกวัน ${j.time}`
+            : j.mode === "at" ? `🕐 ${new Date(j.at).toLocaleString()}`
+            : "⚡ ทันที";
+          row.insertAdjacentHTML("beforeend",
+            `<div class="meta"><b>${j.prompt.slice(0, 56).replace(/</g, "&lt;")}</b>
+               <span>${nameOf(j.agent)} · ${desc}${j.enabled === false ? " · ⏸ พัก" : ""}${(!j.running && j.lastRun) ? " · ล่าสุด " + new Date(j.lastRun).toLocaleTimeString() : ""}</span></div>` +
+            (j.running ? "" :
+              `<div class="winbtn" title="แก้ไข">✎</div>
+               <div class="winbtn" title="พัก/เล่น">${j.enabled === false ? "▶" : "⏸"}</div>`) +
+            `<div class="winbtn hide" title="ลบ">✕</div>`);
+          const wb = row.querySelectorAll(".winbtn");
+          if (j.running) {
+            wb[0].onclick = () => api("/jobs/update", { id: j.id, remove: true }).then(refreshJobs);
+          } else {
+            wb[0].onclick = edit;
+            wb[1].onclick = () => api("/jobs/update", { id: j.id, enabled: j.enabled === false }).then(refreshJobs);
+            wb[2].onclick = () => api("/jobs/update", { id: j.id, remove: true }).then(refreshJobs);
+          }
+        };
+        const edit = () => {
+          const toLocal = (ms) => ms ? new Date(ms - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
+          const sched = j.mode === "every"
+            ? `ทุก <input id="e_every" type="number" min="5" value="${j.everyMin || 10}" style="width:84px"> นาที`
+            : (j.mode === "at" && j.daily) ? `ทุกวันเวลา <input id="e_time" type="time" value="${j.time || ""}">`
+            : j.mode === "at" ? `<input id="e_at" type="datetime-local" value="${toLocal(j.at)}">`
+            : `⚡ ทำทันที`;
+          row.style.display = "block";
+          row.innerHTML =
+            `<textarea id="e_prompt" style="width:100%;min-height:52px;margin-bottom:6px"></textarea>
+             <div style="font-size:12px;color:var(--dim);margin-bottom:8px">${sched}</div>
+             <div style="display:flex;gap:6px">
+               <button class="bigbtn" id="e_save" style="flex:1;margin:0">💾 บันทึก</button>
+               <button class="winbtn" id="e_cancel" title="ยกเลิก">✕</button></div>`;
+          row.querySelector("#e_prompt").value = j.prompt;
+          row.querySelector("#e_cancel").onclick = view;
+          row.querySelector("#e_save").onclick = () => {
+            const upd = { id: j.id, prompt: row.querySelector("#e_prompt").value };
+            if (j.mode === "every") upd.everyMin = +row.querySelector("#e_every").value;
+            else if (j.mode === "at" && j.daily) upd.time = row.querySelector("#e_time").value;
+            else if (j.mode === "at") { const v = row.querySelector("#e_at").value; if (v) upd.at = new Date(v).getTime(); }
+            api("/jobs/update", upd).then(refreshJobs);
+          };
+        };
+        view();
         box.appendChild(row);
       }
     } else if (tab === "cal") {
@@ -3582,14 +3619,40 @@
         `<div style="font-size:11.5px;color:var(--dim)">ยังไม่มีนัดหมาย</div>`;
       for (const c of upcoming) {
         const past = c.at < Date.now();
+        const reminded = c.notified && !past;   // alerted + time is near → urge
         const row = document.createElement("div");
         row.className = "arow";
-        row.style.opacity = past ? "0.45" : "1";
-        row.innerHTML = `<div class="meta"><b>${past ? "✓ " : "📅 "}${c.title.replace(/</g, "&lt;")}</b>
-            <span>${new Date(c.at).toLocaleString()} · เตือนก่อน ${c.remindMin} นาที</span></div>
-          <div class="winbtn hide" title="ลบ">✕</div>`;
-        row.querySelector(".winbtn").onclick = () =>
-          api("/calendar", { remove: c.id }).then(() => openOps("cal"));
+        const del = () => api("/calendar", { remove: c.id }).then(() => openOps("cal"));
+        const view = () => {
+          row.style.display = ""; row.style.opacity = past ? "0.5" : "1";
+          row.style.borderLeft = reminded ? "3px solid #ffcf5e" : "";
+          row.style.background = reminded ? "rgba(255,207,94,0.08)" : "";
+          row.innerHTML = `<div class="meta"><b>${past ? "✓ " : reminded ? "🔔 " : "📅 "}${c.title.replace(/</g, "&lt;")}</b>
+              <span>${new Date(c.at).toLocaleString()} · เตือนก่อน ${c.remindMin} นาที${reminded ? " · ⚠ ใกล้ถึงแล้ว" : ""}</span></div>` +
+            (past ? "" : `<div class="winbtn" title="แก้ไข">✎</div>`) +
+            `<div class="winbtn hide" title="ลบ">✕</div>`;
+          const wb = row.querySelectorAll(".winbtn");
+          if (past) { wb[0].onclick = del; }
+          else { wb[0].onclick = edit; wb[1].onclick = del; }
+        };
+        const edit = () => {
+          const toLocal = (ms) => ms ? new Date(ms - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
+          row.style.display = "block"; row.style.borderLeft = ""; row.style.background = "";
+          row.innerHTML =
+            `<input id="ce_t" style="width:100%;margin-bottom:6px">
+             <input id="ce_at" type="datetime-local" value="${toLocal(c.at)}" style="margin-bottom:8px">
+             <div style="display:flex;gap:6px">
+               <button class="bigbtn" id="ce_s" style="flex:1;margin:0">💾 บันทึก</button>
+               <button class="winbtn" id="ce_x" title="ยกเลิก">✕</button></div>`;
+          row.querySelector("#ce_t").value = c.title;
+          row.querySelector("#ce_x").onclick = view;
+          row.querySelector("#ce_s").onclick = () => {
+            const v = row.querySelector("#ce_at").value;
+            api("/calendar", { edit: c.id, title: row.querySelector("#ce_t").value, at: v ? new Date(v).getTime() : c.at })
+              .then(() => openOps("cal"));
+          };
+        };
+        view();
         box.appendChild(row);
       }
     } else if (tab === "notes") {
@@ -4063,6 +4126,15 @@
       if (modal.classList.contains("open") && modalCard.querySelector("#plist") &&
           !fsPick.classList.contains("open") && !typing)
         openOps("proj");
+      return;
+    }
+    if (ev.type === "jobs.changed") {
+      // Refresh the JOBS tab when a job starts/finishes/auto-removes — but not
+      // while the owner is typing in the tab's own form (new-job / inline edit).
+      const ae = document.activeElement || {};
+      const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(ae.tagName) && modalCard.contains(ae);
+      if (modal.classList.contains("open") && modalCard.querySelector("#jlist") && !typing)
+        openOps("jobs");
       return;
     }
     if (ev.type === "editor.opening") {
