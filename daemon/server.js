@@ -122,7 +122,7 @@ function rosterEvt() {
     socialMin: Number(reg.socialMin !== undefined ? reg.socialMin : 60),
     proposalMin: Number(reg.proposalMin !== undefined ? reg.proposalMin : 120),
     maxStaff: MAX_STAFF, staffCount: staffCount(),
-    lang: reg.lang || "en" };
+    lang: reg.lang || "en", daylight: reg.daylight ?? "auto" };
 }
 
 // Structured persona → one compiled system prompt (editor v2 fields).
@@ -3319,11 +3319,15 @@ const server = http.createServer((req, res) => {
 
   } else if (req.method === "POST" && req.url === "/ui/daylight") {
     // Manual atmosphere override for the world ("auto" follows the clock).
-    // Journaled, so the choice survives renderer restarts via replay.
+    // Persisted in the registry + carried on roster.sync, so the choice
+    // survives renderer restarts/reconnects (journal replay alone is bounded by
+    // REPLAY_COUNT and silently scrolls the pick out on a busy office).
     readBody(req, (body) => {
       try {
         const { hour = "auto" } = JSON.parse(body || "{}");
-        broadcast({ type: "ui.daylight", hour });
+        reg.daylight = hour;
+        saveReg();
+        broadcast({ type: "ui.daylight", hour }, false);
         res.writeHead(200);
         res.end("ok");
       } catch {

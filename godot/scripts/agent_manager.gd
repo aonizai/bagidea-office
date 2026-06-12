@@ -207,6 +207,10 @@ func handle(evt: Dictionary) -> void:
 		return  # overlay debug beacons aren't agents
 	if type == "roster.sync":
 		Sfx.enabled = bool(evt.get("sound", true))
+		# Restore the saved atmosphere override — roster.sync is sent last on
+		# connect (authoritative), so this re-pins a manual morning/night choice
+		# that a renderer restart would otherwise drop back to real time.
+		get_node("../").apply_daylight_event({"hour": evt.get("daylight", "auto")})
 		_apply_roster(evt)
 		return
 	if type == "roster.removed":
