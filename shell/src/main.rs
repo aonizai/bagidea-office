@@ -50,7 +50,9 @@ enum UserEvent {
     WorldReady,
     EditorOpening, // show the logo splash + launch the 3D editor tiny behind it
     EditorReady,   // the editor window is on screen → drop the splash
-    OpenWindow(String), // pop a normal OS window onto a daemon URL (plugin / viewer)
+    OpenWindow(String), // pop a custom-chrome window onto a daemon URL (plugin / viewer)
+    PopupDrag(tao::window::WindowId),  // a pop-out's title bar is being dragged
+    PopupClose(tao::window::WindowId), // a pop-out asked to close itself
 }
 
 // Run a child process without flashing a console window (Windows); a no-op
@@ -1247,7 +1249,8 @@ fn main() {
 
     // Pop-out windows (plugin panels / media viewers) opened on demand from the
     // overlay. Held here so their Window + WebView stay alive; dropped on close.
-    let mut popups: Vec<(tao::window::WindowId, Window, wry::WebView)> = Vec::new();
+    // Tuple: (window id, single-instance key, window, webview).
+    let mut popups: Vec<(tao::window::WindowId, String, Window, wry::WebView)> = Vec::new();
     let mut mini = false;
     let mut feed = false;
     let mut editor_pid: u32 = 0;
@@ -1339,7 +1342,7 @@ fn main() {
                     overlay.set_outer_position(LogicalPosition::new(PARK.0, PARK.1));
                 } else {
                     // A pop-out window's native ✕ — drop it (frees Window + WebView).
-                    popups.retain(|(id, _, _)| *id != window_id);
+                    popups.retain(|(id, _, _, _)| *id != window_id);
                 }
             }
             Event::WindowEvent { window_id, event: WindowEvent::Focused(true), .. } => {
@@ -1438,24 +1441,64 @@ fn main() {
                 }
                 UserEvent::SetHotkey(s) => platform::rebind_hotkey(&s),
                 UserEvent::OpenWindow(u) => {
-                    // A normal, decorated, resizable OS window onto a daemon URL
-                    // (plugin panel, media viewer, terminal watch). Closing it
-                    // via the native ✕ drops it from `popups`.
-                    let full = if u.starts_with("http") { u.clone() }
-                        else { format!("http://127.0.0.1:8787{}", u) };
-                    let win = WindowBuilder::new()
-                        .with_title("BagIdea Office")
-                        .with_inner_size(LogicalSize::new(900.0, 680.0))
-                        .with_window_icon(app_icon())
-                        .build(target)
-                        .expect("popup window");
-                    let id = win.id();
-                    match platform::webview_extras(WebViewBuilder::new().with_url(&full))
-                        .build(&win)
-                    {
-                        Ok(view) => popups.push((id, win, view)),
-                        Err(e) => eprintln!("[shell] popup webview: {e}"),
+                    // u: "/win?src=...&w=900&h=680&resizable=1&key=<id>". Custom
+                    // chrome (frameless) so it matches the app + survives streaming.
+                    let qval = |name: &str| -> Option<String> {
+                        u.split('?').nth(1)?.split('&').find_map(|kv| {
+                            let mut it = kv.splitn(2, '=');
+                            if it.next()? == name { Some(it.next().unwrap_or("").to_string()) } else { None }
+                        })
+                    };
+                    let key = qval("key").unwrap_or_default();
+                    // Single-instance per plugin: already open → surface it, never duplicate.
+                    let existing = if key.is_empty() { None }
+                        else { popups.iter().position(|(_, k, _, _)| *k == key) };
+                    if let Some(ix) = existing {
+                        let win = &popups[ix].2;
+                        win.set_minimized(false);
+                        win.set_visible(true);
+                        win.set_focus();
+                    } else {
+                        let w = qval("w").and_then(|s| s.parse::<f64>().ok()).unwrap_or(900.0);
+                        let h = qval("h").and_then(|s| s.parse::<f64>().ok()).unwrap_or(680.0);
+                        let resizable = qval("resizable").map(|s| s != "0").unwrap_or(true);
+                        let full = if u.starts_with("http") { u.clone() }
+                            else { format!("http://127.0.0.1:8787{}", u) };
+                        let win = WindowBuilder::new()
+                            .with_title("BagIdea Office")
+                            .with_inner_size(LogicalSize::new(w, h))
+                            .with_min_inner_size(LogicalSize::new(260.0, 180.0))
+                            .with_decorations(false)
+                            .with_resizable(resizable)
+                            .with_window_icon(app_icon())
+                            .build(target)
+                            .expect("popup window");
+                        let id = win.id();
+                        let pproxy = proxy.clone();
+                        match platform::webview_extras(
+                            WebViewBuilder::new()
+                                .with_url(&full)
+                                .with_ipc_handler(move |req| {
+                                    let _ = match req.body().as_str() {
+                                        "win-drag" => pproxy.send_event(UserEvent::PopupDrag(id)),
+                                        "win-close" => pproxy.send_event(UserEvent::PopupClose(id)),
+                                        _ => Ok(()),
+                                    };
+                                }))
+                            .build(&win)
+                        {
+                            Ok(view) => popups.push((id, key, win, view)),
+                            Err(e) => eprintln!("[shell] popup webview: {e}"),
+                        }
                     }
+                }
+                UserEvent::PopupDrag(id) => {
+                    if let Some((_, _, win, _)) = popups.iter().find(|(i, _, _, _)| *i == id) {
+                        let _ = win.drag_window();
+                    }
+                }
+                UserEvent::PopupClose(id) => {
+                    popups.retain(|(i, _, _, _)| *i != id);
                 }
             },
             _ => {}

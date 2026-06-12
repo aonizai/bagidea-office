@@ -40,6 +40,7 @@ A plugin needs **only** `plugin.json`. Add `index.js` for server power, and/or
   "version": "1.0.0",
   "description": "What it does, in one line.",
   "panel": "panel.html",
+  "window": { "w": 420, "h": 560, "resizable": true },
   "commands": [
     { "name": "calc", "args": "<expression>", "desc": "Evaluate a math expression" }
   ],
@@ -53,6 +54,7 @@ A plugin needs **only** `plugin.json`. Add `index.js` for server power, and/or
 | `id` | unique slug (defaults to the folder name) |
 | `name` | shown in the UI / `bagidea plugins` |
 | `panel` | the HTML file to open as a panel (omit for headless plugins) |
+| `window` | *(optional)* default size when the panel is **popped out into its own window** (see §4): `{ "w": <px>, "h": <px>, "resizable": true|false }`. Defaults to `900×680`, resizable. Pick a size that fits your UI; set `resizable: false` for a fixed-size tool. |
 | `commands` | what **agents** can call — each `{name, args, desc}` |
 | `needsKeys` | main API key names this plugin needs (informational) |
 | `enabled` | set `false` to ship-but-disable |
@@ -126,6 +128,17 @@ ws.onmessage = (m) => { const e = JSON.parse(m.data);
 
 Keep the dark theme (`background:#0c1322; color:#dbe7ff; accent #5ec8ff`) so it
 matches the office.
+
+**Pop-out window.** Besides opening inside the overlay, the user can pop your
+panel out into its **own resizable OS window** (the ⤢ button). It opens inside a
+custom dark title-bar frame — your `panel.html` is the body. Two things to design
+for: (1) make the layout **fluid** (use `%`/`vh`/flex, not a hard-coded size) so
+it looks right at any window size; (2) set a sensible default + `resizable` via
+the `window` field in `plugin.json` (above). The same panel serves both the
+in-overlay view and the window, so build it once. Each plugin opens **one**
+window at a time (re-clicking ⤢ just focuses it); different plugins open side by
+side. This is how a plugin can grow into a real, standalone app under BagIdea
+Office.
 
 ---
 

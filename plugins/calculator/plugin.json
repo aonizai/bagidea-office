@@ -1,9 +1,10 @@
 {
   "id": "calculator",
   "name": "🧮 Calculator",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Calculator — basic arithmetic and advanced math (trig, logs, powers, roots, factorial, constants). Agents can compute too via the calc command.",
   "panel": "panel.html",
+  "window": { "w": 380, "h": 560, "resizable": true },
   "commands": [
     { "name": "calc", "args": "<expression>", "desc": "Evaluate a math expression, e.g. 2*(3+4)^2 or sin(pi/6)+log(100)" }
   ],

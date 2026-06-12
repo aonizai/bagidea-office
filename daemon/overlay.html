@@ -2909,7 +2909,7 @@
       if (openBtn) openBtn.onclick = () => openPluginPanel(p);
       else if (!p.panel) row.style.cursor = "default";
       const winBtn = row.querySelector('[title="เปิดเป็นหน้าต่างแยก"]');
-      if (winBtn) winBtn.onclick = () => openPluginWindow(p.id);
+      if (winBtn) winBtn.onclick = () => openPluginWindow(p);
       const del = row.querySelector('[title="ถอนการติดตั้ง"]');
       if (del) del.onclick = () => api("/plugins/remove", { id: p.id }).then(() => openPlugins());
       box.appendChild(row);
@@ -2927,11 +2927,21 @@
       else addChip("✗ " + (await r2.text()).slice(0, 100));
     };
   }
-  // Pop a plugin's panel out as its own resizable OS window (via the shell).
-  // Falls back to a browser tab when not running inside the shell.
-  function openPluginWindow(id) {
-    if (shellPost) shellPost("open-window:/plugin/" + id + "/panel");
-    else window.open("/plugin/" + id + "/panel", "_blank");
+  // Pop any daemon URL out as its own custom-chrome window (dark title bar via
+  // /win), sized from the caller's hints. `key` makes it single-instance in the
+  // shell. Falls back to a browser tab when not running inside the shell.
+  function popWindow(src, title, key, win) {
+    win = win || {};
+    const u = "/win?src=" + encodeURIComponent(src) +
+      "&title=" + encodeURIComponent(title || "BagIdea Office") +
+      "&key=" + encodeURIComponent(key || "") +
+      "&w=" + (win.w || 900) + "&h=" + (win.h || 680) +
+      "&resizable=" + (win.resizable === false ? 0 : 1);
+    if (shellPost) shellPost("open-window:" + u);
+    else window.open(src, "_blank");
+  }
+  function openPluginWindow(p) {
+    popWindow("/plugin/" + p.id + "/panel", p.name, "plugin:" + p.id, p.window);
   }
   function openPluginPanel(p) {
     modal.classList.add("open");
@@ -2961,7 +2971,7 @@
     };
     modalCard.querySelector("#plgBack").onclick = () => openPlugins();
     const pw = modalCard.querySelector("#plgWin");
-    if (pw) pw.onclick = () => openPluginWindow(p.id);
+    if (pw) pw.onclick = () => openPluginWindow(p);
   }
 
   // ---- 🎨 Office Editor: place furniture on a top-down grid ----------------
@@ -3296,8 +3306,9 @@
           // 👁 watch — pop a read-only live stream of this project's agent(s).
           const watchBtn = row.querySelector('[title="ดูน้องทำงาน (หน้าต่างแยก · ไม่รบกวน)"]');
           if (watchBtn) watchBtn.onclick = () =>
-            shellPost("open-window:/watch?agents=" + encodeURIComponent((p.agents || []).join(",")) +
-              "&title=" + encodeURIComponent(p.name));
+            popWindow("/watch?agents=" + encodeURIComponent((p.agents || []).join(",")) +
+              "&title=" + encodeURIComponent(p.name),
+              "👁 " + p.name, "watch:" + p.id, { w: 560, h: 680 });
           if (p.ai) {
             // Two-click confirm: first arms the button, second stops the agent.
             let armed = false;

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BagIdea Office</title>
+<style>
+  :root { --bg:#0c1322; --bar:#0a0e18; --accent:#5ec8ff; --fg:#cfe6ff; --dim:#6f8099; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; overflow:hidden; background:var(--bg);
+    font-family:-apple-system,"Segoe UI",system-ui,sans-serif; color:var(--fg); }
+  /* custom title bar — the only place you can drag the frameless window */
+  #bar { height:34px; background:var(--bar); display:flex; align-items:center; gap:8px;
+    padding:0 6px 0 12px; border-bottom:1px solid rgba(94,200,255,0.18); cursor:default;
+    -webkit-user-select:none; user-select:none; }
+  #bar .dot { width:9px; height:9px; border-radius:50%; background:var(--accent);
+    box-shadow:0 0 8px rgba(94,200,255,0.6); flex:none; }
+  #bar .ti { font-size:12.5px; font-weight:600; flex:1; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; letter-spacing:0.2px; }
+  #x { width:26px; height:26px; border:none; border-radius:7px; background:transparent;
+    color:#9fb3c8; font-size:14px; cursor:pointer; flex:none; }
+  #x:hover { background:#e0443a; color:#fff; }
+  #f { width:100%; height:calc(100% - 34px); border:none; display:block; background:var(--bg); }
+</style>
+</head>
+<body>
+  <div id="bar">
+    <span class="dot"></span>
+    <span class="ti" id="ti">BagIdea Office</span>
+    <button id="x" title="ปิด">✕</button>
+  </div>
+  <iframe id="f" allow="autoplay; microphone; clipboard-read; clipboard-write"></iframe>
+<script>
+  const q = new URLSearchParams(location.search);
+  const src = q.get("src") || "/";
+  const title = q.get("title") || "BagIdea Office";
+  document.getElementById("ti").textContent = title;
+  document.title = title;
+  const post = (m) => { try { window.ipc && window.ipc.postMessage(m); } catch {} };
+  // Drag the frameless OS window by the bar (the shell does the real drag).
+  const bar = document.getElementById("bar");
+  bar.addEventListener("mousedown", (e) => {
+    if (e.target.id === "x" || e.button !== 0) return;
+    post("win-drag");
+  });
+  document.getElementById("x").onclick = () => post("win-close");
+  const f = document.getElementById("f");
+  f.src = src;
+  // Same-origin: give the embedded content the office's slim themed scrollbar.
+  f.onload = () => {
+    try {
+      const d = f.contentDocument;
+      if (!d || d.getElementById("bagidea-sb")) return;
+      const st = d.createElement("style");
+      st.id = "bagidea-sb";
+      st.textContent =
+        "::-webkit-scrollbar{width:9px;height:9px}" +
+        "::-webkit-scrollbar-track{background:transparent}" +
+        "::-webkit-scrollbar-thumb{background:rgba(110,180,255,0.22);border-radius:6px}" +
+        "::-webkit-scrollbar-thumb:hover{background:rgba(110,180,255,0.45)}";
+      (d.head || d.documentElement).appendChild(st);
+    } catch {}
+  };
+</script>
+</body>
+</html>

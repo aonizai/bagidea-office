@@ -135,6 +135,8 @@ module.exports = function initPlugins(ctx) {
       description: p.manifest.description, panel: !!p.manifest.panel,
       commands: p.manifest.commands || [], needsKeys: p.manifest.needsKeys || [],
       core: !!p.manifest.core,
+      // Optional pop-out window hints: { w, h, resizable } (see plugin template).
+      window: p.manifest.window || null,
     }));
   }
 

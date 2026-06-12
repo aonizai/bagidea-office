@@ -2164,6 +2164,13 @@ const server = http.createServer((req, res) => {
     });
     res.end(fs.readFileSync(OVERLAY));
 
+  } else if (req.method === "GET" && req.url.split("?")[0] === "/win") {
+    // Custom-chrome frame for pop-out windows (dark title bar + the content in
+    // an iframe) so plugin windows match the app instead of a bare OS frame.
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+    try { res.end(fs.readFileSync(path.join(__dirname, "win.html"))); }
+    catch { res.end("<p>window frame unavailable</p>"); }
+
   } else if (req.method === "GET" && req.url.split("?")[0] === "/watch") {
     // Read-only live activity stream for an agent (opened as its own window) —
     // it only listens on the WS, never sends, so it can't disturb the agent.
