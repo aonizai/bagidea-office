@@ -371,18 +371,20 @@ if (!fs.existsSync(OFFICE_MD)) {
   } catch {}
 }
 
-// 🔀 First run: drop example workflows into workspace/workflows so users have
-// something to open + learn from. Seeds ONLY when the folder is empty — never
-// overwrites the user's own workflows.
-(function seedWorkflowExamples() {
+// 🔀 One-time cleanup: older versions SEEDED example workflows into
+// workspace/workflows. Examples now live read-only in the bundle, so drop any
+// stale workspace copies (id starts with "example-") to avoid duplicates. The
+// user's own workflows (wf_* ids) are left untouched.
+(function dropSeededExamples() {
   try {
     const dir = path.join(WORKSPACE, "workflows");
-    fs.mkdirSync(dir, { recursive: true });
-    if (fs.readdirSync(dir).some((f) => f.endsWith(".json"))) return;
-    const src = path.join(__dirname, "workflow-examples");
-    for (const f of fs.readdirSync(src))
-      if (f.endsWith(".json")) fs.copyFileSync(path.join(src, f), path.join(dir, f));
-    console.log("[workflows] seeded example workflows");
+    for (const f of fs.readdirSync(dir)) {
+      if (!f.endsWith(".json")) continue;
+      try {
+        const w = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
+        if (String(w.id || "").startsWith("example-")) fs.unlinkSync(path.join(dir, f));
+      } catch {}
+    }
   } catch {}
 })();
 
@@ -3489,19 +3491,36 @@ const server = http.createServer((req, res) => {
     });
 
   } else if (req.method === "GET" && req.url === "/workflows") {
-    const dir = path.join(WORKSPACE, "workflows");
-    let list = [];
-    try {
-      list = fs.readdirSync(dir).filter((f) => f.endsWith(".json")).map((f) => {
-        try { const w = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
-          return { id: f.replace(/\.json$/, ""), name: w.name || f, nodes: (w.nodes || []).length }; }
-        catch { return null; }
-      }).filter(Boolean);
-    } catch {}
-    res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(list));
+    // Bundled read-only examples (daemon/workflow-examples) + the user's own
+    // workflows (workspace/workflows). Examples can't be edited/deleted.
+    const out = [];
+    const scan = (base, example) => {
+      try {
+        for (const f of fs.readdirSync(base)) {
+          if (!f.endsWith(".json")) continue;
+          try { const w = JSON.parse(fs.readFileSync(path.join(base, f), "utf8"));
+            out.push({ id: w.id || f.replace(/\.json$/, ""), name: w.name || f,
+              nodes: (w.nodes || []).length, example }); } catch {}
+        }
+      } catch {}
+    };
+    scan(path.join(__dirname, "workflow-examples"), true);
+    scan(path.join(WORKSPACE, "workflows"), false);
+    res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(out));
 
   } else if (req.method === "GET" && req.url.startsWith("/workflows/get")) {
     const id = (new URL(req.url, "http://x").searchParams.get("id") || "").replace(/[^\w-]/g, "");
+    if (id.startsWith("example-")) {
+      try {
+        const ex = path.join(__dirname, "workflow-examples");
+        for (const f of fs.readdirSync(ex)) {
+          if (!f.endsWith(".json")) continue;
+          const raw = fs.readFileSync(path.join(ex, f), "utf8");
+          try { if (JSON.parse(raw).id === id) { res.writeHead(200, { "content-type": "application/json" }); return res.end(raw); } } catch {}
+        }
+      } catch {}
+      res.writeHead(404); return res.end("{}");
+    }
     try { res.writeHead(200, { "content-type": "application/json" });
       res.end(fs.readFileSync(path.join(WORKSPACE, "workflows", id + ".json"))); }
     catch { res.writeHead(404); res.end("{}"); }
@@ -3509,7 +3528,9 @@ const server = http.createServer((req, res) => {
   } else if (req.method === "POST" && req.url === "/workflows/save") {
     readBody(req, (body) => { try {
       const w = JSON.parse(body || "{}");
-      const id = String(w.id || ("wf_" + Date.now())).replace(/[^\w-]/g, "");
+      let id = String(w.id || "").replace(/[^\w-]/g, "");
+      // Never overwrite a read-only example — saving one forks a new user copy.
+      if (!id || id.startsWith("example-")) id = "wf_" + Date.now();
       const dir = path.join(WORKSPACE, "workflows"); fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, id + ".json"),
         JSON.stringify({ id, name: w.name || "Workflow", nodes: w.nodes || [], edges: w.edges || [] }, null, 2));
@@ -3519,7 +3540,7 @@ const server = http.createServer((req, res) => {
   } else if (req.method === "POST" && req.url === "/workflows/delete") {
     readBody(req, (body) => { try {
       const id = String(JSON.parse(body || "{}").id || "").replace(/[^\w-]/g, "");
-      if (id) fs.unlinkSync(path.join(WORKSPACE, "workflows", id + ".json"));
+      if (id && !id.startsWith("example-")) fs.unlinkSync(path.join(WORKSPACE, "workflows", id + ".json"));
     } catch {} res.writeHead(200); res.end("ok"); });
 
   } else if (req.method === "POST" && req.url === "/workflows/analyze") {

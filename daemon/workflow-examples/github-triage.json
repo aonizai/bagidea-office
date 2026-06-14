@@ -1,0 +1,15 @@
+{
+  "id": "example-github-triage",
+  "name": "ตัวอย่าง (กลาง): คัดกรอง GitHub issues",
+  "nodes": [
+    { "id": "n1", "type": "trigger", "text": "ทุก 1 ชั่วโมง", "x": 160, "y": 40 },
+    { "id": "n2", "type": "fetch", "text": "ดึง issue ที่ยังเปิดอยู่จาก repo (ใช้ gh หรือ MCP GitHub)", "x": 160, "y": 200 },
+    { "id": "n3", "type": "decision", "text": "มี issue ใหม่ตั้งแต่รอบที่แล้วไหม?", "x": 160, "y": 370 },
+    { "id": "n4", "type": "action", "text": "จัดหมวด (บั๊ก/ฟีเจอร์/คำถาม) + ให้ระดับความสำคัญ + ร่างคำตอบสั้น", "x": 160, "y": 540 },
+    { "id": "n5", "type": "output", "text": "สรุปรายการ + ส่งเข้าแชท/Telegram", "x": 160, "y": 720 }
+  ],
+  "edges": [
+    { "from": "n1", "to": "n2" }, { "from": "n2", "to": "n3" },
+    { "from": "n3", "to": "n4" }, { "from": "n4", "to": "n5" }
+  ]
+}

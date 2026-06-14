@@ -16,28 +16,38 @@
     background:#0c1322; z-index:6; flex-wrap:wrap; }
   #bar input#name { background:#0a1020; border:1px solid var(--line); color:var(--text); border-radius:8px;
     padding:6px 10px; font-size:13px; min-width:170px; }
+  #bar input#name:disabled { opacity:.7; cursor:not-allowed; }
   button { background:#13203a; color:var(--text); border:1px solid var(--line); border-radius:8px;
     padding:6px 12px; cursor:pointer; font-size:12px; font-weight:600; }
   button:hover { border-color:var(--accent); color:var(--accent); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
   button.primary { background:#0e4d8c; border-color:rgba(94,200,255,.5); }
   button.primary:hover { background:#1466b3; color:#fff; }
   .grow { flex:1; }
-  select#wfopen { background:#0a1020; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 8px; }
-  #wrap { display:flex; height:calc(100% - 49px); }
-  /* viewport pans/zooms the world inside it */
+  select#wfopen { background:#0a1020; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 8px; max-width:230px; }
+  /* tab strip */
+  #tabs { display:flex; gap:4px; padding:6px 10px 0; background:#0c1322; border-bottom:1px solid var(--line);
+    overflow-x:auto; align-items:flex-end; }
+  .tab { display:flex; align-items:center; gap:7px; padding:6px 10px; border:1px solid var(--line);
+    border-bottom:none; border-radius:9px 9px 0 0; background:#0a1020; color:var(--dim); cursor:pointer;
+    white-space:nowrap; font-size:12px; max-width:220px; }
+  .tab.active { background:var(--card); color:var(--text); border-color:rgba(94,200,255,.4); }
+  .tab .nm { overflow:hidden; text-overflow:ellipsis; }
+  .tab .ex { font-size:10px; color:#ffcf8a; }
+  .tab .cl { opacity:.6; padding:0 2px; border-radius:4px; }
+  .tab .cl:hover { opacity:1; color:#ff7b7b; background:rgba(255,120,120,.12); }
+  #tabs .newt { padding:6px 10px; color:var(--accent); }
+  #wrap { display:flex; height:calc(100% - 49px - 36px); }
   #vp { position:relative; flex:1; overflow:hidden; cursor:grab; background:
     radial-gradient(circle at 1px 1px, rgba(255,255,255,.05) 1px, transparent 0) 0 0/24px 24px; }
   #vp.panning { cursor:grabbing; }
   #world { position:absolute; left:0; top:0; width:1px; height:1px; transform-origin:0 0; }
-  /* origin-aligned with #world so edge paths (drawn in world coords) line up with
-     the nodes; overflow:visible lets paths render outside the 1px box. */
   #edges { position:absolute; left:0; top:0; width:1px; height:1px; overflow:visible; pointer-events:none; }
   #edges path.edge { fill:none; stroke:#5ec8ff; stroke-width:2; opacity:.7; pointer-events:stroke; cursor:pointer; }
   #edges path.edge:hover { stroke:#7fd4ff; opacity:1; stroke-width:3; }
   #edges path.temp { fill:none; stroke:#7fd4ff; stroke-width:2; stroke-dasharray:5 4; opacity:.8; }
   .node { position:absolute; width:230px; background:var(--card); border:1px solid var(--line);
     border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
-  .node.sel { border-color:var(--accent); box-shadow:0 0 0 2px rgba(94,200,255,.35),0 8px 24px rgba(0,0,0,.4); }
   .node .head { display:flex; align-items:center; gap:6px; padding:7px 9px; cursor:grab;
     border-bottom:1px solid var(--line); border-radius:12px 12px 0 0; background:#101c30; }
   .node .head select { background:#0a1020; color:var(--text); border:1px solid var(--line);
@@ -46,7 +56,6 @@
   .node .head .x:hover { color:#ff7b7b; }
   .node textarea { width:100%; border:0; background:transparent; color:var(--text); resize:vertical;
     min-height:50px; padding:9px; font:13px/1.45 inherit; outline:none; user-select:text; }
-  /* connection ports */
   .port { position:absolute; left:50%; transform:translateX(-50%); width:14px; height:14px; border-radius:50%;
     background:#0a1020; border:2px solid var(--accent); cursor:crosshair; z-index:2; }
   .port:hover { background:var(--accent); }
@@ -57,6 +66,9 @@
   #plan { white-space:pre-wrap; font-size:12.5px; color:#d6e2f0; background:#0a1020;
     border:1px solid var(--line); border-radius:10px; padding:11px; min-height:80px; }
   #side .muted { color:var(--dim); font-size:11px; }
+  #robadge { font-size:11px; color:#ffcf8a; background:rgba(255,180,90,.1);
+    border:1px solid rgba(255,180,90,.3); border-radius:8px; padding:6px 9px; display:none; }
+  #robadge.show { display:block; }
   #zoombar { position:absolute; right:12px; bottom:12px; display:flex; gap:6px; z-index:5; }
   #zoombar button { padding:4px 10px; }
   #tip { position:absolute; left:12px; bottom:12px; color:var(--dim); font-size:11px; opacity:.65; pointer-events:none; max-width:60%; }
@@ -65,18 +77,18 @@
 <body>
   <div id="bar">
     <input id="name" placeholder="ชื่อ workflow…" value="Workflow ใหม่">
-    <button onclick="newWf()">🆕 ใหม่</button>
+    <button onclick="newTab()">🆕 ใหม่</button>
     <button onclick="addNode()">＋ Node</button>
-    <select id="wfopen" onchange="if(this.value)loadWf(this.value)"><option value="">📂 เปิด…</option></select>
+    <select id="wfopen" onchange="if(this.value){openTab(this.value);this.value='';}"><option value="">📂 เปิด…</option></select>
     <span class="grow"></span>
+    <button id="delBtn" onclick="deleteCurrent()">🗑 ลบ</button>
     <button onclick="saveWf()">💾 บันทึก</button>
     <button class="primary" onclick="analyze()">🔍 วิเคราะห์</button>
   </div>
+  <div id="tabs"></div>
   <div id="wrap">
     <div id="vp">
-      <div id="world">
-        <svg id="edges"><g id="edgeg"></g></svg>
-      </div>
+      <div id="world"><svg id="edges"><g id="edgeg"></g></svg></div>
       <div id="zoombar">
         <button onclick="zoomBy(0.83)">－</button>
         <button onclick="fitView()">⤢ พอดี</button>
@@ -86,6 +98,7 @@
     </div>
     <div id="side">
       <h3>🤖 แผนจาก Director</h3>
+      <div id="robadge">📄 นี่คือ <b>ตัวอย่าง</b> (อ่านอย่างเดียว) — กด 💾 บันทึก เพื่อทำสำเนาที่แก้ไขได้</div>
       <div class="muted">กด “วิเคราะห์” แล้ว Director จะอ่าน workflow (รวมการแตกแขนง/รวม) แล้วบอกว่าต้องใช้ skill/tool/permission อะไร และมอบหมายให้ใคร (ยังไม่ลงมือทำจริง)</div>
       <div id="plan">— ยังไม่มีการวิเคราะห์ —</div>
     </div>
@@ -93,33 +106,83 @@
 <script>
   const TYPES = [["trigger","⚡ เริ่มเมื่อ"],["fetch","⬇ ดึงข้อมูล"],["action","⚙ ทำงาน"],
     ["decision","◆ ตัดสินใจ"],["output","📤 ส่งผล"],["note","📝 โน้ต"]];
-  const W = 230;                       // node width (world units)
-  let nodes = [], edges = [], curId = "", seq = 1;
+  const W = 230, NS = "http://www.w3.org/2000/svg";
+  // ---- open tabs: each holds a full workflow; the live globals mirror the active one
+  let tabs = [];          // {id,name,example,nodes,edges,pan,zoom}
+  let active = -1;
+  let nodes = [], edges = [], curId = "", isExample = false, seq = 1;
   let pan = { x: 60, y: 40 }, zoom = 1;
   const vp = document.getElementById("vp"), world = document.getElementById("world"),
-        edgeg = document.getElementById("edgeg");
-  const NS = "http://www.w3.org/2000/svg";
+        edgeg = document.getElementById("edgeg"), nameInp = document.getElementById("name");
 
   function applyTransform() { world.style.transform = `translate(${pan.x}px,${pan.y}px) scale(${zoom})`; }
-  function screenToWorld(sx, sy) {
-    const r = vp.getBoundingClientRect();
-    return { x: (sx - r.left - pan.x) / zoom, y: (sy - r.top - pan.y) / zoom };
-  }
+  function screenToWorld(sx, sy) { const r = vp.getBoundingClientRect();
+    return { x: (sx - r.left - pan.x) / zoom, y: (sy - r.top - pan.y) / zoom }; }
   function nodeEl(id) { return world.querySelector('.node[data-id="'+id+'"]'); }
   function nodeH(n) { const el = nodeEl(n.id); return el ? el.offsetHeight : 110; }
   function outPort(n) { return { x: n.x + W / 2, y: n.y + nodeH(n) }; }
   function inPort(n) { return { x: n.x + W / 2, y: n.y }; }
 
-  // ---- render nodes ----
+  // ===== TABS =====
+  function stash() {
+    if (active < 0 || !tabs[active]) return;
+    tabs[active] = { id: curId, name: nameInp.value, example: isExample, nodes, edges, pan, zoom };
+  }
+  function clearCanvas() { world.querySelectorAll(".node").forEach(e=>e.remove()); edgeg.innerHTML=""; }
+  function activate(i) {
+    active = i; const t = tabs[i];
+    curId = t.id; isExample = !!t.example; nameInp.value = t.name;
+    nodes = t.nodes; edges = t.edges; pan = t.pan; zoom = t.zoom;
+    seq = Math.max(1, ...nodes.map(n=>parseInt(String(n.id).replace(/\D/g,""))||0)) + 1;
+    nameInp.disabled = isExample;
+    document.getElementById("delBtn").disabled = isExample || !curId;
+    document.getElementById("robadge").classList.toggle("show", isExample);
+    clearCanvas(); nodes.forEach(renderNode); drawEdges(); applyTransform(); renderTabs();
+    try { localStorage.setItem("lastWf", curId || ""); } catch {}
+  }
+  function renderTabs() {
+    const host = document.getElementById("tabs");
+    host.innerHTML = tabs.map((t,i)=>
+      `<div class="tab${i===active?" active":""}" onclick="switchTab(${i})">
+         ${t.example?'<span class="ex">📄</span>':''}<span class="nm">${(t.name||"(ไม่มีชื่อ)").replace(/</g,"&lt;")}</span>
+         <span class="cl" onclick="event.stopPropagation();closeTab(${i})">✕</span></div>`).join("")
+      + `<div class="newt" onclick="newTab()">＋</div>`;
+  }
+  function switchTab(i){ if(i===active)return; stash(); activate(i); }
+  function newTab() {
+    stash();
+    tabs.push({ id:"", name:"Workflow ใหม่", example:false, nodes:[], edges:[], pan:{x:60,y:40}, zoom:1 });
+    activate(tabs.length-1);
+    addNode("trigger","เมื่อสั่งให้เริ่ม…");
+  }
+  function openTab(id) {
+    const ex = tabs.findIndex(t=>t.id && t.id===id);
+    if (ex>=0) { switchTab(ex); return; }
+    fetch("/workflows/get?id="+encodeURIComponent(id)).then(r=>r.json()).then(w=>{
+      stash();
+      tabs.push({ id:w.id||id, name:w.name||"Workflow", example:String(id).startsWith("example-"),
+        nodes:w.nodes||[], edges:w.edges||[], pan:{x:60,y:40}, zoom:1 });
+      activate(tabs.length-1); fitView();
+    });
+  }
+  function closeTab(i) {
+    if (i===active) stash();
+    tabs.splice(i,1);
+    if (!tabs.length) { newTab(); return; }
+    if (active>=i) active = Math.max(0, active-(active===i?0:1));
+    if (active>=tabs.length) active = tabs.length-1;
+    activate(active);
+  }
+
+  // ===== nodes =====
   function renderNode(n) {
     const el = document.createElement("div");
     el.className = "node"; el.dataset.id = n.id; el.style.left = n.x + "px"; el.style.top = n.y + "px";
     const opts = TYPES.map(([v,l]) => `<option value="${v}"${v===n.type?" selected":""}>${l}</option>`).join("");
-    el.innerHTML =
-      `<div class="port in" data-port="in"></div>` +
+    el.innerHTML = `<div class="port in"></div>` +
       `<div class="head"><select>${opts}</select><span class="x">✕</span></div>` +
       `<textarea placeholder="พิมพ์สิ่งที่อยากให้ทำ…">${(n.text||"").replace(/</g,"&lt;")}</textarea>` +
-      `<div class="port out" data-port="out"></div>`;
+      `<div class="port out"></div>`;
     el.querySelector("select").onchange = (e) => { n.type = e.target.value; };
     el.querySelector("textarea").oninput = (e) => { n.text = e.target.value; drawEdges(); };
     el.querySelector(".x").onclick = (e) => { e.stopPropagation(); removeNode(n.id); };
@@ -131,8 +194,7 @@
   function removeNode(id) {
     edges = edges.filter((e) => e.from !== id && e.to !== id);
     nodes = nodes.filter((n) => n.id !== id);
-    const el = nodeEl(id); if (el) el.remove();
-    drawEdges();
+    const el = nodeEl(id); if (el) el.remove(); drawEdges();
   }
   function addNode(type, text) {
     const c = screenToWorld(vp.clientWidth/2, vp.clientHeight/2);
@@ -140,8 +202,6 @@
       x: Math.round(c.x - W/2 + (nodes.length%3)*20), y: Math.round(c.y - 40 + (nodes.length%5)*16) };
     nodes.push(n); renderNode(n); drawEdges();
   }
-
-  // ---- drag a node ----
   function dragNode(el, n) {
     el.querySelector(".head").addEventListener("mousedown", (e) => {
       if (e.target.tagName === "SELECT" || e.target.classList.contains("x")) return;
@@ -154,15 +214,11 @@
       document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
     });
   }
-
-  // ---- draw edges (cubic beziers in world space) ----
-  function path(p1, p2) {
-    const dy = Math.max(40, Math.abs(p2.y - p1.y) * 0.5);
-    return `M ${p1.x} ${p1.y} C ${p1.x} ${p1.y+dy}, ${p2.x} ${p2.y-dy}, ${p2.x} ${p2.y}`;
-  }
+  // ===== edges =====
+  function path(p1, p2) { const dy = Math.max(40, Math.abs(p2.y - p1.y) * 0.5);
+    return `M ${p1.x} ${p1.y} C ${p1.x} ${p1.y+dy}, ${p2.x} ${p2.y-dy}, ${p2.x} ${p2.y}`; }
   function drawEdges() {
-    edgeg.innerHTML = "";
-    const byId = {}; for (const n of nodes) byId[n.id] = n;
+    edgeg.innerHTML = ""; const byId = {}; for (const n of nodes) byId[n.id] = n;
     for (const e of edges) {
       const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
       const pa = document.createElementNS(NS, "path");
@@ -171,120 +227,89 @@
       edgeg.appendChild(pa);
     }
   }
-
-  // ---- link two nodes by dragging from out-port to in-port ----
   function startLink(e, fromId) {
     e.preventDefault(); e.stopPropagation();
     const from = nodes.find((n) => n.id === fromId);
     const temp = document.createElementNS(NS, "path"); temp.setAttribute("class", "temp"); edgeg.appendChild(temp);
     const move = (ev) => { const p = screenToWorld(ev.clientX, ev.clientY); temp.setAttribute("d", path(outPort(from), p)); };
     const up = (ev) => {
-      document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up);
-      temp.remove();
+      document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up); temp.remove();
       const tgt = ev.target.closest(".node");
       if (tgt) { const toId = tgt.dataset.id;
-        if (toId !== fromId && !edges.some((x) => x.from===fromId && x.to===toId)) {
-          edges.push({ from: fromId, to: toId }); drawEdges();
-        }
-      }
+        if (toId !== fromId && !edges.some((x) => x.from===fromId && x.to===toId)) { edges.push({ from: fromId, to: toId }); drawEdges(); } }
     };
     document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
   }
-
-  // ---- pan + zoom ----
+  // ===== pan + zoom =====
   vp.addEventListener("mousedown", (e) => {
     if (e.target.closest(".node") || e.target.closest("#zoombar")) return;
-    vp.classList.add("panning"); const sx = e.clientX, sy = e.clientY, px = pan.x, py = pan.y;
-    const move = (ev) => { pan.x = px + ev.clientX - sx; pan.y = py + ev.clientY - sy; applyTransform(); };
+    vp.classList.add("panning"); const sx=e.clientX, sy=e.clientY, px=pan.x, py=pan.y;
+    const move = (ev) => { pan.x = px+ev.clientX-sx; pan.y = py+ev.clientY-sy; applyTransform(); };
     const up = () => { vp.classList.remove("panning"); document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); };
     document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
   });
-  vp.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    const r = vp.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
-    const f = e.deltaY < 0 ? 1.1 : 0.9, nz = Math.min(2, Math.max(0.3, zoom * f));
-    // keep the point under the cursor fixed
-    pan.x = mx - (mx - pan.x) * (nz / zoom); pan.y = my - (my - pan.y) * (nz / zoom);
-    zoom = nz; applyTransform();
+  vp.addEventListener("wheel", (e) => { e.preventDefault();
+    const r = vp.getBoundingClientRect(), mx = e.clientX-r.left, my = e.clientY-r.top;
+    const f = e.deltaY<0?1.1:0.9, nz = Math.min(2, Math.max(0.3, zoom*f));
+    pan.x = mx-(mx-pan.x)*(nz/zoom); pan.y = my-(my-pan.y)*(nz/zoom); zoom = nz; applyTransform();
   }, { passive: false });
-  function zoomBy(f) { const nz = Math.min(2, Math.max(0.3, zoom*f));
-    const mx = vp.clientWidth/2, my = vp.clientHeight/2;
+  function zoomBy(f) { const nz = Math.min(2, Math.max(0.3, zoom*f)); const mx=vp.clientWidth/2, my=vp.clientHeight/2;
     pan.x = mx-(mx-pan.x)*(nz/zoom); pan.y = my-(my-pan.y)*(nz/zoom); zoom = nz; applyTransform(); }
   function fitView() {
-    if (!nodes.length) { pan = {x:60,y:40}; zoom = 1; return applyTransform(); }
+    if (!nodes.length) { pan={x:60,y:40}; zoom=1; return applyTransform(); }
     let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
-    for (const n of nodes) { minX=Math.min(minX,n.x); minY=Math.min(minY,n.y);
-      maxX=Math.max(maxX,n.x+W); maxY=Math.max(maxY,n.y+nodeH(n)); }
+    for (const n of nodes) { minX=Math.min(minX,n.x); minY=Math.min(minY,n.y); maxX=Math.max(maxX,n.x+W); maxY=Math.max(maxY,n.y+nodeH(n)); }
     const pad=60, w=maxX-minX+pad*2, h=maxY-minY+pad*2;
     zoom = Math.min(2, Math.max(0.3, Math.min(vp.clientWidth/w, vp.clientHeight/h)));
-    pan.x = -(minX-pad)*zoom + (vp.clientWidth - w*zoom)/2;
-    pan.y = -(minY-pad)*zoom + (vp.clientHeight - h*zoom)/2;
+    pan.x = -(minX-pad)*zoom + (vp.clientWidth - w*zoom)/2; pan.y = -(minY-pad)*zoom + (vp.clientHeight - h*zoom)/2;
     applyTransform();
   }
-
-  // ---- persistence ----
-  function rememberLast() { try { localStorage.setItem("lastWf", curId || ""); } catch {} }
+  // ===== persistence =====
   function saveWf() {
-    const body = { id: curId || undefined, name: document.getElementById("name").value || "Workflow", nodes, edges };
+    const body = { id: (isExample ? "" : curId) || undefined, name: nameInp.value || "Workflow", nodes, edges };
     fetch("/workflows/save", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(body) })
-      .then(r=>r.json()).then(j=>{ curId=j.id; rememberLast(); flash("💾 บันทึกแล้ว"); refreshList(); }).catch(()=>flash("บันทึกไม่สำเร็จ"));
+      .then(r=>r.json()).then(j=>{
+        curId = j.id; isExample = false; nameInp.disabled = false;
+        document.getElementById("delBtn").disabled = false;
+        document.getElementById("robadge").classList.remove("show");
+        if (tabs[active]) { tabs[active].id = j.id; tabs[active].example = false; }
+        try { localStorage.setItem("lastWf", curId); } catch {}
+        renderTabs(); flash(isExample?"💾 บันทึกเป็นสำเนาแล้ว":"💾 บันทึกแล้ว"); loadList();
+      }).catch(()=>flash("บันทึกไม่สำเร็จ"));
   }
-  function newWf() {
-    clearCanvas(); nodes = []; edges = []; curId = ""; seq = 1; rememberLast();
-    document.getElementById("name").value = "Workflow ใหม่";
-    pan = { x: 60, y: 40 }; zoom = 1; applyTransform();
-    addNode("trigger", "เมื่อสั่งให้เริ่ม…");
-    document.getElementById("wfopen").value = "";
+  function deleteCurrent() {
+    if (!curId || isExample) return;
+    if (!confirm("ลบ workflow นี้?")) return;
+    fetch("/workflows/delete", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({ id: curId }) })
+      .then(()=>{ try{localStorage.removeItem("lastWf")}catch{}; closeTab(active); loadList(); });
   }
   function analyze() {
     if (!nodes.length) return flash("เพิ่ม node ก่อนนะ");
     const plan = document.getElementById("plan"); plan.textContent = "⏳ Director กำลังวิเคราะห์…";
     fetch("/workflows/analyze", { method:"POST", headers:{"content-type":"application/json"},
-      body: JSON.stringify({ name: document.getElementById("name").value, nodes, edges }) })
+      body: JSON.stringify({ name: nameInp.value, nodes, edges }) })
       .then(r=>r.json()).then(j=>{ plan.textContent = j.analysis || "—"; }).catch(()=>{ plan.textContent="วิเคราะห์ไม่สำเร็จ ลองใหม่"; });
   }
-  function clearCanvas() { world.querySelectorAll(".node").forEach(e=>e.remove()); edgeg.innerHTML=""; }
-  function loadWf(id) {
-    fetch("/workflows/get?id="+encodeURIComponent(id)).then(r=>r.json()).then(w=>{
-      clearCanvas(); nodes = w.nodes||[]; edges = w.edges||[]; curId = w.id||id; rememberLast();
-      document.getElementById("name").value = w.name||"Workflow";
-      // ids like n3 → keep seq ahead of the highest existing id so new nodes don't collide
-      seq = Math.max(1, ...nodes.map(n=>parseInt(String(n.id).replace(/\D/g,""))||0)) + 1;
-      nodes.forEach(renderNode); drawEdges(); fitView();
-    });
-  }
-  function refreshList() {
+  function loadList() {
     fetch("/workflows").then(r=>r.json()).then(list=>{
-      document.getElementById("wfopen").innerHTML = '<option value="">📂 เปิด…</option>' +
-        list.map(w=>`<option value="${w.id}"${w.id===curId?" selected":""}>${w.name} (${w.nodes})</option>`).join("");
+      const ex = list.filter(w=>w.example), us = list.filter(w=>!w.example);
+      const opt = w=>`<option value="${w.id}">${w.name} (${w.nodes})</option>`;
+      document.getElementById("wfopen").innerHTML = '<option value="">📂 เปิด…</option>'
+        + (ex.length?`<optgroup label="ตัวอย่าง (อ่านอย่างเดียว)">${ex.map(opt).join("")}</optgroup>`:"")
+        + (us.length?`<optgroup label="ของฉัน">${us.map(opt).join("")}</optgroup>`:"");
     });
   }
   function flash(t){ const p=document.getElementById("plan"); const o=p.textContent; p.textContent=t; setTimeout(()=>{ if(p.textContent===t)p.textContent=o; },1500); }
 
-  // A small branching example for an empty office (split to 2 fetches, merge).
-  function seedExample() {
-    clearCanvas(); nodes = []; edges = []; seq = 1;
-    addNode("trigger","เมื่อสั่งให้เริ่ม");
-    addNode("fetch","หาข่าว A");
-    addNode("fetch","หาข่าว B");
-    addNode("action","รวมแล้วเขียนสรุป");
-    nodes[1].x = nodes[0].x - 150; nodes[2].x = nodes[0].x + 150; nodes[3].y = nodes[1].y + 190;
-    nodeEl(nodes[1].id).style.left=nodes[1].x+"px"; nodeEl(nodes[2].id).style.left=nodes[2].x+"px";
-    nodeEl(nodes[3].id).style.top=nodes[3].y+"px";
-    edges = [ {from:nodes[0].id,to:nodes[1].id},{from:nodes[0].id,to:nodes[2].id},
-              {from:nodes[1].id,to:nodes[3].id},{from:nodes[2].id,to:nodes[3].id} ];
-    drawEdges(); fitView();
-  }
-  // On open: restore the last-edited workflow → else the first saved one → else
-  // the example. Plus keep the dropdown populated.
-  applyTransform(); refreshList();
+  // ===== boot =====
+  applyTransform(); loadList();
   (function boot() {
-    let last = null; try { last = localStorage.getItem("lastWf"); } catch {}
+    let last=null; try { last = localStorage.getItem("lastWf"); } catch {}
     fetch("/workflows").then(r=>r.json()).then(list=>{
-      if (last && list.some(w=>w.id===last)) loadWf(last);
-      else if (list.length) loadWf(list[0].id);
-      else seedExample();
-    }).catch(seedExample);
+      if (last && list.some(w=>w.id===last)) openTab(last);
+      else if (list.length) openTab(list[0].id);   // first example
+      else newTab();
+    }).catch(newTab);
   })();
 </script>
 </body>
