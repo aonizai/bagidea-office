@@ -1745,7 +1745,14 @@ function ttsSpeak(presetId, text) {
     const p = VOICE_PRESETS[presetId];
     if (!p) return reject(new Error("ไม่รู้จักเสียง: " + presetId));
     const body = JSON.stringify({
-      contents: [{ parts: [{ text: `${p.style}: "${String(text).slice(0, 900)}"` }] }],
+      // Global delivery direction on top of each preset's style — pushes the
+      // voices toward a lively, expressive anime feel with natural intonation
+      // (emotion, light pacing, never flat/robotic).
+      contents: [{ parts: [{ text:
+        `Perform this line as a charming, expressive anime character — ${p.style}. ` +
+        `Use natural human intonation and real emotion, with a little life and warmth, ` +
+        `never flat or robotic. Don't read these directions aloud. Say only:\n` +
+        `"${String(text).slice(0, 900)}"` }] }],
       generationConfig: {
         responseModalities: ["AUDIO"],
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: p.voice } } },

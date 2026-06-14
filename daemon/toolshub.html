@@ -43,101 +43,132 @@
 <body>
 <div class="wrap">
   <h1>🧰 Tools Hub</h1>
-  <div class="intro">
-    <b>MCP คืออะไร?</b> คือวิธีเสริม “ความสามารถใหม่” ให้ทีม AI ที่ Claude ไม่มีมาในตัว — เช่น เปิดเว็บทำงานแทน,
-    อ่าน Gmail, ดูปฏิทิน, คุยกับฐานข้อมูล ฯลฯ แต่ละตัวคือโปรแกรมเล็กๆ ที่รันในเครื่องคุณ แล้ว agent เรียกใช้ได้
-    <ol>
-      <li>กด <b>＋ เพิ่ม</b> ตัวที่อยากได้ (ตัวที่ต้องใส่ token/path ให้แก้คำสั่งในช่องก่อน)</li>
-      <li>ไปหน้า <b>ตั้งค่า → agent</b> แล้วติ๊ก tool ที่ขึ้นต้นว่า <code>mcp:&lt;ชื่อ&gt;</code> ให้ agent ที่ต้องการ</li>
-      <li>เสร็จ! agent ตัวนั้นจะใช้ความสามารถใหม่ได้เลย</li>
-    </ol>
-    <div class="warn">⚠️ การเพิ่ม MCP = อนุญาตให้รันโปรแกรมนั้นในเครื่องคุณจริง เพิ่มเฉพาะตัวที่ไว้ใจ (ส่วนใหญ่เป็นของทางการ <code>@modelcontextprotocol/*</code> หรือ <code>@playwright/*</code>)</div>
-  </div>
+  <div class="intro" id="intro"></div>
   <div id="installed"></div>
   <div id="available"></div>
-  <p style="font-size:11.5px;color:var(--dim);margin-top:18px">มีอีกเยอะที่ <a href="https://github.com/modelcontextprotocol/servers" target="_blank">modelcontextprotocol/servers</a> — ก๊อปคำสั่ง <code>npx …</code> ของตัวไหนมาวางในช่องด้านบนแล้วกดเพิ่มได้เลย · ถ้าตัวไหนเพิ่มแล้ว error ส่วนใหญ่คือชื่อ package เปลี่ยน — เช็คชื่อล่าสุดในลิงก์</p>
+  <p id="footer" style="font-size:11.5px;color:var(--dim);margin-top:18px"></p>
 </div>
 <div id="toast"></div>
 <script>
-  // Curated catalog. `cmd` is editable (paths/tokens differ per machine).
+  let L = "th";  // set from the office language on load (non-Thai → English)
+  // Static UI strings, both languages.
+  const UI = {
+    th: {
+      whatTitle:"MCP คืออะไร?",
+      what:"คือวิธีเสริม “ความสามารถใหม่” ให้ทีม AI ที่ Claude ไม่มีมาในตัว — เช่น เปิดเว็บทำงานแทน, อ่าน Gmail, ดูปฏิทิน, คุยกับฐานข้อมูล ฯลฯ แต่ละตัวคือโปรแกรมเล็กๆ ที่รันในเครื่องคุณ แล้ว agent เรียกใช้ได้",
+      s1:"กด <b>＋ เพิ่ม</b> ตัวที่อยากได้ (ตัวที่ต้องใส่ token/path ให้แก้คำสั่งในช่องก่อน)",
+      s2:"ไปหน้า <b>ตั้งค่า → agent</b> แล้วติ๊ก tool ที่ขึ้นต้นว่า <code>mcp:&lt;ชื่อ&gt;</code> ให้ agent ที่ต้องการ",
+      s3:"เสร็จ! agent ตัวนั้นจะใช้ความสามารถใหม่ได้เลย",
+      warn:"⚠️ การเพิ่ม MCP = อนุญาตให้รันโปรแกรมนั้นในเครื่องคุณจริง เพิ่มเฉพาะตัวที่ไว้ใจ (ส่วนใหญ่เป็นของทางการ <code>@modelcontextprotocol/*</code> หรือ <code>@playwright/*</code>)",
+      installed:"✓ ติดตั้งแล้ว", available:"เพิ่มได้", add:"＋ เพิ่ม", remove:"เอาออก",
+      feat:"กดเพิ่มได้เลย",
+      footer:"มีอีกเยอะที่ <a href='https://github.com/modelcontextprotocol/servers' target='_blank'>modelcontextprotocol/servers</a> — ก๊อปคำสั่ง <code>npx …</code> ของตัวไหนมาวางในช่องด้านบนแล้วกดเพิ่มได้เลย · ถ้าตัวไหนเพิ่มแล้ว error ส่วนใหญ่คือชื่อ package เปลี่ยน — เช็คชื่อล่าสุดในลิงก์",
+      tFix:"แก้คำสั่งให้ครบก่อน (ยังมี <…> อยู่)", tAdded:n=>"✓ เพิ่มแล้ว — ไปติ๊ก tool 'mcp:"+n+"' ให้ agent ในหน้าตั้งค่า",
+      tAddErr:"เพิ่มไม่สำเร็จ", tRemoved:"เอาออกแล้ว",
+    },
+    en: {
+      whatTitle:"What is MCP?",
+      what:"It's how you give the AI team new abilities Claude doesn't have built in — open & drive a real browser, read Gmail, check a calendar, query a database, and more. Each one is a small program that runs on your machine and your agents can call.",
+      s1:"Press <b>＋ Add</b> on the one you want (for ones needing a token/path, edit the command first).",
+      s2:"Go to <b>Settings → agent</b> and tick the tool starting with <code>mcp:&lt;name&gt;</code> for that agent.",
+      s3:"Done! that agent can now use the new ability.",
+      warn:"⚠️ Adding an MCP lets that program run on your machine — only add ones you trust (most are official <code>@modelcontextprotocol/*</code> or <code>@playwright/*</code>).",
+      installed:"✓ Installed", available:"Available", add:"＋ Add", remove:"Remove",
+      feat:"one-click",
+      footer:"Many more at <a href='https://github.com/modelcontextprotocol/servers' target='_blank'>modelcontextprotocol/servers</a> — paste any <code>npx …</code> command into a box above and press Add · if one errors after adding, the package name has usually changed — check the latest in that link.",
+      tFix:"Finish the command first (still has <…>)", tAdded:n=>"✓ Added — tick the tool 'mcp:"+n+"' for an agent in Settings",
+      tAddErr:"Couldn't add", tRemoved:"Removed",
+    },
+  };
+  // Curated catalog (cmd editable). Each entry carries both languages.
   const CATALOG = [
-    { name:"browser", ic:"🌐", title:"Browser (Playwright)", feat:true, risk:"คุมเบราว์เซอร์",
-      desc:"ให้ agent เปิดเว็บจริง คลิก กรอกฟอร์ม อ่านหน้า ทำงานบนเว็บแทนคุณ — กดเพิ่มได้เลย ไม่ต้องตั้งค่า",
-      cmd:"npx -y @playwright/mcp@latest" },
-    { name:"memory", ic:"🧠", title:"Memory (ความจำถาวร)", feat:true, risk:"เก็บข้อมูลในเครื่อง",
-      desc:"ให้ agent จดจำข้อเท็จจริง/ความสัมพันธ์ข้ามครั้งได้ (knowledge graph) — กดเพิ่มได้เลย",
-      cmd:"npx -y @modelcontextprotocol/server-memory" },
-    { name:"thinking", ic:"💭", title:"Sequential Thinking", feat:true, risk:"ไม่มีความเสี่ยง",
-      desc:"เครื่องมือช่วยให้ agent คิดเป็นขั้นตอนกับปัญหายากๆ ได้ดีขึ้น — กดเพิ่มได้เลย",
-      cmd:"npx -y @modelcontextprotocol/server-sequential-thinking" },
-    { name:"files", ic:"📁", title:"Filesystem", risk:"อ่าน/เขียนไฟล์", edit:true,
-      desc:"อ่าน/เขียนไฟล์ในโฟลเดอร์ที่กำหนด — แก้ path ท้ายคำสั่งก่อนเพิ่ม",
-      cmd:"npx -y @modelcontextprotocol/server-filesystem C:\\Users\\me\\Documents" },
-    { name:"fetch", ic:"🔗", title:"Web Fetch", risk:"อ่านเว็บ",
-      desc:"ดึงเนื้อหาหน้าเว็บเป็นข้อความ/markdown ให้ agent อ่าน (เบากว่า browser)",
-      cmd:"npx -y @kazuph/mcp-fetch" },
-    { name:"github", ic:"🐙", title:"GitHub", risk:"ต้องมี token", edit:true,
-      desc:"จัดการ repo / issue / PR — ตั้งค่า personal access token ก่อน (ใส่เป็น env ในคำสั่ง หรือดูคู่มือ MCP)",
-      cmd:"npx -y @modelcontextprotocol/server-github" },
-    { name:"google", ic:"📧", title:"Google Workspace", risk:"ต้องตั้ง OAuth", edit:true,
-      desc:"Gmail / Calendar / Drive — ต้องตั้ง Google OAuth credentials ก่อน แล้ววางคำสั่งรันของ MCP ตัวที่เลือก",
-      cmd:"npx -y @google-workspace/mcp-server" },
-    { name:"gmaps", ic:"🗺", title:"Google Maps", risk:"ต้องมี API key", edit:true,
-      desc:"ค้นสถานที่ / เส้นทาง / รายละเอียดธุรกิจ — ต้องมี Google Maps API key",
-      cmd:"npx -y @modelcontextprotocol/server-google-maps" },
-    { name:"bravesearch", ic:"🔎", title:"Brave Search", risk:"ต้องมี API key", edit:true,
-      desc:"ค้นเว็บผ่าน Brave Search API (เป็นทางเลือกของ WebSearch)",
-      cmd:"npx -y @modelcontextprotocol/server-brave-search" },
-    { name:"postgres", ic:"🐘", title:"PostgreSQL", risk:"ฐานข้อมูล (อ่าน)", edit:true,
-      desc:"ให้ agent query ฐานข้อมูล Postgres — แก้ connection string ก่อนเพิ่ม",
-      cmd:"npx -y @modelcontextprotocol/server-postgres postgresql://user:pass@localhost/db" },
-    { name:"slack", ic:"💬", title:"Slack", risk:"ต้องมี token", edit:true,
-      desc:"อ่าน/ส่งข้อความ Slack — ต้องมี bot token",
-      cmd:"npx -y @modelcontextprotocol/server-slack" },
-    { name:"notion", ic:"📓", title:"Notion", risk:"ต้องมี token", edit:true,
-      desc:"อ่าน/เขียนหน้าและฐานข้อมูลใน Notion — ต้องมี integration token",
-      cmd:"npx -y @notionhq/notion-mcp-server" },
+    { name:"browser", ic:"🌐", feat:true, cmd:"npx -y @playwright/mcp@latest",
+      th:{t:"Browser (Playwright)", r:"คุมเบราว์เซอร์", d:"ให้ agent เปิดเว็บจริง คลิก กรอกฟอร์ม อ่านหน้า ทำงานบนเว็บแทนคุณ — กดเพิ่มได้เลย ไม่ต้องตั้งค่า"},
+      en:{t:"Browser (Playwright)", r:"controls a browser", d:"Let agents open a real browser, click, fill forms, read pages — do web tasks for you. One click, no setup."} },
+    { name:"memory", ic:"🧠", feat:true, cmd:"npx -y @modelcontextprotocol/server-memory",
+      th:{t:"Memory (ความจำถาวร)", r:"เก็บข้อมูลในเครื่อง", d:"ให้ agent จดจำข้อเท็จจริง/ความสัมพันธ์ข้ามครั้งได้ (knowledge graph)"},
+      en:{t:"Memory (persistent)", r:"stores data locally", d:"Let agents remember facts & relationships across sessions (a knowledge graph)."} },
+    { name:"thinking", ic:"💭", feat:true, cmd:"npx -y @modelcontextprotocol/server-sequential-thinking",
+      th:{t:"Sequential Thinking", r:"ไม่มีความเสี่ยง", d:"เครื่องมือช่วยให้ agent คิดเป็นขั้นตอนกับปัญหายากๆ ได้ดีขึ้น"},
+      en:{t:"Sequential Thinking", r:"no risk", d:"A tool that helps agents reason step-by-step through hard problems."} },
+    { name:"files", ic:"📁", edit:true, cmd:"npx -y @modelcontextprotocol/server-filesystem C:\\Users\\me\\Documents",
+      th:{t:"Filesystem", r:"อ่าน/เขียนไฟล์", d:"อ่าน/เขียนไฟล์ในโฟลเดอร์ที่กำหนด — แก้ path ท้ายคำสั่งก่อนเพิ่ม"},
+      en:{t:"Filesystem", r:"reads/writes files", d:"Read/write files in a chosen folder — edit the path at the end of the command first."} },
+    { name:"fetch", ic:"🔗", cmd:"npx -y @kazuph/mcp-fetch",
+      th:{t:"Web Fetch", r:"อ่านเว็บ", d:"ดึงเนื้อหาหน้าเว็บเป็นข้อความ/markdown ให้ agent อ่าน (เบากว่า browser)"},
+      en:{t:"Web Fetch", r:"reads web pages", d:"Pull a web page as text/markdown for agents to read (lighter than a full browser)."} },
+    { name:"github", ic:"🐙", edit:true, cmd:"npx -y @modelcontextprotocol/server-github",
+      th:{t:"GitHub", r:"ต้องมี token", d:"จัดการ repo / issue / PR — ตั้งค่า personal access token ก่อน"},
+      en:{t:"GitHub", r:"needs a token", d:"Manage repos / issues / PRs — set up a personal access token first."} },
+    { name:"google", ic:"📧", edit:true, cmd:"npx -y @google-workspace/mcp-server",
+      th:{t:"Google Workspace", r:"ต้องตั้ง OAuth", d:"Gmail / Calendar / Drive — ต้องตั้ง Google OAuth credentials ก่อน"},
+      en:{t:"Google Workspace", r:"needs OAuth", d:"Gmail / Calendar / Drive — set up Google OAuth credentials first."} },
+    { name:"gmaps", ic:"🗺", edit:true, cmd:"npx -y @modelcontextprotocol/server-google-maps",
+      th:{t:"Google Maps", r:"ต้องมี API key", d:"ค้นสถานที่ / เส้นทาง / รายละเอียดธุรกิจ — ต้องมี Google Maps API key"},
+      en:{t:"Google Maps", r:"needs API key", d:"Find places / routes / business details — needs a Google Maps API key."} },
+    { name:"bravesearch", ic:"🔎", edit:true, cmd:"npx -y @modelcontextprotocol/server-brave-search",
+      th:{t:"Brave Search", r:"ต้องมี API key", d:"ค้นเว็บผ่าน Brave Search API (ทางเลือกของ WebSearch)"},
+      en:{t:"Brave Search", r:"needs API key", d:"Search the web via the Brave Search API (an alternative to WebSearch)."} },
+    { name:"postgres", ic:"🐘", edit:true, cmd:"npx -y @modelcontextprotocol/server-postgres postgresql://user:pass@localhost/db",
+      th:{t:"PostgreSQL", r:"ฐานข้อมูล (อ่าน)", d:"ให้ agent query ฐานข้อมูล Postgres — แก้ connection string ก่อนเพิ่ม"},
+      en:{t:"PostgreSQL", r:"database (read)", d:"Let agents query a Postgres database — edit the connection string first."} },
+    { name:"slack", ic:"💬", edit:true, cmd:"npx -y @modelcontextprotocol/server-slack",
+      th:{t:"Slack", r:"ต้องมี token", d:"อ่าน/ส่งข้อความ Slack — ต้องมี bot token"},
+      en:{t:"Slack", r:"needs a token", d:"Read/send Slack messages — needs a bot token."} },
+    { name:"notion", ic:"📓", edit:true, cmd:"npx -y @notionhq/notion-mcp-server",
+      th:{t:"Notion", r:"ต้องมี token", d:"อ่าน/เขียนหน้าและฐานข้อมูลใน Notion — ต้องมี integration token"},
+      en:{t:"Notion", r:"needs a token", d:"Read/write Notion pages & databases — needs an integration token."} },
   ];
   let installed = {};
 
+  function paintStatic() {
+    const u = UI[L];
+    document.getElementById("intro").innerHTML =
+      `<b>${u.whatTitle}</b> ${u.what}<ol><li>${u.s1}</li><li>${u.s2}</li><li>${u.s3}</li></ol><div class="warn">${u.warn}</div>`;
+    document.getElementById("footer").innerHTML = u.footer;
+  }
   function refresh() {
-    fetch("/registry").then(r=>r.json()).then(reg=>{ installed = reg.mcp || reg.mcpServers || {}; render(); }).catch(render);
+    fetch("/registry").then(r=>r.json()).then(reg=>{
+      installed = reg.mcp || reg.mcpServers || {};
+      if ((reg.lang||"th")!=="th") L = "en";
+      paintStatic(); render();
+    }).catch(()=>{ paintStatic(); render(); });
   }
   function cardHTML(c, i) {
-    const on = !!installed[c.name];
+    const on = !!installed[c.name], t = c[L] || c.th, u = UI[L];
     return `<div class="card${on?" on":""}">
-      <div class="top"><span class="ic">${c.ic}</span><h3>${c.title}</h3>
-        ${on?'<span class="pill on">✓ ติดตั้งแล้ว</span>':(c.feat?'<span class="pill feat">กดเพิ่มได้เลย</span>':'')}
-        <span class="pill risk">${c.risk}</span></div>
-      <p>${c.desc}</p>
+      <div class="top"><span class="ic">${c.ic}</span><h3>${t.t}</h3>
+        ${on?`<span class="pill on">${u.installed}</span>`:(c.feat?`<span class="pill feat">${u.feat}</span>`:'')}
+        <span class="pill risk">${t.r}</span></div>
+      <p>${t.d}</p>
       <div class="row">
         <input class="cmd" id="cmd${i}" value="${c.cmd.replace(/"/g,'&quot;')}"${on?' disabled':''}>
-        ${on ? `<button class="rm" onclick="rm('${c.name}')">เอาออก</button>`
-             : `<button class="add" onclick="add('${c.name}',${i})">＋ เพิ่ม</button>`}
+        ${on ? `<button class="rm" onclick="rm('${c.name}')">${u.remove}</button>`
+             : `<button class="add" onclick="add('${c.name}',${i})">${u.add}</button>`}
       </div></div>`;
   }
   function render() {
+    const u = UI[L];
     const on = CATALOG.map((c,i)=>({c,i})).filter(x=>installed[x.c.name]);
     const off = CATALOG.map((c,i)=>({c,i})).filter(x=>!installed[x.c.name]);
     document.getElementById("installed").innerHTML =
-      on.length ? `<div class="sec">✓ ติดตั้งแล้ว (${on.length})</div>` + on.map(x=>cardHTML(x.c,x.i)).join("") : "";
+      on.length ? `<div class="sec">${u.installed} (${on.length})</div>` + on.map(x=>cardHTML(x.c,x.i)).join("") : "";
     document.getElementById("available").innerHTML =
-      `<div class="sec">เพิ่มได้ (${off.length})</div>` + off.map(x=>cardHTML(x.c,x.i)).join("");
+      `<div class="sec">${u.available} (${off.length})</div>` + off.map(x=>cardHTML(x.c,x.i)).join("");
   }
   function add(name, i) {
     const command = document.getElementById("cmd"+i).value.trim();
-    if (!command || command.includes("<")) return toast("แก้คำสั่งให้ครบก่อน (ยังมี <…> อยู่)");
+    if (!command || command.includes("<")) return toast(UI[L].tFix);
     fetch("/registry/mcp", { method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify({ name, command }) })
-      .then(r=>r.ok?toast("✓ เพิ่มแล้ว — ไปติ๊ก tool 'mcp:"+name+"' ให้ agent ในหน้าตั้งค่า"):toast("เพิ่มไม่สำเร็จ"))
-      .then(refresh).catch(()=>toast("เพิ่มไม่สำเร็จ"));
+      .then(r=>r.ok?toast(UI[L].tAdded(name)):toast(UI[L].tAddErr)).then(refresh).catch(()=>toast(UI[L].tAddErr));
   }
   function rm(name) {
     fetch("/registry/mcp", { method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify({ name, remove:true }) })
-      .then(()=>{ toast("เอาออกแล้ว"); refresh(); });
+      .then(()=>{ toast(UI[L].tRemoved); refresh(); });
   }
   let tid;
   function toast(t){ const e=document.getElementById("toast"); e.textContent=t; e.classList.add("show"); clearTimeout(tid); tid=setTimeout(()=>e.classList.remove("show"),2800); }
-  refresh();
+  paintStatic(); refresh();
 </script>
 </body>
 </html>

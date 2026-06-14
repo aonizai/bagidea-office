@@ -77,14 +77,14 @@
 </head>
 <body>
   <div id="bar">
-    <input id="name" placeholder="ชื่อ workflow…" value="Workflow ใหม่">
-    <button onclick="newTab()">🆕 ใหม่</button>
+    <input id="name" placeholder="ชื่อ workflow…" data-ph="ชื่อ workflow…" value="Workflow ใหม่">
+    <button onclick="newTab()" data-i18n="🆕 ใหม่">🆕 ใหม่</button>
     <button onclick="addNode()">＋ Node</button>
     <select id="wfopen" onchange="if(this.value){openTab(this.value);this.value='';}"><option value="">📂 เปิด…</option></select>
     <span class="grow"></span>
-    <button id="delBtn" onclick="deleteCurrent()">🗑 ลบ</button>
-    <button onclick="saveWf()">💾 บันทึก</button>
-    <button class="primary" onclick="analyze()">🔍 วิเคราะห์</button>
+    <button id="delBtn" onclick="deleteCurrent()" data-i18n="🗑 ลบ">🗑 ลบ</button>
+    <button onclick="saveWf()" data-i18n="💾 บันทึก">💾 บันทึก</button>
+    <button class="primary" onclick="analyze()" data-i18n="🔍 วิเคราะห์">🔍 วิเคราะห์</button>
   </div>
   <div id="tabs"></div>
   <div id="wrap">
@@ -92,24 +92,58 @@
       <div id="world"><svg id="edges"><g id="edgeg"></g></svg></div>
       <div id="zoombar">
         <button onclick="zoomBy(0.83)">－</button>
-        <button onclick="fitView()">⤢ พอดี</button>
+        <button onclick="fitView()" data-i18n="⤢ พอดี">⤢ พอดี</button>
         <button onclick="zoomBy(1.2)">＋</button>
       </div>
-      <div id="tip">ลากพื้นที่ว่าง = เลื่อน · ล้อเมาส์ = ซูม · ลากจากจุดล่าง (●) ของ node ไปจุดบนของอีก node = เชื่อม · แตกหลายเส้น = ทำขนาน · หลายเส้นเข้า node เดียว = รอให้ครบก่อน · คลิกเส้นเพื่อลบ</div>
+      <div id="tip" data-i18n="ลากพื้นที่ว่าง = เลื่อน · ล้อเมาส์ = ซูม · ลากจากจุดล่าง (●) ของ node ไปจุดบนของอีก node = เชื่อม · แตกหลายเส้น = ทำขนาน · หลายเส้นเข้า node เดียว = รอให้ครบก่อน · คลิกเส้นเพื่อลบ">ลากพื้นที่ว่าง = เลื่อน · ล้อเมาส์ = ซูม · ลากจากจุดล่าง (●) ของ node ไปจุดบนของอีก node = เชื่อม · แตกหลายเส้น = ทำขนาน · หลายเส้นเข้า node เดียว = รอให้ครบก่อน · คลิกเส้นเพื่อลบ</div>
     </div>
     <div id="side">
-      <h3>🤖 แผนจาก Director</h3>
-      <div id="robadge">📄 นี่คือ <b>ตัวอย่าง</b> (อ่านอย่างเดียว) — กด 💾 บันทึก เพื่อทำสำเนาที่แก้ไขได้</div>
-      <div class="muted">กด “วิเคราะห์” แล้ว Director จะอ่าน workflow (รวมการแตกแขนง/รวม) แล้วบอกว่าต้องใช้ skill/tool/permission อะไร และมอบหมายให้ใคร</div>
-      <div id="plan">— ยังไม่มีการวิเคราะห์ —</div>
+      <h3 data-i18n="🤖 แผนจาก Director">🤖 แผนจาก Director</h3>
+      <div id="robadge" data-i18h="📄 นี่คือ <b>ตัวอย่าง</b> (อ่านอย่างเดียว) — กด 💾 บันทึก เพื่อทำสำเนาที่แก้ไขได้">📄 นี่คือ <b>ตัวอย่าง</b> (อ่านอย่างเดียว) — กด 💾 บันทึก เพื่อทำสำเนาที่แก้ไขได้</div>
+      <div class="muted" data-i18h="กด “วิเคราะห์” แล้ว Director จะอ่าน workflow (รวมการแตกแขนง/รวม) แล้วบอกว่าต้องใช้ skill/tool/permission อะไร และมอบหมายให้ใคร">กด “วิเคราะห์” แล้ว Director จะอ่าน workflow (รวมการแตกแขนง/รวม) แล้วบอกว่าต้องใช้ skill/tool/permission อะไร และมอบหมายให้ใคร</div>
+      <div id="plan" data-i18n="— ยังไม่มีการวิเคราะห์ —">— ยังไม่มีการวิเคราะห์ —</div>
       <div class="acts">
-        <button onclick="runWf()">▶️ รันเลย</button>
-        <button onclick="makeSkill()">🧠 สร้างเป็น Skill</button>
+        <button onclick="runWf()" data-i18n="▶️ รันเลย">▶️ รันเลย</button>
+        <button onclick="makeSkill()" data-i18n="🧠 สร้างเป็น Skill">🧠 สร้างเป็น Skill</button>
       </div>
-      <div class="muted">“<b>รันเลย</b>” = ให้ทีมทำตาม workflow นี้เดี๋ยวนี้ แล้วรายงานผล · “<b>สร้างเป็น Skill</b>” = บันทึกเป็นสกิลที่นำไปติ๊กให้ agent ในหน้าตั้งค่า เพื่อเรียกใช้ซ้ำเมื่อไหร่ก็ได้ (หรือพิมพ์สั่ง agent ให้ “รัน &lt;ชื่อ workflow&gt;”)</div>
+      <div class="muted" data-i18h="“<b>รันเลย</b>” = ให้ทีมทำตาม workflow นี้เดี๋ยวนี้ แล้วรายงานผล · “<b>สร้างเป็น Skill</b>” = บันทึกเป็นสกิลที่นำไปติ๊กให้ agent ในหน้าตั้งค่า เพื่อเรียกใช้ซ้ำเมื่อไหร่ก็ได้ (หรือพิมพ์สั่ง agent ให้ “รัน &lt;ชื่อ workflow&gt;”)">“<b>รันเลย</b>” = ให้ทีมทำตาม workflow นี้เดี๋ยวนี้ แล้วรายงานผล · “<b>สร้างเป็น Skill</b>” = บันทึกเป็นสกิลที่นำไปติ๊กให้ agent ในหน้าตั้งค่า เพื่อเรียกใช้ซ้ำเมื่อไหร่ก็ได้ (หรือพิมพ์สั่ง agent ให้ “รัน &lt;ชื่อ workflow&gt;”)</div>
     </div>
   </div>
 <script>
+  // ---- i18n: Thai is the source; non-Thai offices show English (other langs
+  //      fall back to English). Applied after we learn the office language.
+  let LANG = "th";
+  const TR = {
+    "Workflow ใหม่":"New workflow", "ชื่อ workflow…":"Workflow name…",
+    "🆕 ใหม่":"🆕 New","＋ Node":"＋ Node","🗑 ลบ":"🗑 Delete","💾 บันทึก":"💾 Save","🔍 วิเคราะห์":"🔍 Analyze",
+    "⤢ พอดี":"⤢ Fit","▶️ รันเลย":"▶️ Run now","🧠 สร้างเป็น Skill":"🧠 Save as Skill",
+    "🤖 แผนจาก Director":"🤖 Director's plan","— ยังไม่มีการวิเคราะห์ —":"— no analysis yet —",
+    "⚡ เริ่มเมื่อ":"⚡ Trigger","⬇ ดึงข้อมูล":"⬇ Fetch","⚙ ทำงาน":"⚙ Action","◆ ตัดสินใจ":"◆ Decision","📤 ส่งผล":"📤 Output","📝 โน้ต":"📝 Note",
+    "พิมพ์สิ่งที่อยากให้ทำ…":"Describe what to do…",
+    "ลากพื้นที่ว่าง = เลื่อน · ล้อเมาส์ = ซูม · ลากจากจุดล่าง (●) ของ node ไปจุดบนของอีก node = เชื่อม · แตกหลายเส้น = ทำขนาน · หลายเส้นเข้า node เดียว = รอให้ครบก่อน · คลิกเส้นเพื่อลบ":
+      "Drag empty space = pan · wheel = zoom · drag a node's bottom dot (●) onto another's top = connect · many arrows out = parallel · many arrows in = wait for all · click an edge to delete",
+    "📄 นี่คือ <b>ตัวอย่าง</b> (อ่านอย่างเดียว) — กด 💾 บันทึก เพื่อทำสำเนาที่แก้ไขได้":
+      "📄 This is an <b>example</b> (read-only) — press 💾 Save to make an editable copy",
+    "กด “วิเคราะห์” แล้ว Director จะอ่าน workflow (รวมการแตกแขนง/รวม) แล้วบอกว่าต้องใช้ skill/tool/permission อะไร และมอบหมายให้ใคร":
+      "Press “Analyze” and the Director reads the workflow (branches & merges) and tells you which skills/tools/permissions it needs and who to assign.",
+    "“<b>รันเลย</b>” = ให้ทีมทำตาม workflow นี้เดี๋ยวนี้ แล้วรายงานผล · “<b>สร้างเป็น Skill</b>” = บันทึกเป็นสกิลที่นำไปติ๊กให้ agent ในหน้าตั้งค่า เพื่อเรียกใช้ซ้ำเมื่อไหร่ก็ได้ (หรือพิมพ์สั่ง agent ให้ “รัน &lt;ชื่อ workflow&gt;”)":
+      "“<b>Run now</b>” = the team does this workflow now and reports back · “<b>Save as Skill</b>” = save it as a skill you assign to an agent in Settings and reuse anytime (or just tell an agent to “run &lt;workflow name&gt;”).",
+    "เพิ่ม node ก่อนนะ":"Add a node first","⏳ Director กำลังวิเคราะห์…":"⏳ Director is analyzing…",
+    "วิเคราะห์ไม่สำเร็จ ลองใหม่":"Analysis failed — try again","⏳ ทีมกำลังทำงานตาม workflow…":"⏳ The team is running the workflow…",
+    "รันไม่สำเร็จ ลองใหม่":"Run failed — try again","💾 บันทึกแล้ว":"💾 Saved","💾 บันทึกเป็นสำเนาแล้ว":"💾 Saved as a copy","บันทึกไม่สำเร็จ":"Save failed","✅ ผลลัพธ์:":"✅ Result:",
+    "สร้าง skill ไม่สำเร็จ":"Couldn't create skill","ลบ workflow นี้?":"Delete this workflow?","(ไม่มีชื่อ)":"(untitled)",
+    "📂 เปิด…":"📂 Open…","ตัวอย่าง (อ่านอย่างเดียว)":"Examples (read-only)","ของฉัน":"Mine",
+    "เมื่อสั่งให้เริ่ม…":"When started…","เมื่อสั่งให้เริ่ม":"When started","หาข่าว A":"Find news A","หาข่าว B":"Find news B","รวมแล้วเขียนสรุป":"Merge & summarize",
+  };
+  function tr(s){ return LANG==="th" ? s : (TR[s] || s); }
+  function applyLang(){
+    if (LANG==="th") return;
+    document.querySelectorAll("[data-i18n]").forEach(e=>{ const v=TR[e.getAttribute("data-i18n")]; if(v!=null) e.textContent=v; });
+    document.querySelectorAll("[data-i18h]").forEach(e=>{ const v=TR[e.getAttribute("data-i18h")]; if(v!=null) e.innerHTML=v; });
+    document.querySelectorAll("[data-ph]").forEach(e=>{ const v=TR[e.getAttribute("data-ph")]; if(v!=null) e.placeholder=v; });
+  }
+  fetch("/registry").then(r=>r.json()).then(reg=>{ if((reg.lang||"th")!=="th"){ LANG="en"; applyLang(); renderTabs(); } }).catch(()=>{});
+
   const TYPES = [["trigger","⚡ เริ่มเมื่อ"],["fetch","⬇ ดึงข้อมูล"],["action","⚙ ทำงาน"],
     ["decision","◆ ตัดสินใจ"],["output","📤 ส่งผล"],["note","📝 โน้ต"]];
   const W = 230, NS = "http://www.w3.org/2000/svg";
@@ -150,14 +184,14 @@
     const host = document.getElementById("tabs");
     host.innerHTML = tabs.map((t,i)=>
       `<div class="tab${i===active?" active":""}" onclick="switchTab(${i})">
-         ${t.example?'<span class="ex">📄</span>':''}<span class="nm">${(t.name||"(ไม่มีชื่อ)").replace(/</g,"&lt;")}</span>
+         ${t.example?'<span class="ex">📄</span>':''}<span class="nm">${(t.name||tr("(ไม่มีชื่อ)")).replace(/</g,"&lt;")}</span>
          <span class="cl" onclick="event.stopPropagation();closeTab(${i})">✕</span></div>`).join("")
       + `<div class="newt" onclick="newTab()">＋</div>`;
   }
   function switchTab(i){ if(i===active)return; stash(); activate(i); }
   function newTab() {
     stash();
-    tabs.push({ id:"", name:"Workflow ใหม่", example:false, nodes:[], edges:[], pan:{x:60,y:40}, zoom:1 });
+    tabs.push({ id:"", name:tr("Workflow ใหม่"), example:false, nodes:[], edges:[], pan:{x:60,y:40}, zoom:1 });
     activate(tabs.length-1);
     addNode("trigger","เมื่อสั่งให้เริ่ม…");
   }
@@ -184,10 +218,10 @@
   function renderNode(n) {
     const el = document.createElement("div");
     el.className = "node"; el.dataset.id = n.id; el.style.left = n.x + "px"; el.style.top = n.y + "px";
-    const opts = TYPES.map(([v,l]) => `<option value="${v}"${v===n.type?" selected":""}>${l}</option>`).join("");
+    const opts = TYPES.map(([v,l]) => `<option value="${v}"${v===n.type?" selected":""}>${tr(l)}</option>`).join("");
     el.innerHTML = `<div class="port in"></div>` +
       `<div class="head"><select>${opts}</select><span class="x">✕</span></div>` +
-      `<textarea placeholder="พิมพ์สิ่งที่อยากให้ทำ…">${(n.text||"").replace(/</g,"&lt;")}</textarea>` +
+      `<textarea placeholder="${tr("พิมพ์สิ่งที่อยากให้ทำ…")}">${(n.text||"").replace(/</g,"&lt;")}</textarea>` +
       `<div class="port out"></div>`;
     el.querySelector("select").onchange = (e) => { n.type = e.target.value; };
     el.querySelector("textarea").oninput = (e) => { n.text = e.target.value; drawEdges(); };
@@ -285,40 +319,40 @@
   }
   function deleteCurrent() {
     if (!curId || isExample) return;
-    if (!confirm("ลบ workflow นี้?")) return;
+    if (!confirm(tr("ลบ workflow นี้?"))) return;
     fetch("/workflows/delete", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({ id: curId }) })
       .then(()=>{ try{localStorage.removeItem("lastWf")}catch{}; closeTab(active); loadList(); });
   }
   function analyze() {
     if (!nodes.length) return flash("เพิ่ม node ก่อนนะ");
-    const plan = document.getElementById("plan"); plan.textContent = "⏳ Director กำลังวิเคราะห์…";
+    const plan = document.getElementById("plan"); plan.textContent = tr("⏳ Director กำลังวิเคราะห์…");
     fetch("/workflows/analyze", { method:"POST", headers:{"content-type":"application/json"},
       body: JSON.stringify({ name: nameInp.value, nodes, edges }) })
-      .then(r=>r.json()).then(j=>{ plan.textContent = j.analysis || "—"; }).catch(()=>{ plan.textContent="วิเคราะห์ไม่สำเร็จ ลองใหม่"; });
+      .then(r=>r.json()).then(j=>{ plan.textContent = j.analysis || "—"; }).catch(()=>{ plan.textContent=tr("วิเคราะห์ไม่สำเร็จ ลองใหม่"); });
   }
   function runWf() {
     if (!nodes.length) return flash("เพิ่ม node ก่อนนะ");
-    const plan = document.getElementById("plan"); plan.textContent = "⏳ ทีมกำลังทำงานตาม workflow…";
+    const plan = document.getElementById("plan"); plan.textContent = tr("⏳ ทีมกำลังทำงานตาม workflow…");
     fetch("/workflows/run", { method:"POST", headers:{"content-type":"application/json"},
       body: JSON.stringify({ name: nameInp.value, nodes, edges }) })
-      .then(r=>r.json()).then(j=>{ plan.textContent = "✅ ผลลัพธ์:\n\n" + (j.result || "—"); }).catch(()=>{ plan.textContent="รันไม่สำเร็จ ลองใหม่"; });
+      .then(r=>r.json()).then(j=>{ plan.textContent = tr("✅ ผลลัพธ์:")+"\n\n" + (j.result || "—"); }).catch(()=>{ plan.textContent=tr("รันไม่สำเร็จ ลองใหม่"); });
   }
   function makeSkill() {
     if (!nodes.length) return flash("เพิ่ม node ก่อนนะ");
     fetch("/workflows/skill", { method:"POST", headers:{"content-type":"application/json"},
       body: JSON.stringify({ name: nameInp.value, nodes, edges }) })
-      .then(r=>r.json()).then(j=>{ flash("🧠 สร้างสกิล “"+(j.name||"")+"” แล้ว — ไปติ๊กให้ agent ในหน้าตั้งค่า"); }).catch(()=>flash("สร้าง skill ไม่สำเร็จ"));
+      .then(r=>r.json()).then(j=>{ const n=j.name||""; flash(LANG==="th" ? ("🧠 สร้างสกิล “"+n+"” แล้ว — ไปติ๊กให้ agent ในหน้าตั้งค่า") : ("🧠 Created skill “"+n+"” — assign it to an agent in Settings")); }).catch(()=>flash("สร้าง skill ไม่สำเร็จ"));
   }
   function loadList() {
     fetch("/workflows").then(r=>r.json()).then(list=>{
       const ex = list.filter(w=>w.example), us = list.filter(w=>!w.example);
       const opt = w=>`<option value="${w.id}">${w.name} (${w.nodes})</option>`;
-      document.getElementById("wfopen").innerHTML = '<option value="">📂 เปิด…</option>'
-        + (ex.length?`<optgroup label="ตัวอย่าง (อ่านอย่างเดียว)">${ex.map(opt).join("")}</optgroup>`:"")
-        + (us.length?`<optgroup label="ของฉัน">${us.map(opt).join("")}</optgroup>`:"");
+      document.getElementById("wfopen").innerHTML = `<option value="">${tr("📂 เปิด…")}</option>`
+        + (ex.length?`<optgroup label="${tr("ตัวอย่าง (อ่านอย่างเดียว)")}">${ex.map(opt).join("")}</optgroup>`:"")
+        + (us.length?`<optgroup label="${tr("ของฉัน")}">${us.map(opt).join("")}</optgroup>`:"");
     });
   }
-  function flash(t){ const p=document.getElementById("plan"); const o=p.textContent; p.textContent=t; setTimeout(()=>{ if(p.textContent===t)p.textContent=o; },1500); }
+  function flash(t){ t=tr(t); const p=document.getElementById("plan"); const o=p.textContent; p.textContent=t; setTimeout(()=>{ if(p.textContent===t)p.textContent=o; },1500); }
 
   // ===== boot =====
   applyTransform(); loadList();
