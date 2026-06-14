@@ -633,9 +633,10 @@ mod platform {
             // tick (cheap, no-op when already there, never steals focus). Respects
             // the user's intentional Hide-office.
             use windows_sys::Win32::UI::WindowsAndMessaging::{
-                GetParent, IsWindow, SetWindowPos, HWND_BOTTOM, SWP_NOACTIVATE, SWP_NOMOVE,
-                SWP_NOSIZE, SW_SHOWNA,
+                GetParent, IsIconic, IsWindow, SetWindowPos, HWND_BOTTOM, SWP_NOACTIVATE,
+                SWP_NOMOVE, SWP_NOSIZE, SW_RESTORE, SW_SHOWNA,
             };
+            let progman_class = wide("Progman");
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(700));
                 if IsWindow(godot) == 0 {
@@ -646,18 +647,33 @@ mod platform {
                 }
                 let mut ww: HWND = 0 as HWND;
                 EnumWindows(Some(find_workerw_cb), &mut ww as *mut HWND as _);
-                if ww == 0 as HWND {
-                    continue;
+                // Drifted — no WorkerW, or our window slipped to another parent.
+                // Win+D / Show-Desktop can DESTROY the wallpaper WorkerW outright,
+                // so re-poke Progman (0x052C) to recreate it, then re-find + re-parent.
+                if ww == 0 as HWND || GetParent(godot) != ww {
+                    let progman = FindWindowW(progman_class.as_ptr(), std::ptr::null());
+                    let mut r: usize = 0;
+                    SendMessageTimeoutW(progman, 0x052C, 0, 0, SMTO_NORMAL, 1000, &mut r);
+                    ww = 0 as HWND;
+                    EnumWindows(Some(find_workerw_cb), &mut ww as *mut HWND as _);
+                    if ww == 0 as HWND {
+                        let wc = wide("WorkerW");
+                        ww = FindWindowExW(progman, 0 as HWND, wc.as_ptr(), std::ptr::null());
+                        if ww == 0 as HWND { ww = progman; }
+                    }
+                    if ww != 0 as HWND {
+                        SetParent(godot, ww);
+                        position_wallpaper(godot, &root);
+                    }
                 }
-                if GetParent(godot) != ww {
-                    SetParent(godot, ww);
-                    position_wallpaper(godot, &root);
+                // Restore if Show-Desktop minimized us; otherwise just re-show.
+                if IsIconic(godot) != 0 {
+                    ShowWindow(godot, SW_RESTORE);
+                } else if IsWindowVisible(godot) == 0 {
+                    ShowWindow(godot, SW_SHOWNA);
                 }
-                if IsWindowVisible(godot) == 0 {
-                    ShowWindow(godot, SW_SHOWNA); // re-show without stealing focus
-                }
-                // Keep it the backmost layer of WorkerW so a desktop click can't
-                // bury it (and SWP_NOACTIVATE so it never grabs the foreground).
+                // Pin to the backmost layer of WorkerW so a desktop click / Win+D
+                // can't bury it (SWP_NOACTIVATE so it never grabs the foreground).
                 SetWindowPos(godot, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             }
         });
