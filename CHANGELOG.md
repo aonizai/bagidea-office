@@ -4,6 +4,14 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.7.22] — Tools Hub, Plugins Hub & Workflow Builder speak every language
+
+**Changed**
+- **The pop-out windows now translate into all 14 languages**, not just Thai/
+  English. The Tools Hub, Plugins Hub and Workflow Builder auto-translate to your
+  office language (and ship pre-translated, so they show instantly) — they used to
+  fall back to English for everything except Thai.
+
 ## [0.7.21] — More of the UI ships pre-translated
 
 **Changed**

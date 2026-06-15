@@ -50,8 +50,10 @@
   <p id="footer" style="font-size:11.5px;color:var(--dim);margin-top:18px"></p>
 </div>
 <div id="toast"></div>
+<script src="/winlang.js"></script>
 <script>
-  let L = "th";  // set from the office language on load (non-Thai → English)
+  let L = "th";  // office language: th / en hardcoded, others auto-translated
+  let WL = null; // WinLang instance for non-English languages (Thai → lang via /i18n)
   // Static UI strings, both languages.
   const UI = {
     th: {
@@ -157,10 +159,30 @@
       .then(r=>r.ok?toast(UI[L].tAdded(slug)):toast(UI[L].tAddErr))
       .then(()=>{ refresh(); }).catch(()=>toast(UI[L].tAddErr));
   }
+  // For languages beyond th/en, build UI[lang] + per-item catalog[lang] by
+  // translating the Thai source via the daemon (function/template fields keep
+  // English). Gaps fill in the background and re-render.
+  async function buildLang(lang) {
+    WL = await WinLang.build(lang);
+    const thai = [];
+    for (const k in UI.th) if (typeof UI.th[k] === "string") thai.push(UI.th[k]);
+    for (const c of CATALOG) for (const k in c.th) thai.push(c.th[k]);
+    const apply = () => {
+      UI[lang] = {};
+      for (const k in UI.th) UI[lang][k] = (typeof UI.th[k] === "function")
+        ? UI.en[k] : (WL.map[UI.th[k]] || UI.en[k] || UI.th[k]);
+      for (const c of CATALOG) { c[lang] = {}; for (const k in c.th)
+        c[lang][k] = WL.map[c.th[k]] || (c.en && c.en[k]) || c.th[k]; }
+    };
+    apply();
+    WL.ensure(thai, () => { apply(); paintStatic(); render(); });
+  }
   function refresh() {
-    fetch("/registry").then(r=>r.json()).then(reg=>{
+    fetch("/registry").then(r=>r.json()).then(async reg=>{
       installed = reg.mcp || reg.mcpServers || {};
-      if ((reg.lang||"th")!=="th") L = "en";
+      const lang = reg.lang || "th";
+      if (lang !== "th") L = lang;
+      if (lang !== "th" && lang !== "en" && window.WinLang) await buildLang(lang);
       paintStatic(); render();
     }).catch(()=>{ paintStatic(); render(); });
   }

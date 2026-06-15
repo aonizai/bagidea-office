@@ -2361,6 +2361,13 @@ const server = http.createServer((req, res) => {
     try { res.end(fs.readFileSync(path.join(__dirname, "win.html"))); }
     catch { res.end("<p>window frame unavailable</p>"); }
 
+  } else if (req.method === "GET" && req.url.split("?")[0] === "/winlang.js") {
+    // Shared auto-translate helper for pop-out windows (Tools/Plugins Hub,
+    // Workflow Builder): Thai source → office language via /i18n (cached + seeded).
+    res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
+    try { res.end(fs.readFileSync(path.join(__dirname, "winlang.js"))); }
+    catch { res.end("window.WinLang={build:async()=>({lang:'th',map:{},tr:s=>s,ensure:async()=>{}})};"); }
+
   } else if (req.method === "GET" && req.url.split("?")[0] === "/watch") {
     // Read-only live activity stream for an agent (opened as its own window) —
     // it only listens on the WS, never sends, so it can't disturb the agent.

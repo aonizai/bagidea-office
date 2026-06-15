@@ -54,8 +54,10 @@
   <p id="footer" style="font-size:11.5px;color:var(--dim);margin-top:18px"></p>
 </div>
 <div id="toast"></div>
+<script src="/winlang.js"></script>
 <script>
   let L = "th";
+  let WL = null;  // WinLang instance for non-English languages (Thai → lang via /i18n)
   const UI = {
     th: {
       whatTitle:"Plugin คืออะไร?",
@@ -140,16 +142,34 @@
     document.getElementById("available").innerHTML =
       `<div class="sec">${u.available} (${off.length})</div>` + (off.length ? off.map(cardHTML).join("") : `<p style="color:var(--dim)">—</p>`);
   }
+  // Languages beyond th/en: translate the UI.th strings + each plugin's Thai
+  // description via the daemon; gaps fill in the background and re-render.
+  async function buildLang(lang) {
+    WL = await WinLang.build(lang);
+    const apply = () => {
+      UI[lang] = {};
+      for (const k in UI.th) UI[lang][k] = WL.map[UI.th[k]] || UI.en[k] || UI.th[k];
+      for (const p of catalog) if (p.th && p.th.desc)
+        p[lang] = { desc: WL.map[p.th.desc] || (p.en && p.en.desc) || p.th.desc };
+    };
+    apply();
+    const thai = [];
+    for (const k in UI.th) thai.push(UI.th[k]);
+    for (const p of catalog) if (p.th && p.th.desc) thai.push(p.th.desc);
+    WL.ensure(thai, () => { apply(); intro(); render(); intentBanner(); });
+  }
   function refresh() {
     Promise.all([
       fetch("/registry").then((r) => r.json()).catch(() => ({})),
       fetch("/plugins").then((r) => r.json()).catch(() => ({ plugins: [] })),
       fetch("/plugins/catalog").then((r) => r.json()).catch(() => ({ plugins: [] })),
-    ]).then(([reg, plg, cat]) => {
-      if ((reg.lang || "th") !== "th") L = "en";
+    ]).then(async ([reg, plg, cat]) => {
+      const lang = reg.lang || "th";
+      if (lang !== "th") L = lang;
       installed = {};
       for (const p of (plg.plugins || [])) installed[p.id] = { core: !!p.core };
       catalog = (cat.plugins || []).filter((p) => p && p.id && p.repo);
+      if (lang !== "th" && lang !== "en" && window.WinLang) await buildLang(lang);
       intro(); render(); intentBanner();
     });
   }

@@ -115,9 +115,11 @@
       <div class="muted" data-i18h="“<b>รันเลย</b>” = ให้ทีมทำตาม workflow นี้เดี๋ยวนี้ แล้วรายงานผล · “<b>สร้างเป็น Skill</b>” = บันทึกเป็นสกิลที่นำไปติ๊กให้ agent ในหน้าตั้งค่า เพื่อเรียกใช้ซ้ำเมื่อไหร่ก็ได้ (หรือพิมพ์สั่ง agent ให้ “รัน &lt;ชื่อ workflow&gt;”)">“<b>รันเลย</b>” = ให้ทีมทำตาม workflow นี้เดี๋ยวนี้ แล้วรายงานผล · “<b>สร้างเป็น Skill</b>” = บันทึกเป็นสกิลที่นำไปติ๊กให้ agent ในหน้าตั้งค่า เพื่อเรียกใช้ซ้ำเมื่อไหร่ก็ได้ (หรือพิมพ์สั่ง agent ให้ “รัน &lt;ชื่อ workflow&gt;”)</div>
     </div>
   </div>
+<script src="/winlang.js"></script>
 <script>
-  // ---- i18n: Thai is the source; non-Thai offices show English (other langs
-  //      fall back to English). Applied after we learn the office language.
+  // ---- i18n: Thai is the source. English offices use the TR map; OTHER
+  //      languages auto-translate via the daemon (/i18n, shared with the main
+  //      office) and fall back to English, then Thai, until a translation lands.
   let LANG = "th";
   const TR = {
     "Workflow ใหม่":"New workflow", "ชื่อ workflow…":"Workflow name…",
@@ -141,14 +143,28 @@
     "📂 เปิด…":"📂 Open…","ตัวอย่าง (อ่านอย่างเดียว)":"Examples (read-only)","ของฉัน":"Mine",
     "เมื่อสั่งให้เริ่ม…":"When started…","เมื่อสั่งให้เริ่ม":"When started","หาข่าว A":"Find news A","หาข่าว B":"Find news B","รวมแล้วเขียนสรุป":"Merge & summarize",
   };
-  function tr(s){ return LANG==="th" ? s : (TR[s] || s); }
+  let WL = null;  // WinLang instance for non-English langs (Thai → lang via /i18n)
+  // th → as-is · other langs → WinLang map first · English (and any gap) → TR.
+  function tr(s){
+    if (LANG==="th") return s;
+    if (WL && WL.map[s]!=null) return WL.map[s];
+    return TR[s] || s;
+  }
   function applyLang(){
     if (LANG==="th") return;
-    document.querySelectorAll("[data-i18n]").forEach(e=>{ const v=TR[e.getAttribute("data-i18n")]; if(v!=null) e.textContent=v; });
-    document.querySelectorAll("[data-i18h]").forEach(e=>{ const v=TR[e.getAttribute("data-i18h")]; if(v!=null) e.innerHTML=v; });
-    document.querySelectorAll("[data-ph]").forEach(e=>{ const v=TR[e.getAttribute("data-ph")]; if(v!=null) e.placeholder=v; });
+    document.querySelectorAll("[data-i18n]").forEach(e=>{ const v=tr(e.getAttribute("data-i18n")); if(v!=null) e.textContent=v; });
+    document.querySelectorAll("[data-i18h]").forEach(e=>{ const v=tr(e.getAttribute("data-i18h")); if(v!=null) e.innerHTML=v; });
+    document.querySelectorAll("[data-ph]").forEach(e=>{ const v=tr(e.getAttribute("data-ph")); if(v!=null) e.placeholder=v; });
   }
-  fetch("/registry").then(r=>r.json()).then(reg=>{ if((reg.lang||"th")!=="th"){ LANG="en"; applyLang(); renderTabs(); } }).catch(()=>{});
+  function rerenderAll(){ applyLang(); renderTabs(); if(active>=0){ clearCanvas(); nodes.forEach(renderNode); drawEdges(); } }
+  fetch("/registry").then(r=>r.json()).then(async reg=>{
+    const lang = reg.lang || "th";
+    if (lang === "th") return;
+    LANG = lang;
+    if (lang !== "en" && window.WinLang) WL = await WinLang.build(lang);
+    rerenderAll();
+    if (WL) WL.ensure(Object.keys(TR), rerenderAll);   // fill gaps via Gemini, re-render live
+  }).catch(()=>{});
 
   const TYPES = [["trigger","⚡ เริ่มเมื่อ"],["fetch","⬇ ดึงข้อมูล"],["action","⚙ ทำงาน"],
     ["decision","◆ ตัดสินใจ"],["output","📤 ส่งผล"],["note","📝 โน้ต"]];
