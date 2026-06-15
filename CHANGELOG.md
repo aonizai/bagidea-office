@@ -4,6 +4,20 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.7.17] — Real multi-monitor detection, its own menu & a tray Restart
+
+**Changed**
+- **The display picker is now its own menu**, separate from atmosphere — and it
+  only appears when you actually have more than one monitor.
+- **Monitors are detected for real.** No more phantom “Display 2/3” on a single
+  screen. On a multi-monitor PC the office auto-places the wallpaper on your
+  primary screen from the first launch, and lists exactly the screens you have.
+- **Switching screens restarts the office for you** — no need to type
+  `bagidea restart`; it re-attaches to the chosen monitor automatically.
+
+**Added**
+- **A “Restart office” item in the tray menu**, right where you’d expect it.
+
 ## [0.7.16] — One-click install straight from the website
 
 **Added**

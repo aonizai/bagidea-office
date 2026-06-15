@@ -63,7 +63,7 @@
   /* ---------- floating menus (daylight / sessions) ----------
      position:fixed + high z-index at BODY level — menus inside the
      glass header/footer get painted under later siblings and eat no clicks. */
-  #dayMenu, #sessMenu, #moreMenu, #langMenu {
+  #dayMenu, #sessMenu, #moreMenu, #langMenu, #dispMenu {
     display: none; position: fixed; z-index: 200;
     background: rgba(13, 19, 32, 0.97);
     border: 1px solid var(--line); border-radius: 12px; padding: 6px;
@@ -72,6 +72,13 @@
   #dayMenu { top: 46px; right: 12px; }
   #moreMenu { top: 46px; right: 12px; min-width: 180px; }
   #langMenu { top: 46px; right: 12px; min-width: 150px; }
+  #dispMenu { top: 46px; right: 12px; min-width: 170px; }
+  #dispMenu.open { display: block; }
+  #dispMenu .opt { display: flex; gap: 9px; align-items: center; cursor: pointer;
+    padding: 8px 12px; border-radius: 8px; font-size: 12.5px; white-space: nowrap; }
+  #dispMenu .opt:hover { background: rgba(94,200,255,0.12); }
+  #dispMenu .opt.active { color: var(--accent); font-weight: 700; }
+  body.feedmode #dispMenu { display: none !important; }
   #langMenu.open { display: block; }
   #langMenu .opt { display: flex; gap: 9px; align-items: center; cursor: pointer;
     padding: 8px 12px; border-radius: 8px; font-size: 12.5px; white-space: nowrap; }
@@ -801,9 +808,11 @@
   <div class="opt" id="discussBtn">🗣 <span>ประชุม agents</span></div>
   <div class="opt" id="mapBtn">🗺 <span>แผนที่</span></div>
   <div class="opt" id="dayBtn">🌗 <span>บรรยากาศ</span></div>
+  <div class="opt" id="dispBtn" style="display:none">🖥 <span>จอแสดงผล</span></div>
   <div class="opt" id="langBtn">🌐 <span>ภาษา / Language</span></div>
 </div>
 <div id="langMenu"></div>
+<div id="dispMenu"></div>
 
 <!-- 🔄 update banner: appears when a newer release is on main -->
 <div id="updBar">🔄 มีเวอร์ชันใหม่ <b id="updSha"></b> — คลิกที่นี่เพื่ออัปเดต (โปรแกรมจะรีสตาร์ทเอง) <a id="updWhat" href="https://github.com/bagidea/bagidea-office/blob/main/CHANGELOG.md" target="_blank" rel="noopener" onclick="event.stopPropagation()">📝 มีอะไรใหม่</a></div>
@@ -930,6 +939,10 @@
     "ล้างข้อเสนอที่เลือกทิ้ง? ข้อเสนอจะหายไปจากรายการ (ไม่ส่งข้อความถึงทีม)": { en: "Clear the selected proposals? They’ll vanish from the list (no message is sent to the team).", zh: "清除所选提案？它们将从列表中消失（不会通知团队）。", ja: "選択した提案を消去しますか？リストから消えます（チームには通知されません）。" },
     "ล้างข้อเสนอทั้งหมดทิ้ง? ทุกข้อเสนอจะหายไปจากรายการ (ไม่ส่งข้อความถึงทีม)": { en: "Clear ALL proposals? Every proposal vanishes from the list (no message is sent to the team).", zh: "清除全部提案？所有提案将从列表中消失（不会通知团队）。", ja: "すべての提案を消去しますか？全提案がリストから消えます（チームには通知されません）。" },
     "เลือกแล้ว": { en: "selected", zh: "已选", ja: "選択済み" },
+    "จอแสดงผล": { en: "Display", zh: "显示器", ja: "ディスプレイ" },
+    "จอหลัก (Primary)": { en: "Main display (Primary)", zh: "主显示器", ja: "メインディスプレイ" },
+    "จอที่ ": { en: "Display ", zh: "显示器 ", ja: "ディスプレイ " },
+    "🖥 เปลี่ยนจอแล้ว — กำลังรีสตาร์ทออฟฟิศ…": { en: "🖥 Display changed — restarting the office…", zh: "🖥 已切换显示器 — 正在重启办公室…", ja: "🖥 ディスプレイを変更 — オフィスを再起動中…" },
     "✓ เลือกโฟลเดอร์นี้": { en: "✓ Choose this folder", zh: "✓ 选择此文件夹", ja: "✓ このフォルダを選択" },
     "เพิ่มเติม": { en: "More", zh: "更多", ja: "その他" },
     "🧩 Plugins": { en: "🧩 Plugins", zh: "🧩 插件", ja: "🧩 プラグイン" },
@@ -2026,36 +2039,45 @@
       };
       m.appendChild(o);
     }
-    // ---- monitor picker (multi-monitor) — applies on next restart -----------
-    const hr = document.createElement("div");
-    hr.style.cssText = "border-top:1px solid rgba(255,255,255,.12);margin:6px 0 4px;padding-top:5px;font-size:11px;opacity:.6";
-    hr.textContent = "🖥 จอแสดงผล (รีสตาร์ทเพื่อใช้)";
-    m.appendChild(hr);
-    for (let i = 0; i < 3; i++) {
+  }
+  // ---- display (monitor) picker — its OWN menu, separate from atmosphere.
+  // Detected for real by the shell; only shown when there's more than one screen.
+  let monCount = 1;  // real monitor count (from the shell, via roster.sync / ui.monitors)
+  function renderDispMenu() {
+    const m = document.getElementById("dispMenu");
+    m.innerHTML = "";
+    const n = Math.max(monCount, 1);
+    for (let i = 0; i < n; i++) {
       const o = document.createElement("div");
       const active = i === monMode;
       o.className = "opt" + (active ? " active" : "");
       const mark = document.createElement("span");
       mark.textContent = active ? "✓ " : "  ";
       const lbl = document.createElement("span");
-      lbl.textContent = i === 0 ? "จอหลัก (Primary)" : "จอที่ " + (i + 1);
+      lbl.textContent = i === 0 ? t("จอหลัก (Primary)") : t("จอที่ ") + (i + 1);
       o.append(mark, lbl);
       o.onclick = () => { m.classList.remove("open"); setMonitor(i); };
       m.appendChild(o);
     }
   }
+  // Show the 🖥 Display entry only when more than one monitor exists.
+  function refreshDispVisibility() {
+    const b = document.getElementById("dispBtn");
+    if (b) b.style.display = monCount > 1 ? "" : "none";
+  }
   function setMonitor(i) {
+    if (i === monMode) return;
     monMode = i;
-    renderDayMenu();
+    renderDispMenu();
     fetch("/ui/monitor", { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ index: i }) })
-      .then(() => pillShow("🖥 ตั้งจอแล้ว — รีสตาร์ทออฟฟิศเพื่อให้มีผล", "", true))
+      .then(() => pillShow(t("🖥 เปลี่ยนจอแล้ว — กำลังรีสตาร์ทออฟฟิศ…"), "", true))
       .catch(() => {});
   }
   // One dropdown at a time: opening any menu closes the others. (Each menu
   // button calls stopPropagation, so the per-menu outside-click closers can't
   // reach across — without this they stack on top of each other.)
-  const MENU_IDS = ["dayMenu", "moreMenu", "langMenu", "sessMenu"];
+  const MENU_IDS = ["dayMenu", "moreMenu", "langMenu", "sessMenu", "dispMenu"];
   function closeMenus(except) {
     for (const id of MENU_IDS)
       if (id !== except) document.getElementById(id).classList.remove("open");
@@ -2064,12 +2086,12 @@
   // the dropdowns — runs in the CAPTURE phase, so it fires even for buttons that
   // call stopPropagation (settings, ops, the menu triggers themselves). The
   // trigger's own menu is kept so its click handler can still toggle it.
-  const TRIG_MENU = { dayBtn: "dayMenu", langBtn: "langMenu", moreBtn: "moreMenu", sessBtn: "sessMenu" };
+  const TRIG_MENU = { dayBtn: "dayMenu", langBtn: "langMenu", moreBtn: "moreMenu", sessBtn: "sessMenu", dispBtn: "dispMenu" };
   document.addEventListener("pointerdown", (e) => {
     // Clicking inside ANY menu (incl. the ⋯ menu's own options) is left alone —
     // hiding it mid-click would swallow the option's click.
-    if (e.target.closest("#dayMenu, #langMenu, #sessMenu, #moreMenu")) return;
-    const trig = e.target.closest("#dayBtn, #langBtn, #moreBtn, #sessBtn");
+    if (e.target.closest("#dayMenu, #langMenu, #sessMenu, #moreMenu, #dispMenu")) return;
+    const trig = e.target.closest("#dayBtn, #langBtn, #moreBtn, #sessBtn, #dispBtn");
     closeMenus(trig ? TRIG_MENU[trig.id] : null);
   }, true);
   document.getElementById("dayBtn").onclick = (e) => {
@@ -2079,6 +2101,13 @@
     document.getElementById("dayMenu").classList.toggle("open");
   };
   document.addEventListener("click", () => document.getElementById("dayMenu").classList.remove("open"));
+  document.getElementById("dispBtn").onclick = (e) => {
+    e.stopPropagation();
+    closeMenus("dispMenu");
+    renderDispMenu();
+    document.getElementById("dispMenu").classList.toggle("open");
+  };
+  document.addEventListener("click", () => document.getElementById("dispMenu").classList.remove("open"));
   // On load, make the world match our remembered choice (or "auto" on a fresh
   // install). This overrides any stale atmosphere a wiped/old journal replayed —
   // the symptom was the world stuck on a pinned hour after an update.
@@ -4226,6 +4255,11 @@
       if (im) im.src = "/map/bg?t=" + Date.now();
       return;
     }
+    if (ev.type === "ui.monitors") {  // the shell detected the real screen count
+      monCount = Math.max(1, Number(ev.count) || 1);
+      try { refreshDispVisibility(); renderDispMenu(); } catch {}
+      return;
+    }
     if (ev.type === "roster.sync") {
       ROSTER = ev.agents || {};
       REGROLES = ev.roles || [];
@@ -4235,7 +4269,9 @@
       REGMCP = ev.mcp || {};
       AUTOSKILLS = ev.autoSkills !== false;
       SOUND = ev.sound !== false;
-      if (typeof ev.monitor === "number") { monMode = ev.monitor; try { renderDayMenu(); } catch {} }
+      if (typeof ev.monitor === "number") monMode = ev.monitor;
+      if (typeof ev.monitors === "number") monCount = Math.max(1, ev.monitors);
+      try { refreshDispVisibility(); } catch {}
       HEARTBEAT = Number(ev.heartbeatMin || 0);
       if (ev.features) FEATURES = ev.features;
       TTSON = ev.tts !== false;

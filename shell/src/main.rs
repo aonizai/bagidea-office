@@ -254,6 +254,25 @@ fn post_visibility(on: bool) {
     let _ = hidden(&mut c).spawn();
 }
 
+/// Tell the daemon how many monitors we detected, so the overlay shows a display
+/// picker only on multi-monitor (and with the right count). Fire-and-forget.
+fn post_monitor_count(count: usize) {
+    let mut c = Command::new("curl");
+    c.args(["-s", "-X", "POST", "http://127.0.0.1:8787/ui/monitors",
+        "-H", "content-type: application/json",
+        "-d", &format!("{{\"count\":{}}}", count)]);
+    let _ = hidden(&mut c).spawn();
+}
+
+/// Ask the daemon to relaunch the whole stack (it does the detached restart that
+/// survives killing us). Used by the tray "Restart office" item.
+fn post_restart() {
+    let mut c = Command::new("curl");
+    c.args(["-s", "-X", "POST", "http://127.0.0.1:8787/ui/restart",
+        "-H", "content-type: application/json", "-H", "x-bagidea-ui: 1"]);
+    let _ = hidden(&mut c).spawn();
+}
+
 /// Debug beacon: stages of the hotkey chain reported to the daemon.
 fn ptt_beacon(stage: &str) {
     let body = format!(r#"{{"type":"ui.ptt","stage":"{}"}}"#, stage);
@@ -525,15 +544,14 @@ mod platform {
     /// kept Godot's (0,0)+primary-size guess, which on a multi-monitor setup
     /// lands on the wrong monitor (or off-screen) — so the wallpaper never
     /// appeared. `BAGIDEA_MONITOR=<index>` (0 = primary) picks another monitor.
-    fn position_wallpaper(godot: HWND, root: &std::path::Path) {
+    /// All monitors as (left, top, w, h, is_primary), PRIMARY FIRST (so index 0
+    /// is always the primary screen). The single source of truth for both the
+    /// count we report to the UI and where we place the wallpaper.
+    pub fn enum_monitors() -> Vec<(i32, i32, i32, i32, bool)> {
         unsafe {
             use windows_sys::Win32::Foundation::{LPARAM, RECT};
             use windows_sys::Win32::Graphics::Gdi::{
                 EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO,
-            };
-            use windows_sys::Win32::UI::WindowsAndMessaging::{
-                GetSystemMetrics, MoveWindow, SM_CXSCREEN, SM_CYSCREEN, SM_XVIRTUALSCREEN,
-                SM_YVIRTUALSCREEN,
             };
             struct Mons { v: Vec<(i32, i32, i32, i32, bool)> }
             unsafe extern "system" fn cb(h: HMONITOR, _dc: HDC, _r: *mut RECT, lp: LPARAM) -> i32 {
@@ -549,6 +567,17 @@ mod platform {
             let mut mons = Mons { v: Vec::new() };
             EnumDisplayMonitors(0 as HDC, std::ptr::null(), Some(cb), &mut mons as *mut Mons as LPARAM);
             mons.v.sort_by_key(|m| !m.4); // primary first → index 0 is always primary
+            mons.v
+        }
+    }
+
+    fn position_wallpaper(godot: HWND, root: &std::path::Path) {
+        unsafe {
+            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                GetSystemMetrics, MoveWindow, SM_CXSCREEN, SM_CYSCREEN, SM_XVIRTUALSCREEN,
+                SM_YVIRTUALSCREEN,
+            };
+            let mons = enum_monitors();
             // Chosen monitor: daemon/monitor.txt (set from the in-app picker) wins,
             // then the BAGIDEA_MONITOR env, else 0 (primary). Plain int — no JSON dep.
             let idx = std::fs::read_to_string(root.join("daemon").join("monitor.txt"))
@@ -559,9 +588,8 @@ mod platform {
             let vsx = GetSystemMetrics(SM_XVIRTUALSCREEN);
             let vsy = GetSystemMetrics(SM_YVIRTUALSCREEN);
             let (left, top, w, h) = mons
-                .v
                 .get(idx)
-                .or_else(|| mons.v.first())
+                .or_else(|| mons.first())
                 .map(|&(l, t, w, h, _)| (l, t, w, h))
                 .unwrap_or((0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)));
             // WorkerW client origin = virtual-screen origin → subtract it.
@@ -619,15 +647,17 @@ mod platform {
                 }
             }
             SetParent(godot, workerw);
-            // By DEFAULT do nothing more — just like the original code that stayed
-            // pinned through Win+D / desktop clicks. Reposition ONLY when the user
-            // explicitly picked a monitor (multi-monitor); moving/poking the embed
-            // otherwise regressed it (the wallpaper vanished on Win+D). No watcher.
-            let monitor_chosen =
-                std::fs::read_to_string(root.join("daemon").join("monitor.txt"))
-                    .ok().map(|s| !s.trim().is_empty()).unwrap_or(false)
-                || std::env::var("BAGIDEA_MONITOR").map(|s| !s.trim().is_empty()).unwrap_or(false);
-            if monitor_chosen {
+            // Detect how many monitors there really are and tell the daemon, so the
+            // UI shows a display picker ONLY on multi-monitor (and lists the right
+            // count). Writing monitors.txt also lets the daemon report it on connect.
+            let count = enum_monitors().len().max(1);
+            let _ = std::fs::write(root.join("daemon").join("monitors.txt"), count.to_string());
+            super::post_monitor_count(count);
+            // Single monitor → leave the embed ALONE (the original rock-solid path
+            // that survives Win+D / desktop clicks; no MoveWindow, no watcher).
+            // Multi-monitor → place it on the chosen screen (default = primary), a
+            // ONE-TIME position so a fresh multi-monitor setup just works on boot.
+            if count > 1 {
                 position_wallpaper(godot, &root);
             }
             let _ = proxy.send_event(UserEvent::WorldReady);
@@ -1317,11 +1347,13 @@ fn main() {
     let tray_menu = Menu::new();
     let open_item = MenuItem::new("Open Office Chat", true, None);
     let hide_item = CheckMenuItem::new("Hide office (agents keep working)", true, false, None);
+    let restart_item = MenuItem::new("Restart office", true, None);
     let autostart_item = CheckMenuItem::new(platform::AUTOSTART_LABEL, true, platform::is_autostart(), None);
     let exit_item = MenuItem::new("Exit BagIdea Office", true, None);
     let _ = tray_menu.append_items(&[
         &open_item,
         &hide_item,
+        &restart_item,
         &autostart_item,
         &PredefinedMenuItem::separator(),
         &exit_item,
@@ -1334,6 +1366,7 @@ fn main() {
         .expect("tray");
     let open_id = open_item.id().clone();
     let hide_id = hide_item.id().clone();
+    let restart_id = restart_item.id().clone();
     let autostart_id = autostart_item.id().clone();
     let exit_id = exit_item.id().clone();
 
@@ -1481,6 +1514,9 @@ fn main() {
                 }
                 vis_on = !hidden;
                 post_visibility(!hidden);
+            } else if ev.id == restart_id {
+                // The daemon does a detached relaunch that outlives us being killed.
+                post_restart();
             } else if ev.id == autostart_id {
                 platform::set_autostart(autostart_item.is_checked());
             }

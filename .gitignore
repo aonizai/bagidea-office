@@ -28,6 +28,9 @@ daemon/jobs.json
 daemon/notes.json
 daemon/calendar.json
 daemon/projects.json
+daemon/monitor.txt
+daemon/monitors.txt
+daemon/proposals.json
 
 # Adapter session workspace (keep only the permission-hook config)
 workspace/*

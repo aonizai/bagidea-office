@@ -146,6 +146,16 @@ function featuresMap() {
     stt: oa || gm, tts: gm, live: gm, image: oa || gm };
 }
 
+// How many physical monitors the shell detected at attach time (it writes the
+// count to daemon/monitors.txt). The UI shows a display picker only when >1, and
+// lists exactly this many — no more guessing "3" when there's one screen.
+function monitorCount() {
+  try {
+    const n = parseInt(fs.readFileSync(path.join(__dirname, "monitors.txt"), "utf8").trim(), 10);
+    return n >= 1 ? n : 1;
+  } catch { return 1; }
+}
+
 function rosterEvt() {
   return { type: "roster.sync", agents: reg.agents, roles: reg.roles,
     tools: reg.tools, builtinTools: BUILTIN_TOOLS, mcp: reg.mcpServers,
@@ -155,7 +165,31 @@ function rosterEvt() {
     socialMin: Number(reg.socialMin !== undefined ? reg.socialMin : 60),
     proposalMin: Number(reg.proposalMin !== undefined ? reg.proposalMin : 120),
     maxStaff: MAX_STAFF, staffCount: staffCount(),
-    lang: reg.lang || "en", daylight: reg.daylight ?? "auto", monitor: reg.monitor || 0 };
+    lang: reg.lang || "en", daylight: reg.daylight ?? "auto",
+    monitor: reg.monitor || 0, monitors: monitorCount() };
+}
+
+// Relaunch the whole stack (shell → daemon → godot) detached, so it survives
+// killAll killing THIS daemon. Used after a monitor change so the wallpaper
+// re-attaches to the chosen screen without the user typing `bagidea restart`.
+function triggerRestart() {
+  try {
+    const { spawn } = require("child_process");
+    const cli = path.join(__dirname, "..", "cli", "bagidea.js");
+    const root = path.join(__dirname, "..");
+    if (process.platform === "win32") {
+      // Launch through `start` so the restarter is ORPHANED from this daemon's
+      // process tree. The restarter runs `bagidea restart`, whose killAll does
+      // `taskkill /T` on the daemon — and /T kills the daemon's whole child tree.
+      // A plain detached spawn is still our child (PPID), so it would be killed
+      // mid-flight before it could relaunch. `start` re-parents it away.
+      spawn("cmd", ["/c", "start", "", "/min", process.execPath, cli, "restart"],
+        { detached: true, stdio: "ignore", windowsHide: true, cwd: root }).unref();
+    } else {
+      spawn(process.execPath, [cli, "restart"],
+        { detached: true, stdio: "ignore", cwd: root }).unref();
+    }
+  } catch (e) { console.error("[restart]", e.message); }
 }
 
 // Structured persona → one compiled system prompt (editor v2 fields).
@@ -3538,14 +3572,37 @@ const server = http.createServer((req, res) => {
 
   } else if (req.method === "POST" && req.url === "/ui/monitor") {
     // Which monitor the wallpaper runs on (multi-monitor). The shell reads
-    // daemon/monitor.txt at attach time (0 = primary); applies on next restart.
+    // daemon/monitor.txt at attach time (0 = primary). Changing it auto-restarts
+    // the office so it re-attaches to the chosen screen — no manual `bagidea
+    // restart`. `noRestart:true` just records the choice (used by tests).
     readBody(req, (body) => {
       try {
-        const idx = Math.max(0, parseInt(JSON.parse(body || "{}").index, 10) || 0);
+        const p = JSON.parse(body || "{}");
+        const idx = Math.max(0, parseInt(p.index, 10) || 0);
         reg.monitor = idx;
         saveReg();
         fs.writeFileSync(path.join(__dirname, "monitor.txt"), String(idx));
         broadcast({ type: "ui.monitor", index: idx }, false);
+        res.writeHead(200); res.end("ok");
+        // Give the response a beat to flush, then relaunch the stack.
+        if (!p.noRestart) setTimeout(triggerRestart, 350);
+      } catch { res.writeHead(400); res.end("bad json"); }
+    });
+
+  } else if (req.method === "POST" && req.url === "/ui/restart") {
+    // Manual "restart the office" (tray menu / overlay). Detached relaunch.
+    if (!req.headers["x-bagidea-ui"]) { res.writeHead(403); return res.end("human UI only"); }
+    res.writeHead(200); res.end("ok");
+    setTimeout(triggerRestart, 350);
+
+  } else if (req.method === "POST" && req.url === "/ui/monitors") {
+    // The shell reports the REAL monitor count it detected at attach. Persist it
+    // (monitors.txt) + broadcast so the picker shows the right number, live.
+    readBody(req, (body) => {
+      try {
+        const n = Math.max(1, parseInt(JSON.parse(body || "{}").count, 10) || 1);
+        fs.writeFileSync(path.join(__dirname, "monitors.txt"), String(n));
+        broadcast({ type: "ui.monitors", count: n }, false);
         res.writeHead(200); res.end("ok");
       } catch { res.writeHead(400); res.end("bad json"); }
     });
@@ -3676,8 +3733,8 @@ const server = http.createServer((req, res) => {
         // Hook events from the host Claude Code session arrive as "claude" —
         // that IS the Director: map them onto main (no ghost duplicate).
         if (evt.agent === "claude") evt.agent = "main";
-        // Transient UI state (visibility) must never replay from the journal.
-        broadcast(evt, evt.type !== "ui.visibility");
+        // Transient UI state (visibility, monitor count) must never replay.
+        broadcast(evt, !["ui.visibility", "ui.monitors", "ui.monitor"].includes(evt.type));
         res.writeHead(200);
         res.end("ok");
       } catch {
