@@ -4,6 +4,14 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.7.25] — Remove the custom-character experiment
+
+**Removed**
+- **The custom (color-tinted) character system** (added in 0.7.23–0.7.24) — it
+  didn't work well in practice, so it's gone: avatars are the 12 polished NPC
+  designs again. Any agent that was set to a custom look is automatically moved
+  back to a normal NPC.
+
 ## [0.7.24] — Custom characters: live preview, matching faces & smoother walk
 
 **Fixed**

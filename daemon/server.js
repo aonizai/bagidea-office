@@ -156,13 +156,6 @@ function monitorCount() {
   } catch { return 1; }
 }
 
-// Validate a "#rrggbb" custom-character color; fall back (then "") if malformed.
-function hexColor(v, fallback) {
-  const s = String(v == null ? "" : v).trim();
-  if (/^#[0-9a-fA-F]{6}$/.test(s)) return s.toLowerCase();
-  return fallback || "";
-}
-
 function rosterEvt() {
   return { type: "roster.sync", agents: reg.agents, roles: reg.roles,
     tools: reg.tools, builtinTools: BUILTIN_TOOLS, mcp: reg.mcpServers,
@@ -427,6 +420,24 @@ if (!fs.existsSync(OFFICE_MD)) {
       } catch {}
     }
   } catch {}
+})();
+
+// 🧹 Retire the short-lived "custom character" experiment: any agent left on
+// avatar 0 (or with leftover tint colors) is moved back to a normal NPC sheet so
+// it renders properly. One-time, idempotent.
+(function dropCustomAvatars() {
+  let changed = false;
+  for (const id of Object.keys(reg.agents || {})) {
+    const a = reg.agents[id];
+    if (!a) continue;
+    if (!(a.avatar >= 1 && a.avatar <= 12)) {
+      let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) | 0;
+      a.avatar = (Math.abs(h) % 12) + 1;
+      changed = true;
+    }
+    if (a.skin || a.hair || a.suit) { delete a.skin; delete a.hair; delete a.suit; changed = true; }
+  }
+  if (changed) try { saveReg(); } catch {}
 })();
 
 // 🌐 Ship pre-translated UI caches: merge daemon/i18n-seed/<lang>.json into the
@@ -2457,17 +2468,6 @@ const server = http.createServer((req, res) => {
       res.end(data);
     });
 
-  } else if (req.method === "GET" && /^\/char\/layers\/[a-z]+-idle\.png$/.test(req.url.split("?")[0])) {
-    // The 6 tintable layers (legs/torso/shirt/head/eyes/hair) so the overlay can
-    // composite the SAME custom character as the wallpaper (canvas-tinted).
-    const f = path.join(__dirname, "..", "godot", "assets", "characters", "layers",
-      req.url.split("?")[0].split("/").pop());
-    fs.readFile(f, (e, data) => {
-      if (e) { res.writeHead(404); res.end(); return; }
-      res.writeHead(200, { "content-type": "image/png", "cache-control": "max-age=3600" });
-      res.end(data);
-    });
-
   } else if (req.method === "POST" && req.url === "/chat") {
     readBody(req, (body) => {
       try {
@@ -2633,15 +2633,7 @@ const server = http.createServer((req, res) => {
           ...cur,
           name: String(p.name || cur.name || id).slice(0, 40),
           role: String(p.role || cur.role || "Specialist").slice(0, 40),
-          // avatar 1–12 = premade NPC sheets · 0 = the layered "custom" character
-          // tinted by skin/hair/suit. (0 is falsy, so check finiteness explicitly.)
-          avatar: Math.min(Math.max(
-            Number.isFinite(Number(p.avatar)) ? Number(p.avatar)
-              : (cur.avatar !== undefined ? cur.avatar : 1), 0), 12),
-          // Custom-character colors (#rrggbb). Only used when avatar === 0.
-          skin: hexColor(p.skin, cur.skin),
-          hair: hexColor(p.hair, cur.hair),
-          suit: hexColor(p.suit, cur.suit),
+          avatar: Math.min(Math.max(Number(p.avatar) || cur.avatar || 1, 1), 12),
           aura: String(p.aura !== undefined ? p.aura : cur.aura || "").slice(0, 16),
           prompt: String(p.prompt !== undefined ? p.prompt : cur.prompt || "").slice(0, 8000),
           persona: {

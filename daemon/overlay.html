@@ -940,12 +940,6 @@
     "ล้างข้อเสนอทั้งหมดทิ้ง? ทุกข้อเสนอจะหายไปจากรายการ (ไม่ส่งข้อความถึงทีม)": { en: "Clear ALL proposals? Every proposal vanishes from the list (no message is sent to the team).", zh: "清除全部提案？所有提案将从列表中消失（不会通知团队）。", ja: "すべての提案を消去しますか？全提案がリストから消えます（チームには通知されません）。" },
     "เลือกแล้ว": { en: "selected", zh: "已选", ja: "選択済み" },
     "จอแสดงผล": { en: "Display", zh: "显示器", ja: "ディスプレイ" },
-    "ปรับแต่งเอง": { en: "Custom", zh: "自定义", ja: "カスタム" },
-    "ปรับแต่งสีเอง — ผสมได้ไม่จำกัด": { en: "Pick your own colors — mix freely", zh: "自选配色 — 随意搭配", ja: "色を自由に選んで組み合わせ" },
-    "สีผิว": { en: "Skin", zh: "肤色", ja: "肌の色" },
-    "สีผม": { en: "Hair", zh: "发色", ja: "髪の色" },
-    "สีชุด": { en: "Outfit", zh: "服装", ja: "服の色" },
-    "สุ่มสี": { en: "Random", zh: "随机", ja: "ランダム" },
     "จอหลัก (Primary)": { en: "Main display (Primary)", zh: "主显示器", ja: "メインディスプレイ" },
     "จอที่ ": { en: "Display ", zh: "显示器 ", ja: "ディスプレイ " },
     "🖥 เปลี่ยนจอแล้ว — กำลังรีสตาร์ทออฟฟิศ…": { en: "🖥 Display changed — restarting the office…", zh: "🖥 已切换显示器 — 正在重启办公室…", ja: "🖥 ディスプレイを変更 — オフィスを再起動中…" },
@@ -1150,8 +1144,7 @@
   let PROJECTS_CACHE = [];
   let _plistScroll = 0, _plistQ = "";  // preserve project-list scroll + search across live refreshes
   function npcOf(id) {
-    // avatar 0 = custom (falsy! must check !== undefined or it falls to a random NPC)
-    if (ROSTER[id] && ROSTER[id].avatar !== undefined && ROSTER[id].avatar !== null) return ROSTER[id].avatar;
+    if (ROSTER[id] && ROSTER[id].avatar) return ROSTER[id].avatar;
     if (id === "main") return 7;
     if (id === "ceo") return 8;
     return NPCS[phash(id) % 10];
@@ -1165,79 +1158,18 @@
   function nameOf(id) {
     return (ROSTER[id] && ROSTER[id].name) || id[0].toUpperCase() + id.slice(1);
   }
-  // ---- custom (avatar 0) character: composite the 6 tintable layers on a
-  // canvas EXACTLY like the wallpaper, so overlay portraits match. 256×256 sheet
-  // (4 dirs × 4 idle frames); row 0 (top) = facing-down, the portrait/body crop.
-  const _customSheet = {};   // "skin|hair|suit" -> dataURL
-  const _imgCache = {};
-  function _loadImg(src) {
-    return _imgCache[src] || (_imgCache[src] = new Promise((res) => {
-      const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src;
-    }));
-  }
-  function _darken(hex, amt) {
-    const n = parseInt(hex.slice(1), 16), f = 1 - amt;
-    return "#" + [(n >> 16) & 255, (n >> 8) & 255, n & 255]
-      .map((x) => Math.round(x * f).toString(16).padStart(2, "0")).join("");
-  }
-  async function _buildCustomSheet(skin, hair, suit) {
-    const tints = [["legs", _darken(suit, 0.4)], ["torso", skin], ["shirt", suit],
-      ["head", skin], ["eyes", "#ffffff"], ["hair", hair]];
-    const cv = document.createElement("canvas"); cv.width = 256; cv.height = 256;
-    const ctx = cv.getContext("2d");
-    for (const [name, tint] of tints) {
-      const img = await _loadImg("/char/layers/" + name + "-idle.png");
-      if (!img) continue;
-      const tc = document.createElement("canvas"); tc.width = 256; tc.height = 256;
-      const tx = tc.getContext("2d");
-      tx.drawImage(img, 0, 0);
-      if (tint.toLowerCase() !== "#ffffff") {           // tint = pixel.rgb × color (multiply)
-        tx.globalCompositeOperation = "multiply"; tx.fillStyle = tint; tx.fillRect(0, 0, 256, 256);
-        tx.globalCompositeOperation = "destination-in"; tx.drawImage(img, 0, 0);  // re-clip to alpha
-      }
-      ctx.drawImage(tc, 0, 0);
-    }
-    return cv.toDataURL();
-  }
-  function customColorsOf(id) {
-    const r = ROSTER[id] || {};
-    return { skin: r.skin || "#ecbc98", hair: r.hair || "#34261e", suit: r.suit || "#262e4c" };
-  }
-  // Returns the cached custom-sheet data URL, or null while it builds (then calls onReady).
-  function customSheetURL(id, onReady) {
-    const { skin, hair, suit } = customColorsOf(id), key = skin + "|" + hair + "|" + suit;
-    if (_customSheet[key]) return _customSheet[key];
-    _buildCustomSheet(skin, hair, suit).then((url) => { _customSheet[key] = url; if (onReady) onReady(url); });
-    return null;
-  }
-
-  // CSS sprite crops from the sheet (cell 64): face (14,14,36,36) keeps the face
-  // centered with chin + shoulders; standing body (16,6,32,54).
+  // CSS sprite crops from the 256x512 sheet (cell 64): face (14,14,36,36)
+  // keeps the face centered with chin + shoulders; standing body (16,6,32,54).
   function face(el, id, size) {
     const k = size / 36;
-    el.classList.add("px"); el.textContent = "";
-    if (npcOf(id) === 0) {
-      const url = customSheetURL(id, () => face(el, id, size));
-      if (!url) { el.style.backgroundImage = "none"; el.classList.remove("px"); el.textContent = (nameOf(id)[0] || "?").toUpperCase(); return; }
-      el.style.backgroundImage = `url(${url})`;
-      el.style.backgroundSize = `${256 * k}px ${256 * k}px`;   // custom sheet is 256 tall
-      el.style.backgroundPosition = `${-14 * k}px ${-14 * k}px`;
-      return;
-    }
     el.style.backgroundImage = `url(/char/npc${npcOf(id)}.png)`;
     el.style.backgroundSize = `${256 * k}px ${512 * k}px`;
     el.style.backgroundPosition = `${-14 * k}px ${-14 * k}px`;
+    el.classList.add("px");
+    el.textContent = "";
   }
   function body(el, id) {
     const k = 3;
-    if (npcOf(id) === 0) {
-      const url = customSheetURL(id, () => body(el, id));
-      if (!url) return;
-      el.style.backgroundImage = `url(${url})`;
-      el.style.backgroundSize = `${256 * k}px ${256 * k}px`;
-      el.style.backgroundPositionY = `${-6 * k}px`;
-      return;
-    }
     el.style.backgroundImage = `url(/char/npc${npcOf(id)}.png)`;
     el.style.backgroundSize = `${256 * k}px ${512 * k}px`;
     // x is driven by the compIdle keyframes (4-frame idle cycle)
@@ -2712,9 +2644,7 @@
     modal.classList.add("open");
     const a = id ? ROSTER[id] : { name: "", role: REGROLES[2] || "Specialist", avatar: 1, prompt: "" };
     const isUser = !!a.isUser;  // the CEO is YOU — no prompt/skills/tools
-    let avatar = (a.avatar === 0 ? 0 : (a.avatar || 1));
-    // Custom-character colors (#rrggbb) — defaults match agent_sprite.gd.
-    let cSkin = a.skin || "#ecbc98", cHair = a.hair || "#34261e", cSuit = a.suit || "#262e4c";
+    let avatar = a.avatar || 1;
     let myAura = a.aura || "";
     const mySkills = new Set(a.skills || []);
     const myTools = new Set(a.tools || []);
@@ -2757,20 +2687,7 @@
       (isUser ? `<div style="font-size:11.5px;color:var(--dim);margin-bottom:10px">
          นี่คือตัวคุณเองในออฟฟิศ — ไม่มี prompt/skills เพราะคุณคือคนสั่ง ไม่ใช่ AI 😄
          เลือกหน้าตากับชื่อได้ตามใจ</div>` : "") +
-      `<div class="field"><label>AVATAR</label><div id="avGrid"></div>
-         <div id="avCustom" style="display:none;margin-top:9px;padding:9px 11px;background:rgba(94,200,255,.06);border:1px solid var(--line);border-radius:10px">
-           <div style="font-size:11px;color:var(--dim);margin-bottom:8px">🎨 ${t("ปรับแต่งสีเอง — ผสมได้ไม่จำกัด")}</div>
-           <div style="display:flex;gap:12px;align-items:center">
-             <div id="cPreview" class="px" style="width:80px;height:80px;flex:none;border-radius:10px;background:#0d1526 no-repeat;image-rendering:pixelated"></div>
-             <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;flex:1">
-               <label style="display:flex;align-items:center;gap:6px;font-size:11.5px">${t("สีผิว")}<input type="color" id="cSkin"></label>
-               <label style="display:flex;align-items:center;gap:6px;font-size:11.5px">${t("สีผม")}<input type="color" id="cHair"></label>
-               <label style="display:flex;align-items:center;gap:6px;font-size:11.5px">${t("สีชุด")}<input type="color" id="cSuit"></label>
-               <button type="button" id="cRand">🎲 ${t("สุ่มสี")}</button>
-             </div>
-           </div>
-         </div>
-       </div>
+      `<div class="field"><label>AVATAR</label><div id="avGrid"></div></div>
        <div class="field"><label>NAME</label><input id="eName" maxlength="40"></div>` +
       auraField +
       (isUser ? "" : aiFields) +
@@ -2870,17 +2787,8 @@
     }
     renderSkillChips();
     renderToolChips();
-    // avatar grid: the 12 NPC faces + a 🎨 custom (tinted layered) character
+    // avatar grid: the 12 NPC faces
     const grid = modalCard.querySelector("#avGrid");
-    const custBox = modalCard.querySelector("#avCustom");
-    const skinEl = modalCard.querySelector("#cSkin"), hairEl = modalCard.querySelector("#cHair"), suitEl = modalCard.querySelector("#cSuit");
-    skinEl.value = cSkin; hairEl.value = cHair; suitEl.value = cSuit;
-    function selAvatar(n, el) {
-      avatar = n;
-      grid.querySelectorAll(".av").forEach((x) => x.classList.remove("sel"));
-      if (el) el.classList.add("sel");
-      custBox.style.display = (n === 0) ? "" : "none";
-    }
     for (let n = 1; n <= 12; n++) {
       const c = document.createElement("div");
       c.className = "av px" + (n === avatar ? " sel" : "");
@@ -2888,43 +2796,13 @@
       c.style.backgroundImage = `url(/char/npc${n}.png)`;
       c.style.backgroundSize = `${256 * k}px ${512 * k}px`;
       c.style.backgroundPosition = `${-14 * k}px ${-14 * k}px`;
-      c.onclick = () => selAvatar(n, c);
+      c.onclick = () => {
+        avatar = n;
+        grid.querySelectorAll(".av").forEach((x) => x.classList.remove("sel"));
+        c.classList.add("sel");
+      };
       grid.appendChild(c);
     }
-    // 🎨 custom tile (avatar 0 → the layered character tinted by the colors below)
-    const cc = document.createElement("div");
-    cc.className = "av" + (avatar === 0 ? " sel" : "");
-    cc.style.cssText = "display:flex;align-items:center;justify-content:center;font-size:24px";
-    cc.textContent = "🎨"; cc.title = t("ปรับแต่งเอง");
-    cc.onclick = () => selAvatar(0, cc);
-    grid.appendChild(cc);
-    // live preview: composite the tinted layers with the CURRENT (unsaved) colors
-    const prevEl = modalCard.querySelector("#cPreview");
-    function paintPreview() {
-      _buildCustomSheet(cSkin, cHair, cSuit).then((url) => {
-        if (!prevEl) return;
-        const k = 80 / 64;  // show the whole first cell (down-facing standing figure)
-        prevEl.style.backgroundImage = `url(${url})`;
-        prevEl.style.backgroundSize = `${256 * k}px ${256 * k}px`;
-        prevEl.style.backgroundPosition = "0 0";
-      });
-    }
-    skinEl.oninput = () => { cSkin = skinEl.value; paintPreview(); };
-    hairEl.oninput = () => { cHair = hairEl.value; paintPreview(); };
-    suitEl.oninput = () => { cSuit = suitEl.value; paintPreview(); };
-    modalCard.querySelector("#cRand").onclick = () => {
-      const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
-      const hex = (r, g, b) => "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join("");
-      // pleasant ranges: warm skin, varied hair, saturated outfit
-      cSkin = hex(rnd(220, 255), rnd(170, 210), rnd(140, 180)); skinEl.value = cSkin;
-      cHair = hex(rnd(30, 200), rnd(20, 160), rnd(20, 150));    hairEl.value = cHair;
-      cSuit = hex(rnd(40, 220), rnd(40, 220), rnd(40, 220));    suitEl.value = cSuit;
-      paintPreview();
-    };
-    custBox.style.display = (avatar === 0) ? "" : "none";
-    if (avatar === 0) paintPreview();
-    // repaint the preview the first time the 🎨 tile is chosen
-    cc.addEventListener("click", paintPreview);
     const roleSel = modalCard.querySelector("#eRole");
     if (roleSel) {
       for (const r of (REGROLES.length ? REGROLES : ROLES)) {
@@ -2969,11 +2847,9 @@
     modalCard.querySelector("#eSave").onclick = async () => {
       const name = modalCard.querySelector("#eName").value.trim();
       if (!name) return modalCard.querySelector("#eName").focus();
-      // custom character colors ride along only when the 🎨 avatar is chosen
-      const colors = avatar === 0 ? { skin: cSkin, hair: cHair, suit: cSuit } : {};
       const payload = isUser
-        ? { id, name, avatar, aura: myAura, ...colors }  // the CEO row keeps no AI fields
-        : { id, name, role: roleSel.value, avatar, aura: myAura, ...colors,
+        ? { id, name, avatar, aura: myAura }  // the CEO row keeps no AI fields
+        : { id, name, role: roleSel.value, avatar, aura: myAura,
             prompt: modalCard.querySelector("#ePrompt").value,
             tier: Number(modalCard.querySelector("#eTier").value) || 3,
             voice: (modalCard.querySelector("#eVoice") || {}).value || "",
@@ -3019,7 +2895,10 @@
         </div>
       </div>`;
     const f = modalCard.querySelector("#cardFace");
-    face(f, id, 108);
+    const k = 108 / 36;
+    f.style.backgroundImage = `url(/char/npc${npcOf(id)}.png)`;
+    f.style.backgroundSize = `${256 * k}px ${512 * k}px`;
+    f.style.backgroundPosition = `${-14 * k}px ${-14 * k}px`;
     modalCard.querySelector("#cardEdit").onclick = () => ROSTER[id] ? openEditor(id) : null;
     modalCard.querySelector("#cardChat").onclick = () => { closeModal(); setTarget(id); };
   }
@@ -4046,7 +3925,10 @@
       f.style.borderRadius = "5px";
       f.style.backgroundColor = "#1c2740";
       f.style.outline = "1px solid rgba(255,255,255,0.15)";
-      face(f, id, size);
+      const k = size / 36;
+      f.style.backgroundImage = `url(/char/npc${npcOf(id)}.png)`;
+      f.style.backgroundSize = `${256 * k}px ${512 * k}px`;
+      f.style.backgroundPosition = `${-14 * k}px ${-14 * k}px`;
       f.title = `${nameOf(id)} — ${roleOf(id)}`;
       wrap.appendChild(f);
     }
@@ -4240,7 +4122,10 @@
       c.className = "chk";
       const f = document.createElement("div");
       f.className = "mini px";
-      face(f, id, 18);
+      const k = 18 / 36;
+      f.style.backgroundImage = `url(/char/npc${npcOf(id)}.png)`;
+      f.style.backgroundSize = `${256 * k}px ${512 * k}px`;
+      f.style.backgroundPosition = `${-14 * k}px ${-14 * k}px`;
       c.appendChild(f);
       c.appendChild(document.createTextNode(`${nameOf(id)} · ${roleOf(id)}`));
       c.onclick = () => { picked.has(id) ? picked.delete(id) : picked.add(id); c.classList.toggle("on"); };
@@ -4288,7 +4173,10 @@
       ic.style.top = ((p.z - MAP.z0) / MAP.d * 100) + "%";
       ic.style.outlineColor = isGhost ? "#a5b8ff" : (DOTS[p.state] || "#4ade80");
       if (isGhost) ic.style.opacity = "0.55";
-      face(ic, baseId, 26);
+      const k = 26 / 36;
+      ic.style.backgroundImage = `url(/char/npc${npcOf(baseId)}.png)`;
+      ic.style.backgroundSize = `${256 * k}px ${512 * k}px`;
+      ic.style.backgroundPosition = `${-14 * k}px ${-14 * k}px`;
       const label = isGhost ? `👻 ${nameOf(baseId)}` : nameOf(p.id);
       ic.innerHTML = `<div class="tag">${label}</div>`;
       ic.title = `${label} — ${p.state}`;

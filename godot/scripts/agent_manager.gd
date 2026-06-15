@@ -490,19 +490,16 @@ func _apply_roster(evt: Dictionary) -> void:
 	for id in list:
 		var r: Dictionary = list[id]
 		roster[id] = {"name": str(r.get("name", id)), "role": str(r.get("role", "Staff")),
-			"avatar": int(r.get("avatar", 1)), "aura": str(r.get("aura", "")),
-			"skin": str(r.get("skin", "")), "hair": str(r.get("hair", "")), "suit": str(r.get("suit", ""))}
+			"avatar": int(r.get("avatar", 1)), "aura": str(r.get("aura", ""))}
 	for id in roster:
 		if id == "ceo":
 			if is_instance_valid(ceo):
-				ceo.apply_identity(roster[id].name, roster[id].role, roster[id].avatar,
-					roster[id].skin, roster[id].hair, roster[id].suit)
+				ceo.apply_identity(roster[id].name, roster[id].role, roster[id].avatar)
 				ceo.set_aura(roster[id].aura)
 			continue
 		var a: Dictionary = _ensure(id)
 		a.registered = true
-		a.node.apply_identity(roster[id].name, roster[id].role, roster[id].avatar,
-			roster[id].skin, roster[id].hair, roster[id].suit)
+		a.node.apply_identity(roster[id].name, roster[id].role, roster[id].avatar)
 		a.node.set_aura(roster[id].aura)
 		a.node.set_state(a.state)
 	# Registry agents deleted while this renderer was away.
@@ -526,8 +523,7 @@ func _reconcile_roster() -> void:
 		agents.erase(rid)
 		var na: Dictionary = _ensure(rid)
 		na.registered = true
-		na.node.apply_identity(roster[rid].name, roster[rid].role, roster[rid].avatar,
-			roster[rid].get("skin", ""), roster[rid].get("hair", ""), roster[rid].get("suit", ""))
+		na.node.apply_identity(roster[rid].name, roster[rid].role, roster[rid].avatar)
 		na.node.set_aura(roster[rid].aura)
 
 func _remove_agent(id: String) -> void:
