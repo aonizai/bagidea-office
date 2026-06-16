@@ -29,6 +29,7 @@ const {
 const maintenance = require("./maintenance");
 const retrieval = require("./retrieval");
 const skillsSync = require("./skills");
+const providers = require("./providers");
 
 const WORKSPACE = path.join(__dirname, "..", "workspace");
 // Server-local paths (the refactor moved REPLAY_COUNT to constants.js but these
@@ -68,6 +69,9 @@ function loadReg() {
     reg.apiKeys.GEMINI_API_KEY = reg.apiKeys.GEMINI;
     delete reg.apiKeys.GEMINI;
   }
+  // Per-agent model/provider routing (the swappable brain). Per-provider creds +
+  // optional baseUrl/model overrides live here; agents opt in via a.provider.
+  reg.providerConfig = reg.providerConfig || {};   // { glm:{token}, litellm:{baseUrl,token}, ... }
   reg.roles = reg.roles || ["Director", "Founder", "Researcher", "Engineer",
     "Designer", "Analyst", "Operator", "Specialist"];
   reg.skills = reg.skills || {};
@@ -286,7 +290,18 @@ function latestSession(agent) {
   return l.length ? l.reduce((a, b) => (a.ts > b.ts ? a : b)) : null;
 }
 
+// The swappable brain: which backend an agent's `claude` spawn talks to. Returns
+// env overrides (ANTHROPIC_BASE_URL/_AUTH_TOKEN) + --model args; "claude"/unset/
+// unconfigured → empties, so the spawn is unchanged (fail-open). See providers.js.
+function brainRoute(agentId) {
+  const a = agentId && reg.agents ? reg.agents[agentId] : null;
+  const provider = (a && a.provider) || reg.defaultProvider || "claude";
+  const model = (a && a.model) || "";
+  return providers.resolve(provider, model, reg);
+}
+
 // Plain headless claude call → final text (prompt drafting, reflections).
+// opts.provider/opts.model route this one-shot to a non-Claude backend too.
 function claudeText(prompt, opts = {}) {
   return new Promise((resolve) => {
     // opts.tools: a comma string of allowed tools. With it, the meeting agent
@@ -298,9 +313,11 @@ function claudeText(prompt, opts = {}) {
       args.push("--allowedTools", opts.tools,
         "--settings", path.join(WORKSPACE, ".claude", "settings.json"));
     }
+    const route = providers.resolve(opts.provider, opts.model, reg);
+    if (route.modelArgs.length) args.push(...route.modelArgs);
     const child = spawn("claude", args, {
       cwd: WORKSPACE, shell: true,
-      env: { ...process.env, ...(reg.apiKeys || {}), OFFICE_ADAPTER: "1",
+      env: { ...process.env, ...(reg.apiKeys || {}), ...route.env, OFFICE_ADAPTER: "1",
         ...(opts.env || {}) },
     });
     child.stdin.write(prompt);
@@ -1113,10 +1130,13 @@ function runClaude(agent, prompt, opts = {}) {
     } catch (e) { console.error("[skills] sync:", e.message); }
   }
   if (entry && entry.sid) args.push("--resume", entry.sid);
+  // Swappable brain: route this agent to its configured backend (else plain Claude).
+  const route = brainRoute(agent);
+  if (route.modelArgs.length) args.push(...route.modelArgs);
   const child = spawn("claude", args, {
     cwd,
     shell: true,
-    env: { ...process.env, ...(reg.apiKeys || {}), OFFICE_ADAPTER: "1", OFFICE_AGENT: agent, OFFICE_TASK: task },
+    env: { ...process.env, ...(reg.apiKeys || {}), ...route.env, OFFICE_ADAPTER: "1", OFFICE_AGENT: agent, OFFICE_TASK: task },
   });
   // Track the run per project so the owner can stop it and take the project over.
   if (projId) {
@@ -1572,9 +1592,12 @@ function runSub(parentId, subId, taskText, entry, onDone) {
   }
   // Ghosts work where their parent works (project-bound threads included).
   const subCwd = (entry.proj && projectDir(entry.proj)) || WORKSPACE;
+  // Ghosts run on the parent agent's backend (the swappable brain).
+  const route = brainRoute(parentId);
+  if (route.modelArgs.length) args.push(...route.modelArgs);
   const child = spawn("claude", args, {
     cwd: subCwd, shell: true,
-    env: { ...process.env, ...(reg.apiKeys || {}), OFFICE_ADAPTER: "1", OFFICE_AGENT: subId, OFFICE_TASK: entry.key },
+    env: { ...process.env, ...(reg.apiKeys || {}), ...route.env, OFFICE_ADAPTER: "1", OFFICE_AGENT: subId, OFFICE_TASK: entry.key },
   });
   child.stdin.write(
     `You are a temporary SUB-AGENT — a parallel clone of "${a.name}" (${a.role}) ` +
