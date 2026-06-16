@@ -4,6 +4,55 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.8.0] — Swappable brains: run each agent on any model
+
+The big one. Every agent can now run on a different model/provider — keep the
+Director on Claude, put the builders on cheaper models, and cut cost without
+losing any of Claude Code's tools, skills, or sessions. Claude Code stays the
+engine; only the backend model swaps. Defaults to Claude and fails open, so
+nothing changes until you opt an agent in.
+
+**Added**
+- **Per-agent brain picker** (✏️ edit agent → 🧠 BRAIN): choose the provider +
+  model that powers each agent.
+- **Providers out of the box:** Claude, GLM, DeepSeek, Qwen, MiniMax (talk
+  straight to their Anthropic-compatible endpoints), plus **OpenAI, Gemini,
+  OpenRouter, NVIDIA, and your own custom providers** through a **built-in,
+  zero-dependency proxy** — no LiteLLM or Python to install.
+- **🧠 MODELS / PROVIDERS** section in CONNECT: paste a key → Connect → ✅, with
+  sub-categories, masked keys everywhere, a "test & fetch models" check, curated
+  usable-model lists, and an auto-picked default model. The Claude card
+  auto-detects login vs. API key.
+- **🧠 BRAINS monitor** (Security Center sidebar): every provider's connect status
+  and every agent's model + a live context-usage bar.
+- **Model + context meter in chat:** each agent message is tagged with the model
+  that produced it, and the thread bar shows how full that model's context window
+  is (e.g. `gpt-4o · 39k/128k`).
+- **STATS now covers every provider** — estimated spend per provider (from real
+  token usage) folded into the daily total.
+- **Typing indicator** — bouncing dots while an agent is spinning up / working, so
+  it never looks frozen.
+- **Cancel a running task** mid-flight (⏹ in the NOW-WORKING strip).
+- **Models & Providers guide** in the docs.
+
+**Improved**
+- **Automatic context management for every model**, Claude-Code style: the office
+  proactively **auto-compacts** a long thread (summarize → continue on a fresh
+  thread) *before* it overflows, and reactively recovers from rate/context limits
+  — carrying your view across to the new thread so nothing looks stuck.
+- Swapped-in models now answer truthfully about **which model they are**.
+- All new UI is translated into the full set of **14 languages**.
+
+**Fixed**
+- Rock-solid proxy: buffers the upstream reply, synthesizes clean Anthropic
+  streaming, self-heals common OpenAI parameter quirks, and surfaces every error
+  instead of hanging. Transient rate-limits now back off and retry rather than
+  failing the turn.
+- A delegate's report-back stays visible in the CEO pane even when the Director
+  auto-compacts onto a new thread.
+- Many polish fixes: CONNECT scrollbar jump, cold-boot show/hide handle, themed
+  model dropdown, and the thread-bar layout with long model names.
+
 ## [0.7.25] — Remove the custom-character experiment
 
 **Removed**
