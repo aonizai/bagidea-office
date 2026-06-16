@@ -2661,6 +2661,14 @@
          <option value="2">หัวหน้าทีม (Lead)</option>
          <option value="3">ทีมงาน (Staff)</option>
        </select></div>
+       <div class="field"><label>🧠 สมอง (โมเดล/ผู้ให้บริการ) — ดีฟอลต์คือ Claude</label>
+         <select id="eProvider"></select>
+         <input id="eModel" maxlength="60" style="margin-top:6px" placeholder="โมเดล (เว้นว่าง = ดีฟอลต์ของผู้ให้บริการ)">
+         <div id="eProvTok" style="display:none;margin-top:6px">
+           <input id="eProvKey" type="password" autocomplete="new-password" placeholder="วาง API key ของผู้ให้บริการนี้ (เว้นว่างถ้าตั้งไว้แล้ว)…">
+         </div>
+         <div style="font-size:10.5px;color:var(--dim);margin-top:4px">Claude ใช้ login/แผนเดิม · เจ้าอื่นใช้ key แยก (ประหยัดกว่า)</div>
+       </div>
        <div class="field"><label>✨ PERSONA COPILOT — บอกสั้นๆ ว่าอยากได้ agent แบบไหน (เติมให้ทุกช่อง)</label>
          <div class="assistrow">
            <input id="eBrief" placeholder='เช่น "นักออกแบบ UI เน้น minimal พูดติดตลก" แล้วกด ✨'>
@@ -2812,6 +2820,20 @@
       }
       roleSel.value = a.role;
       modalCard.querySelector("#eTier").value = String(a.tier || (id === "main" ? 2 : 3));
+    // 🧠 swappable brain picker (per agent). Provider labels are proper nouns
+    // (untranslated); the token row shows for any non-Claude backend.
+    const provSel = modalCard.querySelector("#eProvider");
+    if (provSel) {
+      const BRAINS = [["claude", "Claude · Anthropic"], ["glm", "GLM · Z.AI"],
+        ["deepseek", "DeepSeek"], ["qwen", "Qwen · Alibaba"], ["minimax", "MiniMax"],
+        ["openai", "OpenAI · LiteLLM"], ["gemini", "Gemini · LiteLLM"]];
+      provSel.innerHTML = BRAINS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
+      provSel.value = a.provider || "claude";
+      modalCard.querySelector("#eModel").value = a.model || "";
+      const tokBox = modalCard.querySelector("#eProvTok");
+      const syncTok = () => { tokBox.style.display = provSel.value === "claude" ? "none" : "block"; };
+      provSel.onchange = syncTok; syncTok();
+    }
       modalCard.querySelector("#ePrompt").value = a.prompt || "";
       modalCard.querySelector("#eExpertise").value = px.expertise || "";
       modalCard.querySelector("#ePersonality").value = px.personality || "";
@@ -2853,6 +2875,8 @@
             prompt: modalCard.querySelector("#ePrompt").value,
             tier: Number(modalCard.querySelector("#eTier").value) || 3,
             voice: (modalCard.querySelector("#eVoice") || {}).value || "",
+            provider: (modalCard.querySelector("#eProvider") || {}).value || "claude",
+            model: (modalCard.querySelector("#eModel") || {}).value || "",
             persona: {
               expertise: modalCard.querySelector("#eExpertise").value,
               personality: modalCard.querySelector("#ePersonality").value,
@@ -2860,6 +2884,13 @@
               rules: modalCard.querySelector("#eRules").value,
             },
             skills: [...mySkills], tools: [...myTools] };
+      // A freshly-pasted provider key goes to the token vault (blank = keep existing).
+      if (!isUser) {
+        const pk = modalCard.querySelector("#eProvKey");
+        const prov = (modalCard.querySelector("#eProvider") || {}).value;
+        if (pk && pk.value.trim() && prov && prov !== "claude")
+          try { await api("/registry/provider", { provider: prov, token: pk.value.trim() }); } catch {}
+      }
       const r = await api("/registry/agent", payload);
       closeModal();
       if (r.id && !isUser) { ensureAgent(r.id); setTarget(r.id); }
