@@ -2897,9 +2897,12 @@
       const goc = modalCard.querySelector("#eGoConnect");
       if (goc) goc.onclick = () => openSettings("connect");
       let pcAll = {};
+      const saveBtn = modalCard.querySelector("#eSave");
       const renderModels = () => {
         const p = provSel.value;
         const connected = p === "claude" ? true : !!(pcAll[p] && pcAll[p].connected);
+        // Can't save an agent onto a provider that isn't connected yet.
+        if (saveBtn) { saveBtn.disabled = !connected; saveBtn.title = connected ? "" : tr("⚠ ยังไม่ได้เชื่อมต่อ provider นี้"); }
         if (!connected) { warn.style.display = "block"; modelSel.style.display = "none"; return; }
         warn.style.display = "none"; modelSel.style.display = "";
         let list = (pcAll[p] && pcAll[p].models && pcAll[p].models.length) ? pcAll[p].models : (MODELS[p] || [""]);
