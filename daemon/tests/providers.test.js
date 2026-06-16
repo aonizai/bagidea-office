@@ -63,6 +63,20 @@ test("proxy provider with no litellm config still resolves (default url + placeh
   assert.ok(r.env.ANTHROPIC_AUTH_TOKEN); // non-empty placeholder
 });
 
+test("P2 confirmed endpoints resolve from catalog with just a token", () => {
+  const cases = {
+    deepseek: "https://api.deepseek.com/anthropic",
+    qwen: "https://dashscope-intl.aliyuncs.com/apps/anthropic",
+    minimax: "https://api.minimax.io/anthropic",
+  };
+  for (const [prov, url] of Object.entries(cases)) {
+    const r = resolve(prov, "", { providerConfig: { [prov]: { token: "k" } } });
+    assert.strictEqual(r.ok, true, prov);
+    assert.strictEqual(r.env.ANTHROPIC_BASE_URL, url, prov);
+    assert.strictEqual(r.env.ANTHROPIC_AUTH_TOKEN, "k", prov);
+  }
+});
+
 test("catalog exposes the seven planned providers", () => {
   for (const p of ["claude", "glm", "deepseek", "qwen", "minimax", "openai", "gemini"]) {
     assert.ok(PROVIDERS[p], `missing provider: ${p}`);

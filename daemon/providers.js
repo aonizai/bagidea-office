@@ -35,18 +35,22 @@ const PROVIDERS = {
   },
   deepseek: {
     label: "DeepSeek", format: "anthropic", direct: true,
-    baseUrl: "https://api.deepseek.com/anthropic",       // verify in P2
-    models: ["deepseek-chat", "deepseek-reasoner"],
+    baseUrl: "https://api.deepseek.com/anthropic",        // confirmed (DeepSeek docs)
+    models: ["deepseek-v4-pro", "deepseek-v4-flash"],     // chat/reasoner deprecated 2026-07-24
   },
   qwen: {
     label: "Qwen · Alibaba", format: "anthropic", direct: true,
-    baseUrl: "",                                          // set in P2 (providerConfig)
-    models: ["qwen3-coder-plus", "qwen3-coder"],
+    // confirmed (Alibaba Model Studio docs). International endpoint; mainland-China
+    // is https://dashscope.aliyuncs.com/apps/anthropic — set reg.providerConfig.qwen.baseUrl.
+    baseUrl: "https://dashscope-intl.aliyuncs.com/apps/anthropic",
+    models: ["qwen3-coder-plus", "qwen3-coder-next", "qwen3-coder-flash"],
   },
   minimax: {
     label: "MiniMax", format: "anthropic", direct: true,
-    baseUrl: "",                                          // set in P2 (providerConfig)
-    models: ["MiniMax-M2"],
+    // confirmed (MiniMax docs). International endpoint; mainland-China is
+    // https://api.minimaxi.com/anthropic (extra "i") — set reg.providerConfig.minimax.baseUrl.
+    baseUrl: "https://api.minimax.io/anthropic",
+    models: ["MiniMax-M3"],
   },
   openai: {
     label: "OpenAI · via LiteLLM", format: "openai", needsProxy: true, baseUrl: null,
