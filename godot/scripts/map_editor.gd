@@ -911,16 +911,60 @@ func _current_items() -> Array:
 
 func _save() -> void:
 	# confirm first — saving updates the live wallpaper and then closes the editor
-	var dlg := ConfirmationDialog.new()
-	dlg.title = L("Confirm save", "ยืนยันการบันทึก")
-	dlg.dialog_text = L("Save this office layout, update the wallpaper, and close the editor?",
-		"บันทึกผังออฟฟิศนี้ อัปเดตวอลเปเปอร์ แล้วปิดโปรแกรมเลยไหม?")
-	dlg.ok_button_text = L("Save & close", "บันทึกแล้วปิด")
-	dlg.get_cancel_button().text = L("Cancel", "ยกเลิก")
-	add_child(dlg)
-	dlg.confirmed.connect(func(): dlg.queue_free(); _do_save())
-	dlg.canceled.connect(func(): dlg.queue_free())
-	dlg.popup_centered(Vector2i(420, 150))
+	_confirm_modal(
+		L("Confirm save", "ยืนยันการบันทึก"),
+		L("Save this office layout, update the wallpaper, and close the editor?",
+			"บันทึกผังออฟฟิศนี้ อัปเดตวอลเปเปอร์ แล้วปิดโปรแกรมเลยไหม?"),
+		L("💾 Save & close", "💾 บันทึกแล้วปิด"),
+		L("Cancel", "ยกเลิก"),
+		func(): _do_save())
+
+# A brand-themed confirm dialog (the raw Godot ConfirmationDialog looked off-theme and
+# half-finished). Built from Controls under `ui`, so it inherits the dark-glass theme.
+func _confirm_modal(title: String, body: String, ok_text: String, cancel_text: String, on_ok: Callable) -> void:
+	var accent := Color(0.37, 0.78, 1.0)
+	var back := ColorRect.new()
+	back.color = Color(0.02, 0.04, 0.08, 0.58)
+	back.set_anchors_preset(Control.PRESET_FULL_RECT)
+	back.mouse_filter = Control.MOUSE_FILTER_STOP   # eat clicks behind the modal
+	ui.add_child(back)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	back.add_child(center)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(400, 0)
+	center.add_child(panel)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 13)
+	panel.add_child(vb)
+	var t := Label.new(); t.text = title
+	t.add_theme_color_override("font_color", accent)
+	t.add_theme_font_size_override("font_size", 15)
+	vb.add_child(t)
+	var msg := Label.new(); msg.text = body
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.custom_minimum_size = Vector2(372, 0)
+	vb.add_child(msg)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_END
+	row.add_theme_constant_override("separation", 8)
+	vb.add_child(row)
+	var cancel := Button.new(); cancel.text = cancel_text
+	var ok := Button.new(); ok.text = ok_text
+	# OK = primary (accent fill, dark ink)
+	var prim := func(a: float) -> StyleBoxFlat:
+		var s := StyleBoxFlat.new(); s.bg_color = Color(0.37, 0.78, 1.0, a); s.set_corner_radius_all(9)
+		s.content_margin_top = 7; s.content_margin_bottom = 7; s.content_margin_left = 13; s.content_margin_right = 13
+		return s
+	ok.add_theme_stylebox_override("normal", prim.call(0.92))
+	ok.add_theme_stylebox_override("hover", prim.call(1.0))
+	ok.add_theme_stylebox_override("pressed", prim.call(0.8))
+	ok.add_theme_color_override("font_color", Color(0.03, 0.09, 0.16))
+	ok.add_theme_color_override("font_hover_color", Color(0.02, 0.06, 0.12))
+	row.add_child(cancel); row.add_child(ok)
+	var close := func(): back.queue_free()
+	cancel.pressed.connect(close)
+	ok.pressed.connect(func(): close.call(); on_ok.call())
 
 func _do_save() -> void:
 	var payload := { "items": _current_items() }

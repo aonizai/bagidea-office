@@ -362,6 +362,15 @@
   }
   .fitem .fpbtns .ok { color: #4ade80; border-color: #4ade8055; }
   .fitem .fpbtns .no { color: #ff8a7a; border-color: #ff584855; }
+  /* 💡 inline proposal card in the chat — actionable approve/reject right here */
+  .msg.propcard { align-self: stretch; max-width: 100%; border: 1px solid rgba(255,206,106,0.45);
+    background: rgba(255,206,106,0.07); }
+  .propbtns { display: flex; gap: 7px; }
+  .pbtn { flex: 1; padding: 6px 9px; font-size: 11.5px; cursor: pointer; border-radius: 8px;
+    border: 1px solid var(--line); background: rgba(255,255,255,0.06); color: #dfe9ff; }
+  .pbtn.ok { color: #4ade80; border-color: #4ade8066; background: rgba(74,222,128,0.1); }
+  .pbtn.no { color: #ff8a7a; border-color: #ff584866; }
+  .pbtn:hover { filter: brightness(1.2); }
 
   /* 🔄 update banner */
   #updBar {
@@ -1976,6 +1985,45 @@
     return true;
   }
 
+  // 💡 Team project proposals are ACTIONABLE right where you see them — inline in the
+  // chat AND in the feed stream — so you never have to dig into 🗂 TASKS to approve.
+  function proposalRespond(id, decision) {
+    return api("/proposals/respond", { id, decision, message: "" }).then(() => {
+      addChip(decision === "approve" ? tr("อนุมัติแล้ว — Director จัดทีมให้") : tr("ไม่อนุมัติแล้ว"));
+    }).catch(() => {});
+  }
+  function addChatProposal(ev) {
+    const d = document.createElement("div");
+    d.className = "msg agent propcard";
+    d.innerHTML =
+      `<div style="font-weight:600;margin-bottom:2px">💡 ${esc(ev.name)}</div>` +
+      `<div style="font-size:10.5px;color:var(--dim);margin-bottom:8px">${tr("ทีมเสนอโปรเจค — อนุมัติให้ทำเลยไหม?")} · ${esc(nameOf(ev.agent))}</div>` +
+      `<div class="propbtns"><button class="pbtn ok">✅ ${tr("อนุมัติ")}</button><button class="pbtn no">✕ ${tr("ไม่อนุมัติ")}</button></div>`;
+    const done = (decision, ok) => {
+      const b = d.querySelector(".propbtns");
+      if (b) { b.textContent = ok ? tr("อนุมัติแล้ว — Director จัดทีมให้") : tr("ไม่อนุมัติแล้ว");
+        b.style.cssText = "font-size:11px;color:" + (ok ? "#4ade80" : "var(--dim)"); }
+    };
+    const bt = d.querySelectorAll(".pbtn");
+    bt[0].onclick = () => { proposalRespond(ev.proposal, "approve"); done("approve", true); };
+    bt[1].onclick = () => { proposalRespond(ev.proposal, "reject"); done("reject", false); };
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+  }
+  function addFeedProposal(ev) {
+    const d = addFeed(ev.agent, "💡 " + ev.name, "", "alert");
+    const row = document.createElement("div");
+    row.className = "fpbtns";
+    row.innerHTML = `<button class="ok">✅ ${tr("อนุมัติ")}</button><button class="no">✕ ${tr("ไม่อนุมัติ")}</button>`;
+    const bt = row.querySelectorAll("button");
+    const settle = (ok) => { const v = document.createElement("div");
+      v.style.cssText = "font-size:10.5px;margin-top:4px;color:" + (ok ? "#4ade80" : "var(--dim)");
+      v.textContent = ok ? tr("อนุมัติแล้ว — Director จัดทีมให้") : tr("ไม่อนุมัติแล้ว"); row.replaceWith(v); d.classList.remove("alert"); };
+    bt[0].onclick = () => { proposalRespond(ev.proposal, "approve"); settle(true); };
+    bt[1].onclick = () => { proposalRespond(ev.proposal, "reject"); settle(false); };
+    d.querySelector(".ftxt").appendChild(row);
+  }
+
   // ---- 🔵 NOW WORKING: live map of every running task ----------------------
   // Built from task.started/completed/failed (replays too, so a reloaded
   // overlay rebuilds it); entries older than 30 min are assumed orphaned.
@@ -2065,8 +2113,11 @@
     else if (ev.type === "skill.created") addFeed(ev.agent, "📚 เรียนรู้สกิลใหม่: " + ev.skill, sess);
     else if (ev.type === "channel.message")
       addFeed("ceo", `📨 [${ev.channel}] ${ev.from}: ${ev.text}`, "", "alert");
-    else if (ev.type === "proposal.created")
-      addFeed(ev.agent, "💡 ทีมเสนอโปรเจคใหม่: " + ev.name + " — รออนุมัติใน 🗂 TASKS", "", "alert");
+    else if (ev.type === "proposal.created") {
+      // Actionable both ways — in the feed stream, and inline in the chat you're watching.
+      addFeedProposal(ev);
+      if (!document.body.classList.contains("feedmode")) addChatProposal(ev);
+    }
     else if (ev.type === "memory.learned")
       addFeed(ev.agent, "🧠 จดความจำใหม่ " + ev.count + " ข้อ", "");
     else if (ev.type === "plugin.intent" && ev.repo) {
