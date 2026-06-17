@@ -70,15 +70,14 @@ fn hidden(cmd: &mut Command) -> &mut Command {
 
 // ----------------------------------------------------------------- HTML chrome
 const SPLASH_HTML: &str = r#"<!doctype html>
-<html><body style="margin:0;overflow:hidden;background:#070b13">
-<img src="http://127.0.0.1:8787/brand/logo_ico_cute.png" draggable="false"
-     style="position:absolute;left:0;top:0;width:100%;height:100%;animation:p 1.5s ease-in-out infinite"
-     onerror="document.body.style.background='radial-gradient(circle at 32% 28%,#2a78d8,#0b1422)'">
+<html><body style="margin:0;overflow:hidden;background:transparent">
+<img src="__LOGO__" draggable="false"
+     style="position:absolute;left:0;top:0;width:100%;height:100%;animation:p 1.5s ease-in-out infinite">
 <style>@keyframes p{0%,100%{transform:scale(1)}50%{transform:scale(0.92)}}</style>
 </body></html>"#;
 
 const ORB_HTML: &str = r#"<!doctype html>
-<html><body style="margin:0;overflow:hidden;background:#0a111d;user-select:none;-webkit-user-select:none;cursor:pointer">
+<html><body style="margin:0;overflow:hidden;background:transparent;user-select:none;-webkit-user-select:none;cursor:pointer">
 <div id="ring"></div>
 <img id="logo" src="__LOGO__" draggable="false">
 <style>
@@ -148,10 +147,12 @@ const ORB_HTML: &str = r#"<!doctype html>
 // daemon over HTTP. On a cold boot the shell paints the orb before the daemon's web
 // server is up, so an HTTP <img> would 404 and the orb would sit dark until a manual
 // restart. Baking the bytes in removes that dependency entirely — the orb always shows.
-fn orb_html() -> String {
+fn logo_data_uri() -> String {
     const LOGO: &[u8] = include_bytes!("../../logo_ico_cute.png");
-    ORB_HTML.replace("__LOGO__", &format!("data:image/png;base64,{}", base64_encode(LOGO)))
+    format!("data:image/png;base64,{}", base64_encode(LOGO))
 }
+fn orb_html() -> String { ORB_HTML.replace("__LOGO__", &logo_data_uri()) }
+fn splash_html() -> String { SPLASH_HTML.replace("__LOGO__", &logo_data_uri()) }
 
 fn base64_encode(data: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -1220,6 +1221,7 @@ fn chrome_window(
     x: f64,
     y: f64,
     icon: Option<Icon>,
+    transparent: bool,
 ) -> Window {
     let mut b = WindowBuilder::new()
         .with_title(title)
@@ -1228,6 +1230,11 @@ fn chrome_window(
         .with_decorations(false)
         .with_resizable(false)
         .with_always_on_top(true);
+    // Per-pixel alpha so a rounded/circular shape comes from the page's anti-aliased
+    // CSS border-radius — NOT a hard-edged SetWindowRgn clip (which looks jagged).
+    if transparent {
+        b = b.with_transparent(true);
+    }
     if let Some(ic) = icon {
         b = b.with_window_icon(Some(ic));
     }
@@ -1415,19 +1422,19 @@ fn main() {
     // ---- boot splash: a pulsing circular logo, centered
     let splash = chrome_window(
         &event_loop, "BagIdea", SPLASH_SIZE, SPLASH_SIZE,
-        (logical_w - SPLASH_SIZE) / 2.0, (logical_h - SPLASH_SIZE) / 2.0 - 30.0, None,
+        (logical_w - SPLASH_SIZE) / 2.0, (logical_h - SPLASH_SIZE) / 2.0 - 30.0, None, true,
     );
     platform::set_no_activate(&splash);
     let _splash_view = WebViewBuilder::new()
-        .with_html(SPLASH_HTML)
+        .with_transparent(true)
+        .with_html(splash_html())
         .build(&splash)
         .expect("splash webview");
-    platform::region_circle(&splash, SPLASH_SIZE);
-    let splash_id = splash.id();
+    let _splash_id = splash.id();
 
     // ---- overlay (born visible but parked off-screen)
     let overlay = chrome_window(
-        &event_loop, "BagIdea Office", FULL.0, FULL.1, PARK.0, PARK.1, app_icon(),
+        &event_loop, "BagIdea Office", FULL.0, FULL.1, PARK.0, PARK.1, app_icon(), false,
     );
     overlay.set_outer_position(LogicalPosition::new(PARK.0, PARK.1));
     let overlay_id = overlay.id();
@@ -1454,12 +1461,13 @@ fn main() {
 
     // ---- circular chat head
     let orb = chrome_window(
-        &event_loop, "BagIdea", ORB_SIZE, ORB_SIZE, orb_x, orb_y, app_icon(),
+        &event_loop, "BagIdea", ORB_SIZE, ORB_SIZE, orb_x, orb_y, app_icon(), true,
     );
     platform::set_no_activate(&orb);
-    let orb_id = orb.id();
+    let _orb_id = orb.id();
     let p_orb = proxy.clone();
     let _orb_view = WebViewBuilder::new()
+        .with_transparent(true)
         .with_html(orb_html())
         .with_ipc_handler(move |req| {
             let _ = match req.body().as_str() {
@@ -1471,7 +1479,6 @@ fn main() {
         })
         .build(&orb)
         .expect("orb webview");
-    platform::region_circle(&orb, ORB_SIZE);
     orb.set_outer_position(LogicalPosition::new(PARK.0, PARK.1 + 200.0));
 
     let raise_orb = |orb: &Window| {
@@ -1586,13 +1593,11 @@ fn main() {
                 }
             }
             Event::WindowEvent { window_id, event: WindowEvent::Resized(_), .. } => {
-                if window_id == orb_id {
-                    platform::region_circle(&orb, ORB_SIZE);
-                } else if window_id == overlay_id {
+                // orb + splash are transparent — their round shape is CSS (anti-aliased),
+                // no SetWindowRgn needed. Only the opaque overlay still gets a clip region.
+                if window_id == overlay_id {
                     let (w, h) = if feed { (FEED_W, feed_h) } else if mini { MINI } else { FULL };
                     platform::region_round(&overlay, w, h, if feed { 14.0 } else { 18.0 });
-                } else if window_id == splash_id {
-                    platform::region_circle(&splash, SPLASH_SIZE);
                 }
             }
             Event::UserEvent(ue) => match ue {
