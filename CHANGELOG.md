@@ -4,6 +4,26 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.9.1] — Office files, a tool-aware toolkit skill, and a real license
+
+**Added**
+- **Office-file support** — the installer now bundles **LibreOffice**, so agents can read &
+  convert **xlsx / docx / pptx** (→ csv / pdf / txt) headlessly via `soffice`. Fills the
+  spreadsheet gap (CSV/JSON were already covered).
+- **"File & Media Toolkit" built-in skill** — a protected skill that maps each task to the
+  right bundled tool, so the office's existing power actually gets used instead of an agent
+  saying it "can't": PDF (Read), Office files (LibreOffice), docs/books & slides
+  (`pandoc` → pdf/docx/epub/pptx), YouTube/video (`yt-dlp` + transcribe, `ffmpeg` frames),
+  images (ImageMagick), data (csv/`jq`). Assign it to your hands-on agents.
+
+**Changed**
+- **Added an MIT LICENSE** — the project is now properly open source (it was previously
+  missing a license file).
+
+Note: the toolkit skill ships through `bagidea update` (built-ins reseed on restart);
+LibreOffice and the other agent CLI tools are installed at install time (a fresh install,
+or re-running the installer).
+
 ## [0.9.0] — More brains, safer delegation, workflows agents can build
 
 A big follow-up to Swappable Brains: many more models, a quality gate, and a Workflow
