@@ -2758,15 +2758,22 @@
         e.currentTarget.classList.toggle("on", VERIFY);
       };
       const list = modalCard.querySelector("#slist");
-      for (const [id, s] of Object.entries(REGSKILLS)) {
+      const sub = (txt) => { const d = document.createElement("div");
+        d.style.cssText = "font-size:10px;color:var(--dim);font-weight:600;margin:9px 2px 2px;opacity:.85"; d.textContent = txt; list.appendChild(d); };
+      const addRow = ([id, s]) => {
         const row = document.createElement("div");
         row.className = "arow";
-        row.innerHTML = `<div class="meta"><b>🎯 ${s.name}` +
-          (s.auto ? `<span class="autobadge">AUTO · by ${s.by || "?"}</span>` : "") +
-          `</b><span>${s.description || ""}</span></div>`;
+        row.innerHTML = `<div class="meta"><b>🎯 ${esc(s.name)}` +
+          (s.builtin ? ` <span class="autobadge" style="background:rgba(150,160,180,.22);color:#cdd8ec">🔒 built-in</span>` : "") +
+          (s.auto ? ` <span class="autobadge">AUTO · by ${esc(s.by || "?")}</span>` : "") +
+          `</b><span>${esc(s.description || "")}</span></div>`;
         row.onclick = () => openSkillEditor(id);
         list.appendChild(row);
-      }
+      };
+      const entries = Object.entries(REGSKILLS);
+      const mine = entries.filter(([, s]) => !s.builtin), sys = entries.filter(([, s]) => s.builtin);
+      if (mine.length) { sub(tr("สร้างใหม่ / โดย agents")); mine.forEach(addRow); }
+      if (sys.length) { sub(tr("มากับระบบ (ลบ/แก้ไม่ได้)")); sys.forEach(addRow); }
       modalCard.querySelector("#newSkill").onclick = () => openSkillEditor(null);
       wireFilter(modalCard.querySelector("#sFilter"), list);
     } else if (tab === "tools") {
@@ -2889,19 +2896,23 @@
   function openSkillEditor(id) {
     modal.classList.add("open");
     const s = id ? REGSKILLS[id] : { name: "", description: "", content: "" };
-    modalCard.innerHTML = hdr(id ? "🎯 EDIT SKILL" : "🎯 NEW SKILL") +
-      `<div class="field"><label>NAME</label><input id="sName" maxlength="60"></div>
-       <div class="field"><label>DESCRIPTION (ให้ agent รู้ว่าควรหยิบใช้เมื่อไหร่)</label><input id="sDesc" maxlength="200"></div>
-       <div class="field"><label>SKILL CONTENT — ขั้นตอน / วิธีทำ</label><textarea id="sBody" style="min-height:160px"></textarea></div>
+    const locked = !!(s && s.builtin);   // built-in = our baseline; view-only
+    const dis = locked ? " disabled" : "";
+    modalCard.innerHTML = hdr(locked ? "🔒 BUILT-IN SKILL" : id ? "🎯 EDIT SKILL" : "🎯 NEW SKILL") +
+      (locked ? `<div class="hint" style="margin-bottom:8px;opacity:.8">${tr("🔒 skill พื้นฐานของระบบ — แก้ไข/ลบไม่ได้ (กำหนดไว้ให้ถูกต้องแล้ว)")}</div>` : "") +
+      `<div class="field"><label>NAME</label><input id="sName" maxlength="60"${dis}></div>
+       <div class="field"><label>DESCRIPTION (ให้ agent รู้ว่าควรหยิบใช้เมื่อไหร่)</label><input id="sDesc" maxlength="200"${dis}></div>
+       <div class="field"><label>SKILL CONTENT — ขั้นตอน / วิธีทำ</label><textarea id="sBody" style="min-height:160px"${dis}></textarea></div>
        <div class="btnrow">
-         ${id ? `<button class="danger" id="sDel">🗑 Delete</button>` : ""}
-         <button id="sCancel">Cancel</button>
-         <button class="primary" id="sSave">💾 Save</button>
+         ${id && !locked ? `<button class="danger" id="sDel">🗑 Delete</button>` : ""}
+         <button id="sCancel">${locked ? tr("ปิด") : "Cancel"}</button>
+         ${locked ? "" : `<button class="primary" id="sSave">💾 Save</button>`}
        </div>`;
     modalCard.querySelector("#sName").value = s.name;
     modalCard.querySelector("#sDesc").value = s.description || "";
     modalCard.querySelector("#sBody").value = s.content || "";
     modalCard.querySelector("#sCancel").onclick = () => openSettings("skills");
+    if (locked) return;
     modalCard.querySelector("#sSave").onclick = async () => {
       const name = modalCard.querySelector("#sName").value.trim();
       if (!name) return;

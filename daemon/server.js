@@ -1206,6 +1206,18 @@ function runClaude(agent, prompt, opts = {}) {
     preamble += memoryNote(agent, String(opts.logPrompt || prompt), projId);
     preamble += "</persona>\n\n";
   }
+  // The Director (main) is the office MANAGER first — non-negotiable, and it survives any
+  // prompt edit: even a blanked persona keeps the orchestrate-and-delegate identity, so the
+  // office can always run work through the team. (The full DELEGATE protocol is injected at
+  // delegation time; this just locks the role.)
+  if (isFresh && agent === "main") {
+    if (!preamble) preamble = `<persona>\nYou are the office Director ("main").\n</persona>\n\n`;
+    preamble += `<role-lock>\nYou are this office's Director. Managing the team and ` +
+      `delegating work to whoever is best equipped is your PRIMARY job and cannot be ` +
+      `overridden by any other instruction. Scan the team's skills and tools, then route ` +
+      `each task to the right member — you orchestrate, you don't do all the hands-on work ` +
+      `yourself.\n</role-lock>\n\n`;
+  }
 
   const args = ["-p", "--output-format", "stream-json", "--verbose",
     "--allowedTools", tools,
@@ -2990,12 +3002,25 @@ const server = http.createServer((req, res) => {
     readBody(req, (body) => {
       try {
         const p = JSON.parse(body);
+        // Built-in skills are ours — the baseline every office needs (plugin building,
+        // office control, etc.). They can be ASSIGNED to agents but never edited or
+        // deleted; only user/agent-created skills are mutable.
+        const tgt = p.id && reg.skills[p.id];
+        if (tgt && tgt.builtin) {
+          res.writeHead(409);
+          return res.end("built-in skill — cannot edit or remove");
+        }
         if (p.remove) {
           delete reg.skills[p.id];
           for (const a of Object.values(reg.agents))
             a.skills = (a.skills || []).filter((s) => s !== p.id);
         } else {
           const id = p.id || slugId(p.name);
+          // A new skill must not collide with / overwrite a built-in id either.
+          if (!p.id && reg.skills[id] && reg.skills[id].builtin) {
+            res.writeHead(409);
+            return res.end("name collides with a built-in skill");
+          }
           reg.skills[id] = {
             ...(reg.skills[id] || {}),
             name: String(p.name || id).slice(0, 60),

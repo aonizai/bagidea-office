@@ -93,6 +93,7 @@ function help() {
 
   head("Team & work");
   row("agents", "Roster — roles · voices · tools");
+  row("brains", "Per-agent model + provider connect status");
   row("projects", "Projects + who is working on them");
   row('open "<project>"', "Open a project window");
   row("editor", "Open the 3D Office Editor");
@@ -364,6 +365,25 @@ if (cmd === "uninstall") {
       console.log(`  ${c.bold}${a.name}${c.reset} ${c.gray}${id}${c.reset}  ${a.role} ${c.gray}· tier ${a.tier || 3}${a.voice ? ` · 🗣 ${a.voice}` : ""}${c.reset}`);
       console.log(`  ${c.gray}🎯 ${(a.skills || []).length} skills · 🔧 ${(a.tools || []).join(", ") || "read-only"}${c.reset}\n`);
     }
+    return;
+  }
+
+  if (cmd === "brains") {
+    const b = await req("GET", "/brains");
+    const fmtK = (n) => (n >= 1000 ? Math.round(n / 1000) + "k" : String(n || 0));
+    head("Providers");
+    for (const p of b.providers || []) {
+      const dot = p.connected ? `${c.ok}●${c.reset}` : `${c.gray}○${c.reset}`;
+      const star = p.id === b.defaultProvider ? ` ${c.warn}★${c.reset}` : "";
+      console.log(`  ${dot} ${c.bold}${p.label}${c.reset}${star} ${c.gray}· ${(p.agents || []).length} agent${c.reset}`);
+    }
+    head("Agents · brains");
+    for (const a of b.agents || []) {
+      const u = a.usage;
+      const ctx = u ? `  ${c.gray}📊 ${fmtK(u.in)}/${fmtK(u.win)} (${u.pct}%)${c.reset}` : "";
+      console.log(`  ${c.bold}${a.name}${c.reset} ${c.gray}${a.role || ""}${c.reset}  🧠 ${a.tag}${ctx}`);
+    }
+    console.log("");
     return;
   }
 

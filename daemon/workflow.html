@@ -140,6 +140,7 @@
     "วิเคราะห์ไม่สำเร็จ ลองใหม่":"Analysis failed — try again","⏳ ทีมกำลังทำงานตาม workflow…":"⏳ The team is running the workflow…",
     "รันไม่สำเร็จ ลองใหม่":"Run failed — try again","💾 บันทึกแล้ว":"💾 Saved","💾 บันทึกเป็นสำเนาแล้ว":"💾 Saved as a copy","บันทึกไม่สำเร็จ":"Save failed","✅ ผลลัพธ์:":"✅ Result:",
     "สร้าง skill ไม่สำเร็จ":"Couldn't create skill","ลบ workflow นี้?":"Delete this workflow?","(ไม่มีชื่อ)":"(untitled)",
+    "บันทึกทับ workflow เดิมตัวนี้? กด ตกลง เพื่อเขียนทับของเดิม":"Overwrite this saved workflow? Click OK to replace the existing version.",
     "📂 เปิด…":"📂 Open…","ตัวอย่าง (อ่านอย่างเดียว)":"Examples (read-only)","ของฉัน":"Mine",
     "เมื่อสั่งให้เริ่ม…":"When started…","เมื่อสั่งให้เริ่ม":"When started","หาข่าว A":"Find news A","หาข่าว B":"Find news B","รวมแล้วเขียนสรุป":"Merge & summarize",
   };
@@ -333,6 +334,11 @@
   }
   // ===== persistence =====
   function saveWf() {
+    // Overwriting your own saved workflow is destructive — confirm first. (Examples
+    // fork into a new copy, and a brand-new workflow has nothing to overwrite, so
+    // neither needs the warning.)
+    if (!isExample && curId && !confirm(tr("บันทึกทับ workflow เดิมตัวนี้? กด ตกลง เพื่อเขียนทับของเดิม")))
+      return;
     const body = { id: (isExample ? "" : curId) || undefined, name: nameInp.value || "Workflow", nodes, edges };
     fetch("/workflows/save", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(body) })
       .then(r=>r.json()).then(j=>{
