@@ -416,6 +416,7 @@ function claudeText(prompt, opts = {}) {
     child.stdin.write(prompt);
     child.stdin.end();
     let out = "";
+    child.stdout.setEncoding("utf8");   // multibyte-safe across chunk boundaries (Thai etc.)
     child.stdout.on("data", (c) => (out += c));
     child.on("close", () => resolve(out.trim()));
     child.on("error", () => resolve(""));
@@ -2002,9 +2003,12 @@ function voiceTranscribe(buf) {
         headers: { "content-type": "application/json",
           "content-length": Buffer.byteLength(body) },
       }, (rs) => {
-        let o = "";
-        rs.on("data", (c) => (o += c));
+        const chunks = [];
+        rs.on("data", (c) => chunks.push(c));
         rs.on("end", () => {
+          // Decode the WHOLE body as UTF-8 once — never `o += chunk`, which splits a
+          // multi-byte char (Thai = 3 bytes) across chunks and yields � corruption.
+          const o = Buffer.concat(chunks).toString("utf8");
           try {
             const j = JSON.parse(o);
             const t = j.candidates && j.candidates[0] &&
@@ -2034,9 +2038,11 @@ function voiceTranscribe(buf) {
         "content-type": "multipart/form-data; boundary=" + B,
         "content-length": body.length },
     }, (rs) => {
-      let o = "";
-      rs.on("data", (c) => (o += c));
+      const chunks = [];
+      rs.on("data", (c) => chunks.push(c));
       rs.on("end", () => {
+        // UTF-8 decode the whole body once (chunk-split multi-byte chars => � garbage).
+        const o = Buffer.concat(chunks).toString("utf8");
         try {
           const j = JSON.parse(o);
           if (j.text !== undefined) { auxCost("openai", COST_RATES.openai_whisper_each); resolve(String(j.text).trim()); }
@@ -4576,6 +4582,7 @@ const server = http.createServer((req, res) => {
             path: "/v1beta/models/gemini-flash-latest:generateContent?key=" + gm,
             headers: { "content-type": "application/json", "content-length": Buffer.byteLength(reqBody) },
           }, (rs) => {
+            rs.setEncoding("utf8");   // multibyte-safe (translations) across chunk boundaries
             let o = ""; rs.on("data", (c) => (o += c));
             rs.on("end", () => {
               try {
