@@ -58,6 +58,25 @@ if ($shellChanged.Lines -gt 0) {
   Write-Host "  [3/4] shell unchanged - skipping the build" -ForegroundColor DarkGray
 }
 
+# 3b) One-time: enable launch-with-Windows for users from before it became the install
+#     default (the reported "didn't come back after a reboot" case). Guarded by a marker
+#     so we set it ONCE and never re-enable after someone deliberately turns it off.
+$flagDir = Join-Path $env:LOCALAPPDATA "BagIdeaOffice"
+$flag = Join-Path $flagDir "startup-default.applied"
+if (-not (Test-Path $flag)) {
+  $runKey = "HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
+  reg query $runKey /v BagIdeaOffice 2>$null | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    $shexe = Join-Path $root "shell\target\release\bagidea-office-shell.exe"
+    if (Test-Path $shexe) {
+      reg add $runKey /v BagIdeaOffice /t REG_SZ /d "$shexe" /f | Out-Null
+      Write-Host "  [+] Enabled launch-with-Windows (one-time default - bagidea startup off to undo)" -ForegroundColor DarkCyan
+    }
+  }
+  New-Item -ItemType Directory -Force $flagDir | Out-Null
+  New-Item -ItemType File -Force $flag | Out-Null
+}
+
 # 4) Relaunch.
 Write-Host "  [4/4] Relaunching..." -ForegroundColor DarkCyan
 $exe = Join-Path $root "shell\target\release\bagidea-office-shell.exe"

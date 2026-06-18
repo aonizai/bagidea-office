@@ -321,6 +321,20 @@ if (Test-Path $exe) {
   Ok "created Start Menu shortcut"
 }
 
+# ---- launch with Windows (default ON for fresh installs) ---------------------
+# The same HKCU Run value the tray + `bagidea startup` toggle use. We set it only when
+# it's NOT already present, so re-running never clobbers a user's later "off" choice.
+# Fix: a fresh install used to not come back after a reboot.
+Step 12 "Launch automatically with Windows"
+if (Test-Path $exe) {
+  $runKey = "HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
+  reg query $runKey /v BagIdeaOffice 2>$null | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    reg add $runKey /v BagIdeaOffice /t REG_SZ /d "$exe" /f | Out-Null
+    Ok "the office will start with Windows (turn off anytime: bagidea startup off)"
+  } else { Skip "auto-start already set" }
+} else { Skip "shell exe not built - skipped" }
+
 # ---- summary -----------------------------------------------------------------
 Write-Host ""
 if (Test-Path $exe) {
