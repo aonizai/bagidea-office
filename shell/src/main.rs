@@ -796,6 +796,9 @@ mod platform {
     }
 
     /// Register the `bagidea://` URL protocol (per-user) so the website's
+    // Edit-menu shim is macOS-only (Windows webviews already handle Cmd/Ctrl-C/V).
+    pub fn install_edit_menu() {}
+
     /// "Open in office" Install button launches us with the deep link. Idempotent
     /// — written on every normal startup so it self-heals after a move/reinstall.
     pub fn register_uri_scheme() {
@@ -1090,6 +1093,45 @@ mod platform {
     // (CFBundleURLTypes), not at runtime — so this is a no-op here.
     pub fn register_uri_scheme() {}
 
+    // wry's frameless macOS window has no app menu, so the default Cmd-C/V/X/A/Z key
+    // equivalents (AppKit routes these through the Edit menu) never fire — copy/paste
+    // looks broken in every text field. Install a minimal main menu with a standard Edit
+    // submenu; the items have NO target, so AppKit dispatches each action to the first
+    // responder (the focused webview field). Fixes issue #8.
+    pub fn install_edit_menu() {
+        use objc2::runtime::Sel;
+        unsafe {
+            let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+            let main_menu: *mut AnyObject = msg_send![class!(NSMenu), new];
+            let app_item: *mut AnyObject = msg_send![class!(NSMenuItem), new];
+            let _: () = msg_send![main_menu, addItem: app_item];
+
+            let edit_title = NSString::from_str("Edit");
+            let edit_item: *mut AnyObject = msg_send![class!(NSMenuItem), new];
+            let edit_menu: *mut AnyObject = msg_send![class!(NSMenu), alloc];
+            let edit_menu: *mut AnyObject = msg_send![edit_menu, initWithTitle: &*edit_title];
+
+            let add = |menu: *mut AnyObject, title: &str, action: Sel, key: &str| unsafe {
+                let t = NSString::from_str(title);
+                let k = NSString::from_str(key);
+                let item: *mut AnyObject = msg_send![class!(NSMenuItem), alloc];
+                let item: *mut AnyObject =
+                    msg_send![item, initWithTitle: &*t, action: action, keyEquivalent: &*k];
+                let _: () = msg_send![menu, addItem: item];
+            };
+            add(edit_menu, "Undo", objc2::sel!(undo:), "z");
+            add(edit_menu, "Redo", objc2::sel!(redo:), "Z");
+            add(edit_menu, "Cut", objc2::sel!(cut:), "x");
+            add(edit_menu, "Copy", objc2::sel!(copy:), "c");
+            add(edit_menu, "Paste", objc2::sel!(paste:), "v");
+            add(edit_menu, "Select All", objc2::sel!(selectAll:), "a");
+
+            let _: () = msg_send![edit_item, setSubmenu: edit_menu];
+            let _: () = msg_send![main_menu, addItem: edit_item];
+            let _: () = msg_send![app, setMainMenu: main_menu];
+        }
+    }
+
     /// True when a foreground app window (nearly) covers the whole screen, so
     /// the wallpaper is invisible and the renderer can crawl. Considers only
     /// layer-0 windows (skips the menu bar, Dock, and our desktop-level Godot
@@ -1205,6 +1247,7 @@ mod platform {
     pub fn set_autostart(_on: bool) {}
     pub fn restore_wallpaper() {}
     pub fn register_uri_scheme() {}
+    pub fn install_edit_menu() {}
     pub fn desktop_occluded(_lw: f64, _lh: f64, _own_pid: u32) -> bool { false }
 }
 
@@ -1339,6 +1382,9 @@ fn main() {
 
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
+    // macOS: give the frameless app a standard Edit menu so Cmd-C/V/X/A/Z work in text
+    // fields (no-op elsewhere). Without it copy/paste is dead on macOS — issue #8.
+    platform::install_edit_menu();
 
     let (phys_w, phys_h) = event_loop
         .primary_monitor()
