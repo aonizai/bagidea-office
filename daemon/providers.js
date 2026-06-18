@@ -63,6 +63,15 @@ const PROVIDERS = {
     modelsUrl: "https://api.moonshot.ai/v1/models",
     models: ["kimi-k2.6", "kimi-k2.5", "kimi-k2", "kimi-latest"],  // hint only — live list fetched on Connect
   },
+  kimicode: {
+    // Kimi Code — the coding subscription (kimi.com/code). DISTINCT from Moonshot's
+    // general API above: separate "sk-kimi-…" keys, its own Anthropic-compatible
+    // endpoint, and a single model id. Confirmed live (200) against the global host;
+    // mainland-China users can override baseUrl in Connect.
+    label: "Kimi Code · coding plan", format: "anthropic", direct: true,
+    baseUrl: "https://api.kimi.com/coding",     // → /v1/messages (Anthropic-compatible)
+    models: ["kimi-for-coding"],                // the only model this plan serves
+  },
   openai: {
     label: "OpenAI", format: "openai", needsProxy: true, baseUrl: null,
     models: ["gpt-4o", "gpt-4o-mini"],

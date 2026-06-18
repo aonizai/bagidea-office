@@ -364,7 +364,8 @@ function isOverflowError(t) { return !!t && OVERFLOW_RE.test(String(t)); }
 // (Claude manages its own context). Unknown/custom → providerConfig.contextBudget,
 // else a safe default. Overridable per provider via providerConfig[p].contextBudget.
 const CTX_BUDGET = { claude: 0, glm: 115000, deepseek: 800000, qwen: 230000,
-  minimax: 180000, openai: 115000, gemini: 800000, openrouter: 100000, nvidia: 100000 };
+  minimax: 180000, moonshot: 210000, kimicode: 210000, openai: 115000, gemini: 800000,
+  openrouter: 100000, nvidia: 100000 };
 function provBudget(agent) {
   const a = reg.agents && reg.agents[agent];
   const p = (a && a.provider) || reg.defaultProvider || "claude";
@@ -395,7 +396,8 @@ function overBudget(agent, entry, cwd) {
 // the provider didn't advertise a length. Per-MODEL windows (MODEL_CTX / live) and the
 // per-provider override (providerConfig.contextWindow) both take precedence.
 const CTX_WINDOW = { claude: 200000, glm: 128000, deepseek: 1000000, qwen: 256000,
-  minimax: 200000, openai: 128000, gemini: 1000000, openrouter: 128000, nvidia: 128000 };
+  minimax: 200000, moonshot: 262144, kimicode: 262144, openai: 128000, gemini: 1000000,
+  openrouter: 128000, nvidia: 128000 };
 
 // Per-MODEL context windows (input tokens), researched against each provider's docs.
 // A live value captured from the provider's /models endpoint (modelCtx) wins over this,

@@ -6,6 +6,14 @@ in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
 ## [Unreleased]
 
+**Added**
+- **Kimi Code provider** — the Kimi Code coding plan (kimi.com/code) is a separate
+  service from the general Kimi · Moonshot API: its own `sk-kimi-…` keys, its own
+  Anthropic-compatible endpoint (`https://api.kimi.com/coding`), and a single model
+  (`kimi-for-coding`). It's now a one-click built-in provider — paste the key and
+  Connect (verified live). Previously such a key failed against the Moonshot endpoint
+  with a confusing 401.
+
 **Improved**
 - **Context window is now per-model and auto-detected** — the usage meter and the
   compaction point used one coarse number per provider, so models were badly mis-sized

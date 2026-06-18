@@ -2525,7 +2525,8 @@
       subhead("ต่อตรง (Anthropic-compatible)");
       [["glm", "GLM · Z.AI", "z.ai"], ["deepseek", "DeepSeek", "platform.deepseek.com"],
        ["qwen", "Qwen · Alibaba", "Alibaba Model Studio"], ["minimax", "MiniMax", "platform.minimax.io"],
-       ["moonshot", "Kimi · Moonshot", "platform.moonshot.ai"]]
+       ["moonshot", "Kimi · Moonshot", "platform.moonshot.ai"],
+       ["kimicode", "Kimi Code · coding plan", "kimi.com/code · model kimi-for-coding"]]
         .forEach(([id, l, w]) => providerCard(id, l, w, false, false));
 
       // ── OpenAI-compatible (via the built-in proxy)
@@ -2546,8 +2547,8 @@
       // ── Custom — add your own (anthropic- or openai-compatible)
       subhead("Custom — เพิ่ม provider เอง");
       const BUILTIN = new Set(["claude", "glm", "deepseek", "qwen", "minimax", "moonshot",
-        "openai", "gemini", "openrouter", "nvidia", "groq", "cerebras", "xai", "mistral",
-        "together", "fireworks", "ollama", "lmstudio", "litellm"]);
+        "kimicode", "openai", "gemini", "openrouter", "nvidia", "groq", "cerebras", "xai",
+        "mistral", "together", "fireworks", "ollama", "lmstudio", "litellm"]);
       Object.keys(pcAll).filter((id) => !BUILTIN.has(id) && pcAll[id] && pcAll[id].label)
         .forEach((id) => providerCard(id, pcAll[id].label + (pcAll[id].kind === "openai" ? " · OpenAI" : " · Anthropic"),
           "", pcAll[id].kind === "openai", true));
@@ -3214,7 +3215,7 @@
     if (provSel) {
       const BUILTIN = [["claude", "Claude · Anthropic"], ["glm", "GLM · Z.AI"],
         ["deepseek", "DeepSeek"], ["qwen", "Qwen · Alibaba"], ["minimax", "MiniMax"],
-        ["moonshot", "Kimi · Moonshot"],
+        ["moonshot", "Kimi · Moonshot"], ["kimicode", "Kimi Code · coding plan"],
         ["openai", "OpenAI · proxy"], ["gemini", "Gemini · proxy"],
         ["openrouter", "OpenRouter · proxy"], ["nvidia", "NVIDIA · proxy"],
         ["groq", "Groq · proxy"], ["cerebras", "Cerebras · proxy"], ["xai", "xAI · Grok · proxy"],
@@ -3224,6 +3225,7 @@
         deepseek: ["deepseek-v4-pro", "deepseek-v4-flash"],
         qwen: ["qwen3-coder-plus", "qwen3-coder-next", "qwen3-coder-flash"],
         minimax: ["MiniMax-M3"], moonshot: ["kimi-k2.6", "kimi-k2.5", "kimi-k2", "kimi-latest"],
+        kimicode: ["kimi-for-coding"],
         openai: ["gpt-4o", "gpt-4o-mini"],
         gemini: ["gemini-2.5-flash", "gemini-2.5-pro"],
         openrouter: ["openai/gpt-4o", "anthropic/claude-sonnet-4-6"], nvidia: ["meta/llama-3.3-70b-instruct"],
