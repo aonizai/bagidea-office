@@ -70,7 +70,11 @@ module.exports = function initPlugins(ctx) {
     const create = `You can also BUILD a new plugin: create plugins/<id>/ with a ` +
       `plugin.json (+ optional index.js / panel.html), then ` +
       `curl -s -X POST http://127.0.0.1:8787/plugins/reload -H "x-bagidea-ui: 1". ` +
-      `Full spec: docs/guide/plugins.md`;
+      `Full spec: docs/guide/plugins.md. ` +
+      `To SHARE a plugin on the public Plugins Hub so others can install it, follow ` +
+      `docs/guide/plugin-hub.md: publish it as a public GitHub repo, then open a PR ` +
+      `adding one entry to web/plugins.json (id must match plugin.json). If the owner ` +
+      `asks you to submit one, walk them through those exact steps.`;
     // Non-ASCII on a Windows command line is mangled to "?" by the shell codepage
     // BEFORE curl runs — so a Thai/Chinese/etc. arg passed inline arrives corrupted.
     // Tell agents to send the JSON body from a FILE instead (the Write tool saves UTF-8).

@@ -64,7 +64,7 @@
       what:"คือส่วนขยายของออฟฟิศที่ใครก็เขียนได้ — เพิ่มแผงเครื่องมือ, คำสั่งให้ agents สั่งงาน, หรือความสามารถใหม่ๆ แต่ละตัวคือ GitHub repo ที่กดติดตั้งทีเดียวก็ใช้ได้เลย",
       s1:"กด <b>⬇ ติดตั้ง</b> ตัวที่อยากได้ — ระบบจะ clone จาก GitHub ลงเครื่องแล้วโหลดให้อัตโนมัติ",
       s2:"เปิดแผงของ plugin ได้จากเมนู <b>🧩 Plugins</b> · agents สั่งงาน plugin ที่มีคำสั่งได้",
-      s3:"อยากให้ plugin ของคุณอยู่ใน hub นี้? เผยแพร่เป็น GitHub repo แล้วเปิด PR เพิ่มลง catalog — ดู <a id='lnkSubmit' href='#' target='_blank'>วิธี submit</a>",
+      s3:"อยากแชร์ plugin ของคุณให้คนอื่นติดตั้งได้? ทำ 3 ขั้น — (1) เผยแพร่เป็น GitHub repo สาธารณะ (2) เพิ่ม 1 รายการใน <code>web/plugins.json</code> แล้วเปิด PR (3) ทีมรีวิวแล้ว merge ก็ขึ้น hub เลย · <a id='lnkSubmit' href='#'>📖 อ่านวิธีส่งแบบละเอียด</a>",
       warn:"⚠️ การติดตั้ง plugin = รันโค้ดของคนอื่นบนเครื่องคุณจริง ติดตั้งเฉพาะตัวที่ไว้ใจ · ตัวที่มีป้าย ‘ทางการ’ ดูแลโดยทีม BagIdea",
       installed:"✓ ติดตั้งแล้ว", available:"ติดตั้งได้", add:"⬇ ติดตั้ง", remove:"ถอนการติดตั้ง",
       official:"ทางการ", copy:"📋 คัดลอกลิงก์", repo:"ดูซอร์ส ↗", core:"🔒 plugin หลัก",
@@ -79,7 +79,7 @@
       what:"An office extension anyone can write — it can add a tool panel, commands your agents can run, or whole new abilities. Each one is a GitHub repo you install with a single click.",
       s1:"Press <b>⬇ Install</b> on the one you want — it clones from GitHub and loads automatically.",
       s2:"Open a plugin's panel from the <b>🧩 Plugins</b> menu · agents can drive any plugin that exposes commands.",
-      s3:"Want your plugin in this hub? Publish it as a GitHub repo and open a PR adding it to the catalog — see <a id='lnkSubmit' href='#' target='_blank'>how to submit</a>.",
+      s3:"Want to share your plugin so others can install it? 3 steps — (1) publish it as a public GitHub repo (2) add one entry to <code>web/plugins.json</code> and open a PR (3) the team reviews & merges, and it's in the hub · <a id='lnkSubmit' href='#'>📖 read the full submit guide</a>.",
       warn:"⚠️ Installing a plugin runs someone else's code on your machine — only install ones you trust. Entries marked ‘Official’ are maintained by the BagIdea team.",
       installed:"✓ Installed", available:"Available", add:"⬇ Install", remove:"Uninstall",
       official:"Official", copy:"📋 Copy link", repo:"View source ↗", core:"🔒 Core plugin",
@@ -100,7 +100,15 @@
     document.getElementById("intro").innerHTML =
       `<b>${u.whatTitle}</b> ${u.what}<ol><li>${u.s1}</li><li>${u.s2}</li><li>${u.s3}</li></ol><div class="warn">${u.warn}</div>`;
     document.getElementById("footer").innerHTML = u.footer;
-    const lk = document.getElementById("lnkSubmit"); if (lk) lk.href = SUBMIT_URL;
+    const lk = document.getElementById("lnkSubmit");
+    if (lk) { lk.href = SUBMIT_URL; lk.onclick = (e) => { e.preventDefault(); openExt(SUBMIT_URL); }; }
+  }
+  // Office webviews can't follow target=_blank to the system browser — route external
+  // links through the daemon, which opens them in the real browser.
+  function openExt(url) {
+    fetch("/open", { method: "POST",
+      headers: { "content-type": "application/json", "x-bagidea-ui": "1" },
+      body: JSON.stringify({ path: url }) }).catch(() => {});
   }
   function esc(s) { return String(s || "").replace(/[<>&"]/g, (c) => ({ "<":"&lt;", ">":"&gt;", "&":"&amp;", '"':"&quot;" }[c])); }
 
@@ -125,7 +133,7 @@
           : `<button class="add" ${busy[p.id]?"disabled":""} onclick="install('${esc(p.id)}')">${busy[p.id]?u.tInstalling:u.add}</button>`}
         <button class="ghost" onclick="copyLink('${esc(p.repo)}')">${u.copy}</button>
         <span class="sp"></span>
-        <a class="repo" href="${esc(p.repo)}" target="_blank">${u.repo}</a>
+        <a class="repo" href="${esc(p.repo)}" onclick="openExt('${esc(p.repo)}');return false">${u.repo}</a>
       </div></div>`;
   }
   function render() {

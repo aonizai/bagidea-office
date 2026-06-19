@@ -4024,6 +4024,14 @@ const server = http.createServer((req, res) => {
     readBody(req, (body) => {
       try {
         let p = String((JSON.parse(body) || {}).path || "");
+        // An http(s) URL → open it in the system browser (office webviews can't follow
+        // target=_blank, so links route here instead). Only http/https; nothing else.
+        if (/^https?:\/\//i.test(p)) {
+          if (process.platform === "win32") spawn("cmd", ["/c", "start", "", p], { detached: true, windowsHide: true });
+          else if (process.platform === "darwin") spawn("open", [p], { detached: true });
+          else spawn("xdg-open", [p], { detached: true });
+          res.writeHead(200); return res.end("ok");
+        }
         if (p.startsWith("/uploads/"))
           p = path.join(WORKSPACE, "uploads", decodeURIComponent(p.slice(9)).replace(/[\\/]|\.\./g, ""));
         p = path.resolve(p);
