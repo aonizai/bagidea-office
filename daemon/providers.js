@@ -74,11 +74,11 @@ const PROVIDERS = {
   },
   openai: {
     label: "OpenAI", format: "openai", needsProxy: true, baseUrl: null,
-    models: ["gpt-4o", "gpt-4o-mini"],
+    models: ["gpt-4.1", "gpt-4o", "gpt-4o-mini"],   // gpt-4.1 = 1M flagship, listed first
   },
   gemini: {
     label: "Gemini", format: "openai", needsProxy: true, baseUrl: null,
-    models: ["gemini-2.5-flash", "gemini-2.5-pro"],
+    models: ["gemini-2.5-pro", "gemini-2.5-flash"],
   },
   openrouter: {
     label: "OpenRouter", format: "openai", needsProxy: true, baseUrl: null,
@@ -98,7 +98,7 @@ const PROVIDERS = {
   },
   xai: {
     label: "xAI · Grok", format: "openai", needsProxy: true, baseUrl: null,
-    models: ["grok-3", "grok-3-mini"],
+    models: ["grok-4", "grok-3", "grok-3-mini"],
   },
   mistral: {
     label: "Mistral", format: "openai", needsProxy: true, baseUrl: null,

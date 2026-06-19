@@ -3251,14 +3251,26 @@
         qwen: ["qwen3-coder-plus", "qwen3-coder-next", "qwen3-coder-flash"],
         minimax: ["MiniMax-M3"], moonshot: ["kimi-k2.6", "kimi-k2.5", "kimi-k2", "kimi-latest"],
         kimicode: ["kimi-for-coding"],
-        openai: ["gpt-4o", "gpt-4o-mini"],
-        gemini: ["gemini-2.5-flash", "gemini-2.5-pro"],
-        openrouter: ["openai/gpt-4o", "anthropic/claude-sonnet-4-6"], nvidia: ["meta/llama-3.3-70b-instruct"],
+        openai: ["gpt-4.1", "gpt-4o", "gpt-4o-mini"],
+        gemini: ["gemini-2.5-pro", "gemini-2.5-flash"],
+        openrouter: ["anthropic/claude-sonnet-4-6", "openai/gpt-4o"], nvidia: ["meta/llama-3.3-70b-instruct"],
         groq: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"], cerebras: ["llama-3.3-70b", "llama-3.1-8b"],
-        xai: ["grok-3", "grok-3-mini"], mistral: ["mistral-large-latest", "codestral-latest"],
+        xai: ["grok-4", "grok-3", "grok-3-mini"], mistral: ["mistral-large-latest", "codestral-latest"],
         together: ["meta-llama/Llama-3.3-70B-Instruct-Turbo"],
         fireworks: ["accounts/fireworks/models/llama-v3p3-70b-instruct"],
         ollama: ["llama3.1", "qwen2.5-coder", "deepseek-r1"], lmstudio: [] };
+      // The BEST / NEWEST model per provider — pre-selected when a provider is picked so
+      // the user is nudged toward the latest (a quiet "there's a newer model" hint); they
+      // can still drop back to an older one from the list.
+      const BEST_MODEL = {
+        claude: "claude-opus-4-8", glm: "glm-4.6", deepseek: "deepseek-v4-pro",
+        qwen: "qwen3-coder-plus", minimax: "MiniMax-M3", moonshot: "kimi-k2.6",
+        kimicode: "kimi-for-coding", openai: "gpt-4.1", gemini: "gemini-2.5-pro",
+        xai: "grok-4", mistral: "mistral-large-latest",
+        openrouter: "anthropic/claude-sonnet-4-6", nvidia: "meta/llama-3.3-70b-instruct",
+        groq: "llama-3.3-70b-versatile", cerebras: "llama-3.3-70b",
+        together: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        fireworks: "accounts/fireworks/models/llama-v3p3-70b-instruct" };
       const BSET = new Set(BUILTIN.map((b) => b[0]).concat("litellm"));
       const modelInput = modalCard.querySelector("#eModel");
       const modelWrap = modalCard.querySelector("#eModelWrap");
@@ -3322,9 +3334,9 @@
         curModels = [...stat, ...usable.filter((m) => !stat.includes(m))];
         // Keep the saved model on the agent's own provider; otherwise pre-select a
         // sensible default (first usable model) so the field is never left invalid.
-        // Never leave Claude on the blank/implicit model — default to the flagship
-        // (Opus 4.8, 1M window). Users can still pick "" or another model explicitly.
-        const def = p === "claude" ? "claude-opus-4-8" : (curModels.find(Boolean) || "");
+        // Default to the provider's BEST / NEWEST model (a quiet nudge toward the latest);
+        // fall back to the first usable one. Never the blank/implicit model.
+        const def = BEST_MODEL[p] || curModels.find(Boolean) || "";
         modelInput.value = (!provChanged && a.model && p === (a.provider || "claude")) ? a.model : def;
       };
       buildProviderOptions();
