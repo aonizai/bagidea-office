@@ -91,9 +91,14 @@ function loadReg() {
   // profile, NOT logged in — fresh state each run) and --headed so you can watch
   // it work. Seeded once (reg.seededWebMcp) so removing it in the UI sticks.
   if (!reg.seededWebMcp) {
-    if (!reg.mcpServers.web)
+    if (!reg.mcpServers.web)               // 👀 visible — watch it work
       reg.mcpServers.web = { command: "npx -y @playwright/mcp@latest --headed --isolated" };
     reg.seededWebMcp = true;
+  }
+  if (!reg.seededWebBg) {
+    if (!reg.mcpServers["web-bg"])         // 🤫 headless — runs in the background
+      reg.mcpServers["web-bg"] = { command: "npx -y @playwright/mcp@latest --headless --isolated" };
+    reg.seededWebBg = true;
   }
   reg.places = reg.places || {};  // shorthand locations: "ห้องสมุด" → folder
   // Default main agent: SHINO — the owner's (CEO's) second-in-command who runs
@@ -1423,7 +1428,13 @@ function runClaude(agent, prompt, opts = {}) {
   const isFresh = isNew;
   const mtag = modelTag(agent);   // brain tag stamped on this run's messages + usage
   const mprov = (a && a.provider) || reg.defaultProvider || "claude";  // for cost tally
-  const picked = a && a.tools && a.tools.length ? a.tools : ["Read", "Glob", "Grep"];
+  const picked = (a && a.tools && a.tools.length ? a.tools : ["Read", "Glob", "Grep"]).slice();
+  // The "web-automation" skill IMPLIES the browser tool, so assigning the skill is
+  // enough to give an agent the web. Visible 'web' by default; if the owner ticked
+  // the background 'web-bg' tool, respect that instead.
+  if (((a && a.skills) || []).includes("web-automation") &&
+      !picked.includes("mcp:web") && !picked.includes("mcp:web-bg") && reg.mcpServers.web)
+    picked.push("mcp:web");
   // "mcp:<name>" entries become a real --mcp-config + server-level allow rule.
   const mcpNames = picked.filter((t) => t.startsWith("mcp:"))
     .map((t) => t.slice(4)).filter((n) => reg.mcpServers[n]);
