@@ -398,7 +398,9 @@ func set_hurry(on: bool) -> void:
 	_hurry = on
 
 func set_state(state: String) -> void:
-	_hurry = state == "working" or state == "meeting"
+	# "blocked" agents only move when hurrying to the Security desk to ask for a
+	# permission — so they should RUN there, like an agent dispatched to work.
+	_hurry = state == "working" or state == "meeting" or state == "blocked"
 	if _hud:
 		_hud.set_state(self, state)
 

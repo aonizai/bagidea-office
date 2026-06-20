@@ -355,7 +355,10 @@ func handle(evt: Dictionary) -> void:
 			_set_state(a, "working")
 			a.node.set_status("approved ✓")
 			_fx(a, "thumbs_up")
-			if a.desk != "":
+			# Only walk back if it actually LEFT to ask. A granted / allow-forever
+			# tool is auto-approved without ever moving the agent off its desk, so
+			# don't make it twitch up-and-out for nothing (matches the ghost path).
+			if a.desk != "" and a.node.position.distance_to(world.wp(a.desk)) > 1.5:
 				_walk(a.node, a.desk)
 			if not theatrical:
 				world.board_set(task, "running", id, _face_for(id))
@@ -1186,7 +1189,7 @@ func _start_collab(task: String, members: Array, topic: String, theatrical := fa
 	# huddle on the world origin (the "everyone stacked in one clump" bug). Fall
 	# back through other real anchors, then the floor centre — never gather on ZERO.
 	if center == Vector3.ZERO:
-		for alt in ["meeting_c", "ops_c", "lobby_c", "exec_c", "cafe_c", "rec_c"]:
+		for alt in ["meeting_c", "ops_c", "lobby_c", "cafe_c", "rec_c"]:
 			var p: Vector3 = world.wp(alt)
 			if p != Vector3.ZERO:
 				center = p
