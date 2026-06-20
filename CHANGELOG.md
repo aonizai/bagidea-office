@@ -4,6 +4,41 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.9.14] — The office browses the web + a batch of polish
+
+**Added**
+- **Web automation — agents browse and act on real pages.** A ready-to-use **🔌 web**
+  capability (Playwright MCP) lets an agent navigate, click, type, submit forms and
+  screenshot live pages. Ships as a one-tick **Web Automation** skill, and the Director
+  (Shino) carries it **by default** — so the office can browse from the first run, with
+  no setup. Choose **visible** (`web`, watch it work) or **background** (`web-bg`); it
+  runs an isolated profile (not logged in) and every action still passes the Security
+  Center. See [docs/guide/web-automation.md](docs/guide/web-automation.md).
+- **Agents split into ghost-clones far more readily.** The split (`SUB:`) capability is
+  now directive — agents parallelize whenever work has 2+ independent parts (research
+  multiple sources, check multiple files, compare options), and the Director routes
+  parallelizable delegations as splits. The Ghost Deck finally earns its keep.
+
+**Fixed**
+- **Agents no longer wander into unrelated projects.** A delegated task with no explicit
+  `@ project` used to inherit the Director's currently-open project; and a project name
+  was matched as a loose substring (a "build a web scraper" task could enter a project
+  named "web"). Now agents only enter a project when routed or clearly named — whole-word
+  for Latin, substring for boundary-less Thai/CJK — otherwise they work in the shared
+  workspace on a fresh thread.
+- **Office Ops: deleting a project no longer glitches** the list into vanishing, doubling
+  or flashing the wrong panel. Re-renders carry a token so only the newest commits to the
+  DOM, and a transient fetch error keeps the list on screen instead of blanking it.
+- **The world behaves.** Staff no longer pile on the world origin during a huddle (a
+  missing anchor fell back to (0,0,0)), and they stay out of the CEO's room — it's for the
+  CEO and the Director. An agent now **runs** to the Security desk to ask for a permission
+  (instead of strolling), and no longer twitches off its desk when a tool it already holds
+  is auto-approved.
+**Docs**
+- A plugin-authoring note against ASCII-stripping filenames/text (it turned Thai names
+  into underscores) with a Unicode-safe sanitizer, and a competition pitch deck under
+  `pitch/`. (The Music Player's own Thai-names fix shipped in its plugin repo, v1.2.0.)
+
 ## [0.9.13] — Installer: the hooks were never wired (perm + task hooks dead)
 
 **Fixed**
