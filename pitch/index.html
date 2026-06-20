@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BagIdea Office — pitch</title>
+<style>
+  :root{
+    --ground:#0b1220;            /* twilight navy — the office screen at dusk */
+    --ground-2:#0e1830;
+    --panel:#111d33;
+    --line:rgba(94,200,255,.16);
+    --text:#dce6fb;
+    --dim:#8499c2;
+    --accent:#5ec8ff;           /* signature neon-cyan UI glow */
+    --accent-2:#ffb454;         /* desk-lamp amber — the lights at night */
+    --mono:ui-monospace,"Cascadia Code","Cascadia Mono",Consolas,"Menlo",monospace;
+    --sans:system-ui,"Segoe UI","Leelawadee UI",Tahoma,"Noto Sans Thai","Noto Sans CJK",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--ground);color:var(--text);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;overflow-x:hidden;
+  }
+  /* top progress */
+  #prog{position:fixed;top:0;left:0;height:2px;width:0;z-index:50;
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));box-shadow:0 0 12px var(--accent)}
+  .deck{height:100vh;overflow-y:scroll;scroll-snap-type:y mandatory;scroll-padding-top:0}
+  .slide{min-height:100vh;scroll-snap-align:start;display:flex;flex-direction:column;
+    justify-content:center;padding:7vh 8vw 14vh;position:relative;border-bottom:1px solid var(--line)}
+  /* shared type */
+  .eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.34em;text-transform:uppercase;
+    color:var(--accent);display:flex;align-items:center;gap:12px;margin-bottom:26px}
+  .eyebrow::before{content:"";width:34px;height:1px;background:var(--accent);opacity:.7}
+  h1{font-size:clamp(40px,7.4vw,108px);line-height:.98;font-weight:800;letter-spacing:-.025em}
+  h2{font-size:clamp(30px,4.6vw,62px);line-height:1.02;font-weight:800;letter-spacing:-.02em}
+  .lede{font-size:clamp(17px,2vw,23px);line-height:1.5;color:var(--dim);max-width:60ch;margin-top:26px}
+  .lede strong{color:var(--text);font-weight:600}
+  b.cy{color:var(--accent);font-weight:700}
+  b.am{color:var(--accent-2);font-weight:700}
+  /* hero */
+  #hero{justify-content:flex-end;padding-bottom:18vh;overflow:hidden}
+  #sky{position:absolute;inset:0;width:100%;height:100%;z-index:0;
+    -webkit-mask-image:linear-gradient(180deg,#000 0%,#000 52%,transparent 86%);
+            mask-image:linear-gradient(180deg,#000 0%,#000 52%,transparent 86%)}
+  #hero>*{position:relative;z-index:1}
+  .wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.4em;color:var(--dim);
+    text-transform:uppercase;margin-bottom:30px}
+  .wordmark b{color:var(--text)}
+  #hero h1 span{display:block}
+  #hero h1 .glow{color:var(--accent);text-shadow:0 0 38px rgba(94,200,255,.45)}
+  .cursor{display:inline-block;width:.6ch;height:1.05em;background:var(--accent-2);
+    margin-left:.12em;transform:translateY(.13em);animation:blink 1.05s steps(1) infinite;box-shadow:0 0 16px var(--accent-2)}
+  @keyframes blink{50%{opacity:0}}
+  .herofoot{display:flex;gap:34px;flex-wrap:wrap;margin-top:40px;font-family:var(--mono);
+    font-size:13px;color:var(--dim);letter-spacing:.04em}
+  .herofoot b{color:var(--accent);display:block;font-size:24px;letter-spacing:0}
+  .scrollhint{position:absolute;bottom:5vh;left:8vw;font-family:var(--mono);font-size:11px;
+    letter-spacing:.3em;color:var(--dim);text-transform:uppercase;z-index:1}
+  .scrollhint span{display:inline-block;animation:nudge 1.8s ease-in-out infinite}
+  @keyframes nudge{50%{transform:translateY(5px)}}
+  /* generic grid of cards */
+  .grid{display:grid;gap:18px;margin-top:44px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .card{background:linear-gradient(160deg,var(--panel),var(--ground-2));border:1px solid var(--line);
+    border-radius:16px;padding:26px 24px;transition:border-color .2s,transform .2s}
+  .card:hover{border-color:rgba(94,200,255,.5);transform:translateY(-3px)}
+  .card .k{font-family:var(--mono);font-size:12px;color:var(--accent-2);letter-spacing:.14em;margin-bottom:12px}
+  .card h3{font-size:20px;font-weight:700;letter-spacing:-.01em;margin-bottom:9px}
+  .card p{color:var(--dim);font-size:14.5px;line-height:1.55}
+  /* the stack (slide 4) */
+  .stack{display:flex;flex-direction:column;gap:12px;margin-top:40px;max-width:780px}
+  .layer{display:grid;grid-template-columns:46px 1fr;align-items:center;gap:20px;
+    background:linear-gradient(90deg,var(--panel),transparent);border-left:2px solid var(--accent);
+    border-radius:0 12px 12px 0;padding:16px 20px}
+  .layer .n{font-family:var(--mono);font-size:13px;color:var(--accent)}
+  .layer h3{font-size:17px;font-weight:700;margin-bottom:3px}
+  .layer p{color:var(--dim);font-size:13.5px;line-height:1.45}
+  .layer:nth-child(odd){border-left-color:var(--accent-2)}
+  .layer:nth-child(odd) .n{color:var(--accent-2)}
+  /* big stat band (slide 6/9) */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:26px;margin-top:48px}
+  .stat .num{font-size:clamp(38px,5vw,68px);font-weight:800;letter-spacing:-.03em;line-height:1;
+    background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;
+    background-clip:text;-webkit-text-fill-color:transparent}
+  .stat .lab{font-family:var(--mono);font-size:12px;color:var(--dim);letter-spacing:.08em;margin-top:12px;line-height:1.4}
+  /* provider chips (slide 6) */
+  .chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:34px;max-width:820px}
+  .chip{font-family:var(--mono);font-size:12.5px;color:var(--text);border:1px solid var(--line);
+    background:rgba(94,200,255,.05);border-radius:999px;padding:7px 13px}
+  .chip.local{color:var(--accent-2);border-color:rgba(255,180,84,.35)}
+  /* roadmap (slide 10) */
+  .road{display:flex;flex-direction:column;gap:0;margin-top:42px;max-width:760px}
+  .stop{display:grid;grid-template-columns:120px 1fr;gap:24px;padding:18px 0;border-top:1px solid var(--line)}
+  .stop .when{font-family:var(--mono);font-size:13px;color:var(--accent);letter-spacing:.06em}
+  .stop.done .when{color:var(--dim);text-decoration:line-through}
+  .stop h3{font-size:17px;font-weight:700;margin-bottom:4px}
+  .stop p{color:var(--dim);font-size:14px;line-height:1.5}
+  /* close */
+  #close{align-items:flex-start}
+  .cta{display:inline-flex;align-items:center;gap:12px;font-family:var(--mono);font-size:14px;
+    letter-spacing:.06em;color:var(--ground);background:var(--accent);border-radius:10px;
+    padding:14px 22px;margin-top:38px;text-decoration:none;font-weight:600}
+  .repo{font-family:var(--mono);font-size:13.5px;color:var(--dim);margin-top:24px}
+  .repo b{color:var(--accent)}
+  /* statusbar */
+  #bar{position:fixed;bottom:0;left:0;right:0;height:38px;z-index:40;display:flex;align-items:center;
+    justify-content:space-between;padding:0 18px;background:rgba(8,13,24,.82);
+    backdrop-filter:blur(8px);border-top:1px solid var(--line);font-family:var(--mono);
+    font-size:11.5px;letter-spacing:.1em;color:var(--dim)}
+  #bar .l{color:var(--accent)}#bar .l b{color:var(--text)}
+  #bar .dots{display:flex;gap:7px}
+  #bar .dot{width:7px;height:7px;border-radius:50%;background:rgba(140,153,194,.32);transition:.2s;cursor:pointer}
+  #bar .dot.on{background:var(--accent);box-shadow:0 0 9px var(--accent);transform:scale(1.18)}
+  #bar .r b{color:var(--text)}
+  @media(max-width:760px){
+    .g3,.g2{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}
+    .stop{grid-template-columns:84px 1fr;gap:14px}.layer{grid-template-columns:34px 1fr;gap:12px}
+    #bar .dots{display:none}.slide{padding:9vh 8vw 16vh}
+  }
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto}}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div id="prog"></div>
+
+<div class="deck" id="deck">
+
+  <!-- 01 — HERO -->
+  <section class="slide" id="hero" data-title="The pitch">
+    <canvas id="sky"></canvas>
+    <div class="wordmark">▸ <b>BAGIDEA&nbsp;OFFICE</b> &nbsp;·&nbsp; an AI company that lives on your wallpaper</div>
+    <h1>
+      <span>Your desktop</span>
+      <span>just got <span class="glow">a team.</span><span class="cursor"></span></span>
+    </h1>
+    <p class="lede" style="max-width:54ch">A real office of AI agents that work <strong>on your wallpaper</strong> — not in a chat box. They sit at desks, take orders, open your project folders, and ship while you watch.</p>
+    <div class="herofoot">
+      <div><b>1</b> wallpaper</div>
+      <div><b>∞</b> employees</div>
+      <div><b>18</b> AI brains to hire from</div>
+      <div><b>0</b> cloud lock-in</div>
+    </div>
+    <div class="scrollhint"><span>scroll / → &nbsp;to begin</span></div>
+  </section>
+
+  <!-- 02 — PROBLEM -->
+  <section class="slide" data-title="The problem">
+    <div class="eyebrow">The problem</div>
+    <h2>AI agents are powerful.<br>And completely invisible.</h2>
+    <p class="lede">Today's agents live trapped in a chat window or a scrolling terminal. You can't <strong>see</strong> a team working, can't tell who's doing what, and the moment you close the tab the "office" is gone. Multi-agent work feels like managing ghosts you can't point at.</p>
+    <div class="grid g3">
+      <div class="card"><div class="k">no presence</div><h3>A wall of text</h3><p>One chat thread can't show five agents collaborating. Parallel work collapses into a transcript nobody can follow.</p></div>
+      <div class="card"><div class="k">no place</div><h3>Nowhere to live</h3><p>Close the window and it's over. Your "AI team" has no home, no continuity, no sense of an ongoing workplace.</p></div>
+      <div class="card"><div class="k">no control</div><h3>Trust, blindly</h3><p>Agents touch your files and run commands off-screen. Approving actions means reading log lines, not watching the room.</p></div>
+    </div>
+  </section>
+
+  <!-- 03 — SOLUTION -->
+  <section class="slide" data-title="The solution">
+    <div class="eyebrow">The solution</div>
+    <h2>Give the team a <b class="cy">place to work</b>.</h2>
+    <p class="lede">BagIdea Office turns your desktop wallpaper into a living HD-2D office. Every character is a <strong>real Claude Code agent</strong> — give an order to the Director and watch him walk it to the right desk, split the work, and report back. Behind the pixels it's doing real engineering in real folders.</p>
+    <div class="grid g3">
+      <div class="card"><div class="k">you see it</div><h3>Work has a body</h3><p>Agents walk, sit, huddle, and hand off tasks on-screen. Parallel work becomes something you can literally point at.</p></div>
+      <div class="card"><div class="k">it's real</div><h3>Not a screensaver</h3><p>Each agent is a genuine <code>claude&nbsp;-p</code> session editing files, running tools, and shipping code — the office is just the interface.</p></div>
+      <div class="card"><div class="k">it stays</div><h3>Always at work</h3><p>It lives on the wallpaper, day and night, picking work back up after a restart or a rate limit. The office never closes.</p></div>
+    </div>
+  </section>
+
+  <!-- 04 — HOW IT WORKS -->
+  <section class="slide" data-title="How it works">
+    <div class="eyebrow">Under the pixels</div>
+    <h2>One order in. Real work out.</h2>
+    <p class="lede" style="margin-bottom:0">Four layers turn "build me X" into shipped work — every step visible on the wallpaper.</p>
+    <div class="stack">
+      <div class="layer"><div class="n">01</div><div><h3>The world (Godot HD-2D)</h3><p>A pixel office on your wallpaper — desks, rooms, day/night that follows your real clock. The stage where work happens.</p></div></div>
+      <div class="layer"><div class="n">02</div><div><h3>The daemon (local, zero-dependency Node)</h3><p>Runs on 127.0.0.1. Holds the team registry, routes orders, brokers permissions, streams every event to the world.</p></div></div>
+      <div class="layer"><div class="n">03</div><div><h3>The agents (real Claude Code)</h3><p>Each one a headless session with its own persona, skills and tools — working inside your actual project folders.</p></div></div>
+      <div class="layer"><div class="n">04</div><div><h3>You, anywhere</h3><p>Command from the wallpaper, the CLI, or Telegram / Discord / LINE. Approvals pop up right where the agent is standing.</p></div></div>
+    </div>
+  </section>
+
+  <!-- 05 — DIFFERENTIATION -->
+  <section class="slide" data-title="Why it's different">
+    <div class="eyebrow">Why it's different</div>
+    <h2>Things only an <b class="am">office</b> can do.</h2>
+    <div class="grid g3">
+      <div class="card"><div class="k">parallelism</div><h3>Ghost clones</h3><p>An agent splits into translucent clones that work in parallel on a Ghost Deck, then merges the results — visible the whole time.</p></div>
+      <div class="card"><div class="k">safety</div><h3>Spatial permissions</h3><p>When an agent needs to run something risky, the approval card appears over its head. You allow per-tool, once or forever.</p></div>
+      <div class="card"><div class="k">delegation</div><h3>A real Director</h3><p>Talk to one manager. He plans, assigns to whoever has the right skills, and walks the result back to your desk.</p></div>
+      <div class="card"><div class="k">memory</div><h3>Learns on the job</h3><p>Agents pick up skills and keep notes across sessions — the office gets sharper the more you run it.</p></div>
+      <div class="card"><div class="k">reach</div><h3>Hands on the web</h3><p>Tick one skill and an agent drives a real browser — open pages, click, fill forms, screenshot — watch it or run it quietly.</p></div>
+      <div class="card"><div class="k">extensible</div><h3>Agents build tools</h3><p>The office writes its own plugins — new panels and commands — then installs them on itself. It grows.</p></div>
+    </div>
+  </section>
+
+  <!-- 06 — SWAPPABLE BRAIN -->
+  <section class="slide" data-title="Swappable brains">
+    <div class="eyebrow">Swappable brains</div>
+    <h2>Hire each employee a <b class="cy">different mind</b>.</h2>
+    <p class="lede">Per agent, pick the model that fits the job and the budget — frontier Claude for the hard calls, fast cheap models for the grunt work, or a fully local brain for zero cloud. One office, many minds, no lock-in.</p>
+    <div class="chips">
+      <span class="chip">Claude</span><span class="chip">GPT</span><span class="chip">Gemini</span>
+      <span class="chip">DeepSeek</span><span class="chip">GLM</span><span class="chip">Qwen</span>
+      <span class="chip">Kimi</span><span class="chip">MiniMax</span><span class="chip">Mistral</span>
+      <span class="chip">xAI&nbsp;Grok</span><span class="chip">Groq</span><span class="chip">Cerebras</span>
+      <span class="chip">Together</span><span class="chip">Fireworks</span>
+      <span class="chip local">◆ Ollama (local)</span><span class="chip local">◆ LM&nbsp;Studio (local)</span>
+      <span class="chip">+ your own endpoint</span>
+    </div>
+    <div class="stats" style="grid-template-columns:repeat(3,1fr);margin-top:46px">
+      <div class="stat"><div class="num">18</div><div class="lab">model providers,<br>swappable per agent</div></div>
+      <div class="stat"><div class="num">1M</div><div class="lab">token context auto-tuned<br>per model</div></div>
+      <div class="stat"><div class="num">$0</div><div class="lab">possible — run entirely<br>on local models</div></div>
+    </div>
+  </section>
+
+  <!-- 07 — ECOSYSTEM -->
+  <section class="slide" data-title="Ecosystem">
+    <div class="eyebrow">An ecosystem, not an app</div>
+    <h2>A workplace that <b class="am">extends itself</b>.</h2>
+    <div class="grid g2">
+      <div class="card"><div class="k">plugins</div><h3>Real apps inside the office</h3><p>Plugins add panels, routes and agent commands — a music player, a standup board, a live briefing. They pop out into their own resizable windows, like apps in an OS.</p></div>
+      <div class="card"><div class="k">the hub</div><h3>A community marketplace</h3><p>Browse and one-click-install plugins from a public hub. Anyone can publish; every plugin is a normal GitHub repo from a template.</p></div>
+      <div class="card"><div class="k">self-building</div><h3>The office writes its own</h3><p>Ask the team for a tool and an agent scaffolds, builds and installs a working plugin — then you keep it or ship it to the hub.</p></div>
+      <div class="card"><div class="k">channels</div><h3>Run it from your phone</h3><p>Telegram, Discord and LINE connect straight into the office. Assign work from the couch; watch it land on the wallpaper at home.</p></div>
+    </div>
+  </section>
+
+  <!-- 08 — REACH -->
+  <section class="slide" data-title="Built for everyone">
+    <div class="eyebrow">Built for everyone</div>
+    <h2>Everywhere you work, in your language.</h2>
+    <p class="lede">Cross-platform, fully localized, and alive — voice in, voice out, and a world whose lighting tracks the real sun outside your window.</p>
+    <div class="stats">
+      <div class="stat"><div class="num">3</div><div class="lab">OSes — Windows, macOS,<br>Linux (one wallpaper engine)</div></div>
+      <div class="stat"><div class="num">14</div><div class="lab">languages, fully<br>localized UI</div></div>
+      <div class="stat"><div class="num">F6</div><div class="lab">push-to-talk — speak an<br>order, hear a reply</div></div>
+      <div class="stat"><div class="num">24h</div><div class="lab">living world — day/night<br>on your real clock</div></div>
+    </div>
+  </section>
+
+  <!-- 09 — STATUS / TRACTION -->
+  <section class="slide" data-title="Where it stands">
+    <div class="eyebrow">Where it stands today</div>
+    <h2>Shipping, not a slide.</h2>
+    <p class="lede">BagIdea Office is a working product on a fast release cadence — one-line installer, in-app auto-updater, and a real user community filing issues we ship fixes for within the day.</p>
+    <div class="stats">
+      <div class="stat"><div class="num">v0.9</div><div class="lab">live & self-updating<br>in the wild</div></div>
+      <div class="stat"><div class="num">100%</div><div class="lab">open source —<br>art is free / CC0</div></div>
+      <div class="stat"><div class="num">1-line</div><div class="lab">install on a bare<br>machine, any OS</div></div>
+      <div class="stat"><div class="num">local</div><div class="lab">runs on 127.0.0.1 —<br>your code stays yours</div></div>
+    </div>
+  </section>
+
+  <!-- 10 — ROADMAP -->
+  <section class="slide" data-title="Where it's going">
+    <div class="eyebrow">Where it's going</div>
+    <h2>From a desktop toy to a daily team.</h2>
+    <div class="road">
+      <div class="stop done"><div class="when">shipped</div><div><h3>The living office + real agents</h3><p>Wallpaper world, the Director, ghost-clone parallelism, spatial permissions, channels and the CLI.</p></div></div>
+      <div class="stop done"><div class="when">shipped</div><div><h3>Open the brain &amp; the platform</h3><p>18 swappable model providers, the plugin Hub, cross-platform builds, web automation, 14 languages.</p></div></div>
+      <div class="stop"><div class="when">next</div><div><h3>Deeper autonomy</h3><p>Standing goals the office pursues on its own, richer self-built tooling, and sharper on-the-job memory.</p></div></div>
+      <div class="stop"><div class="when">vision</div><div><h3>Your always-on company</h3><p>A team that runs your projects around the clock, hires the right minds for each task, and grows its own tools — on a wallpaper anyone can install for free.</p></div></div>
+    </div>
+  </section>
+
+  <!-- 11 — CLOSE -->
+  <section class="slide" id="close" data-title="Install it">
+    <div class="eyebrow">The ask</div>
+    <h1 style="font-size:clamp(34px,5.6vw,82px)">Don't read about<br>the office. <span style="color:var(--accent)">Open it.</span></h1>
+    <p class="lede">It installs on a bare machine in one line and turns your wallpaper into a working team in minutes. Watch the Director take your first order and walk it to a desk — that demo is the pitch.</p>
+    <a class="cta" href="https://github.com/bagidea/bagidea-office">▸ github.com/bagidea/bagidea-office</a>
+    <div class="repo">one office · <b>∞</b> employees · <b>18</b> minds · <b>3</b> platforms · <b>14</b> languages · free &amp; open source</div>
+  </section>
+
+</div>
+
+<div id="bar">
+  <div class="l">▸ <b>BAGIDEA OFFICE</b></div>
+  <div class="dots" id="dots"></div>
+  <div class="r"><span id="cur">01</span> / <span id="tot">11</span></div>
+</div>
+
+<script>
+  const deck=document.getElementById('deck');
+  const slides=[...document.querySelectorAll('.slide')];
+  const prog=document.getElementById('prog');
+  const cur=document.getElementById('cur'),tot=document.getElementById('tot');
+  const dots=document.getElementById('dots');
+  tot.textContent=String(slides.length).padStart(2,'0');
+  slides.forEach((s,i)=>{const d=document.createElement('div');d.className='dot';d.title=s.dataset.title||('Slide '+(i+1));
+    d.onclick=()=>slides[i].scrollIntoView();dots.appendChild(d);});
+  const dotEls=[...dots.children];
+  let idx=0;
+  function onScroll(){
+    const h=deck.clientHeight;const i=Math.round(deck.scrollTop/h);
+    prog.style.width=(deck.scrollTop/(deck.scrollHeight-h)*100)+'%';
+    if(i!==idx){idx=Math.max(0,Math.min(slides.length-1,i));
+      cur.textContent=String(idx+1).padStart(2,'0');
+      dotEls.forEach((d,j)=>d.classList.toggle('on',j===idx));}
+  }
+  deck.addEventListener('scroll',onScroll,{passive:true});onScroll();dotEls[0].classList.add('on');
+  function go(n){const t=Math.max(0,Math.min(slides.length-1,idx+n));slides[t].scrollIntoView();}
+  addEventListener('keydown',e=>{
+    if(['ArrowRight','ArrowDown','PageDown',' '].includes(e.key)){e.preventDefault();go(1);}
+    else if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){e.preventDefault();go(-1);}
+    else if(e.key==='Home'){slides[0].scrollIntoView();}
+    else if(e.key==='End'){slides[slides.length-1].scrollIntoView();}
+  });
+
+  /* HERO — the office at dusk, windows lighting up as the team starts work.
+     One deliberate motion moment; static when reduced-motion is requested. */
+  const cv=document.getElementById('sky'),cx=cv.getContext('2d');
+  const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  let W,H,cells=[];
+  function build(){
+    W=cv.width=cv.offsetWidth*devicePixelRatio;H=cv.height=cv.offsetHeight*devicePixelRatio;
+    cells=[];const u=Math.max(16,Math.round(W/64)); // window size
+    const gap=Math.round(u*0.5),step=u+gap;
+    const cols=Math.ceil(W/step),baseRows=Math.ceil(H/step);
+    for(let c=0;c<cols;c++){
+      const bh=0.30+((c*53)%47)/47*0.62;             // pseudo-random building height
+      const rows=Math.round(baseRows*bh);
+      for(let r=0;r<rows;r++){
+        const lit=((c*7+r*13)%5===0);                 // some start lit
+        cells.push({x:c*step,y:H-(r+1)*step,u,on:lit?1:0,
+          want:lit?1:0,hue:((c+r)%6===0)?'am':'cy',t:((c*31+r*17)%1000)});
+      }
+    }
+  }
+  function draw(t){
+    cx.clearRect(0,0,W,H);
+    for(const c of cells){
+      if(!reduce){ // occasionally toggle a window on/off
+        if((t+c.t)%4000<16){ c.want=Math.random()<0.62?1:0; }
+        c.on+=(c.want-c.on)*0.06;
+      }else{c.on=c.want;}
+      const a=0.05+c.on*0.85;
+      if(c.hue==='am'){cx.fillStyle='rgba(255,180,84,'+(a*0.9)+')';}
+      else{cx.fillStyle='rgba(94,200,255,'+a+')';}
+      cx.fillRect(c.x,c.y,c.u,c.u);
+      if(c.on>0.5){cx.fillStyle=(c.hue==='am'?'rgba(255,180,84,':'rgba(94,200,255,')+(c.on*0.16)+')';
+        cx.fillRect(c.x-2,c.y-2,c.u+4,c.u+4);}
+    }
+  }
+  function loop(t){draw(t);if(!reduce)requestAnimationFrame(loop);}
+  build();addEventListener('resize',()=>{build();if(reduce)draw(0);});
+  if(reduce)draw(0);else requestAnimationFrame(loop);
+</script>
+</body>
+</html>
