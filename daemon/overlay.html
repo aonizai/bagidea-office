@@ -1012,6 +1012,13 @@
     "— เงียบสงบ… รอความเคลื่อนไหวในออฟฟิศ —": { en: "— quiet… waiting for office activity —", zh: "— 安静… 等待办公室动态 —", ja: "— 静か… オフィスの動きを待っています —" },
     "กำลังฟัง…": { en: "Listening…", zh: "聆听中…", ja: "聞いています…" },
     // plugins panel
+    "ถอนการติดตั้ง plugin นี้?": { en: "Uninstall this plugin?", zh: "卸载此插件？", ja: "このプラグインをアンインストールしますか？" },
+    "ถอนการติดตั้ง": { en: "Uninstall", zh: "卸载", ja: "アンインストール" },
+    "🗑 ถอน plugin แล้ว": { en: "🗑 Plugin removed", zh: "🗑 插件已移除", ja: "🗑 プラグインを削除しました" },
+    "✗ ถอนไม่สำเร็จ": { en: "✗ Couldn't remove", zh: "✗ 移除失败", ja: "✗ 削除できませんでした" },
+    "ติดตั้งทับตัวเดิม หรือ ติดตั้งเป็นตัวใหม่?": { en: "Overwrite the existing one, or install as a new copy?", zh: "覆盖现有插件，还是作为新副本安装？", ja: "既存を上書きしますか、新しいコピーとして入れますか？" },
+    "ทับตัวเดิม": { en: "Overwrite", zh: "覆盖", ja: "上書き" },
+    "ติดตั้งเป็นตัวใหม่": { en: "Install as new", zh: "作为新副本安装", ja: "新規として入れる" },
     "ส่วนขยายของออฟฟิศ — คลิกเพื่อเปิดแผง · agents สั่งงาน plugin เหล่านี้ได้": { en: "Office extensions — click to open a panel · agents can drive these plugins", zh: "办公室扩展 — 点击打开面板 · 代理可控制这些插件", ja: "オフィス拡張 — クリックでパネルを開く · エージェントが操作可能" },
     "ยังไม่มี plugin": { en: "No plugins yet", zh: "暂无插件", ja: "プラグインはまだありません" },
     "🧩 เรียกดู Plugins Hub (ชุมชน) — กดติดตั้งทีเดียว": { en: "🧩 Browse the Plugins Hub (community) — one-click install", zh: "🧩 浏览插件中心（社区）— 一键安装", ja: "🧩 プラグインハブを見る（コミュニティ）— ワンクリックでインストール" },
@@ -2126,6 +2133,11 @@
     else if (ev.type === "ceo.report") addFeed("main", "📨 ส่งสรุปงานให้ CEO", sess);
     else if (ev.type === "collab.started") addFeed((ev.agents || ["main"])[0], "🤝 ประชุมเริ่ม: " + String(ev.text || ""), sess);
     else if (ev.type === "skill.created") addFeed(ev.agent, "📚 เรียนรู้สกิลใหม่: " + ev.skill, sess);
+    // Plugins changed anywhere (this window, another, the Hub, an agent) → keep the open
+    // Plugins panel in sync so it never shows a stale installed/removed state.
+    else if (ev.type === "plugins.changed") {
+      if (modal.classList.contains("open") && modalCard.querySelector("#plgList")) openPlugins();
+    }
     else if (ev.type === "channel.message")
       addFeed("ceo", `📨 [${ev.channel}] ${ev.from}: ${ev.text}`, "", "alert");
     else if (ev.type === "proposal.created") {
@@ -3570,21 +3582,39 @@
       if (p.panel) row.onclick = () => openPluginWindow(p);
       else row.style.cursor = "default";
       const del = row.querySelector('[title="ถอนการติดตั้ง"]');
-      if (del) del.onclick = () => api("/plugins/remove", { id: p.id }).then(() => openPlugins());
+      if (del) del.onclick = async (e) => {
+        e.stopPropagation();   // never fall through to opening the (about-to-be-removed) panel
+        if (!(await confirmDanger(tr("ถอนการติดตั้ง plugin นี้?"),
+            `${p.name} · v${p.version || "?"}`, tr("ถอนการติดตั้ง")))) return;
+        const rr = await fetch("/plugins/remove", { method: "POST",
+          headers: { "content-type": "application/json", "x-bagidea-ui": "1" },
+          body: JSON.stringify({ id: p.id }) });
+        addChip(rr.ok ? tr("🗑 ถอน plugin แล้ว") + ": " + p.name
+                      : tr("✗ ถอนไม่สำเร็จ") + ": " + (await rr.text()).slice(0, 100));
+        openPlugins();
+      };
       box.appendChild(row);
     }
     wireFilter(modalCard.querySelector("#plgFilter"), box);
     modalCard.querySelector("#plgReload").onclick = () =>
       api("/plugins/reload", {}).then(() => openPlugins());
-    modalCard.querySelector("#plgInstall").onclick = async () => {
-      const url = modalCard.querySelector("#plgUrl").value.trim();
-      if (!url) return;
+    const doInstall = async (url, mode) => {
       addChip("📦 กำลังติดตั้ง plugin…");
       const r2 = await fetch("/plugins/install", { method: "POST",
         headers: { "content-type": "application/json", "x-bagidea-ui": "1" },
-        body: JSON.stringify({ url }) });
-      if (r2.ok) { addChip("✅ ติดตั้ง plugin แล้ว"); openPlugins(); }
-      else addChip("✗ " + (await r2.text()).slice(0, 100));
+        body: JSON.stringify({ url, mode: mode || "" }) });
+      if (r2.ok) { addChip("✅ ติดตั้ง plugin แล้ว"); openPlugins(); return; }
+      if (r2.status === 409) {   // already installed → overwrite or new copy?
+        const j = await r2.json().catch(() => ({}));
+        const choice = await dupChoice(j.id || "");
+        if (choice) return doInstall(url, choice);
+        return;
+      }
+      addChip("✗ " + (await r2.text()).slice(0, 100));
+    };
+    modalCard.querySelector("#plgInstall").onclick = () => {
+      const url = modalCard.querySelector("#plgUrl").value.trim();
+      if (url) doInstall(url, "");
     };
   }
   // Pop any daemon URL out as its own custom-chrome window (dark title bar via
@@ -4788,6 +4818,34 @@
       window.addEventListener("keydown", onKey);
       document.body.appendChild(ov);
       ov.querySelector(".cdYes").focus();
+    });
+  }
+
+  // A plugin with this id already exists → ask the owner what to do. Resolves
+  // "overwrite" | "new" | null(cancel).
+  function dupChoice(id) {
+    return new Promise((resolve) => {
+      const ov = document.createElement("div");
+      ov.style.cssText = "position:fixed;inset:0;z-index:99999;display:flex;align-items:center;" +
+        "justify-content:center;background:rgba(2,6,14,0.55);backdrop-filter:blur(2px);font:inherit";
+      ov.innerHTML =
+        `<div style="width:min(380px,88vw);background:#0e1626;border:1px solid #2a3a55;border-radius:14px;padding:18px">
+           <div style="font-size:14px;font-weight:700;color:#9fd0ff;margin-bottom:6px">📦 ${esc(id)}</div>
+           <div style="font-size:12px;color:#aebbd0;line-height:1.6;margin-bottom:15px">${tr("ติดตั้งทับตัวเดิม หรือ ติดตั้งเป็นตัวใหม่?")}</div>
+           <div style="display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap">
+             <button class="dcCancel" style="font:inherit;font-size:12px;padding:8px 14px;border-radius:9px;border:1px solid #2a3a55;background:transparent;color:#cdd8ea;cursor:pointer">${t("ยกเลิก")}</button>
+             <button class="dcNew" style="font:inherit;font-size:12px;padding:8px 14px;border-radius:9px;border:1px solid #3a5a86;background:#1c3050;color:#dbe7ff;cursor:pointer">${tr("ติดตั้งเป็นตัวใหม่")}</button>
+             <button class="dcOver" style="font:inherit;font-size:12px;padding:8px 15px;border-radius:9px;border:1px solid #c08a2a;background:#9c6f1f;color:#fff;font-weight:700;cursor:pointer">${tr("ทับตัวเดิม")}</button>
+           </div>
+         </div>`;
+      const close = (v) => { window.removeEventListener("keydown", onKey); ov.remove(); resolve(v); };
+      const onKey = (e) => { if (e.key === "Escape") close(null); };
+      ov.querySelector(".dcCancel").onclick = () => close(null);
+      ov.querySelector(".dcNew").onclick = () => close("new");
+      ov.querySelector(".dcOver").onclick = () => close("overwrite");
+      ov.onclick = (e) => { if (e.target === ov) close(null); };
+      window.addEventListener("keydown", onKey);
+      document.body.appendChild(ov);
     });
   }
 

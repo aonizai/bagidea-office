@@ -4160,7 +4160,9 @@ const server = http.createServer((req, res) => {
     readBody(req, (body) => {
       try {
         if (!req.headers["x-bagidea-ui"]) { res.writeHead(403); return res.end("human UI only"); }
-        let url = String(JSON.parse(body).url || "").trim();
+        const reqBody = JSON.parse(body);
+        let url = String(reqBody.url || "").trim();
+        const mode = String(reqBody.mode || "");   // "" → ask on conflict · "overwrite" · "new"
         if (!/^https:\/\/(github\.com|gitlab\.com|[\w.-]+)\/[\w.\-/]+$/.test(url))
           throw new Error("ใส่ลิงก์ git repo ที่ขึ้นต้น https:// ของ plugin");
         if (!url.endsWith(".git")) url += ".git";
@@ -4179,13 +4181,36 @@ const server = http.createServer((req, res) => {
           const repoName = url.split("/").pop().replace(/\.git$/, "");
           const id = String(man.id || repoName).replace(/[^\w-]/g, "");
           if (!id) return fail("plugin.json ไม่มี id ที่ถูกต้อง");
-          const dest = path.join(pluginsRoot, id);
-          if (fs.existsSync(dest)) return fail("มี plugin ชื่อนี้แล้ว: " + id);
+          let finalId = id;
+          let dest = path.join(pluginsRoot, id);
+          if (fs.existsSync(dest)) {
+            if (mode === "overwrite") {
+              try { fs.rmSync(dest, { recursive: true, force: true }); }
+              catch (err) { return fail("ลบตัวเดิมไม่สำเร็จ: " + err.message); }
+            } else if (mode === "new") {
+              // Install a SECOND copy under a free id (foo-2, foo-3…) and rewrite the
+              // manifest id/name to match, so it's a genuinely distinct plugin.
+              let n = 2;
+              while (fs.existsSync(path.join(pluginsRoot, id + "-" + n))) n++;
+              finalId = id + "-" + n;
+              dest = path.join(pluginsRoot, finalId);
+              try {
+                man.id = finalId;
+                if (man.name) man.name = man.name + " (" + n + ")";
+                fs.writeFileSync(path.join(tmp, "plugin.json"), JSON.stringify(man, null, 2));
+              } catch (err) { return fail("ตั้งชื่อตัวใหม่ไม่สำเร็จ: " + err.message); }
+            } else {
+              // No decision yet → let the UI ask the owner (overwrite vs new copy).
+              try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
+              res.writeHead(409, { "content-type": "application/json; charset=utf-8" });
+              return res.end(JSON.stringify({ exists: true, id }));
+            }
+          }
           try { fs.renameSync(tmp, dest); } catch (err) { return fail("ติดตั้งไม่สำเร็จ: " + err.message); }
           plugins.load();
           broadcast({ type: "plugins.changed" }, false);
           res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-          res.end(JSON.stringify({ ok: true, name: id }));
+          res.end(JSON.stringify({ ok: true, name: finalId }));
         });
       } catch (e) { res.writeHead(400, { "content-type": "text/plain; charset=utf-8" }); res.end(String(e.message)); }
     });
