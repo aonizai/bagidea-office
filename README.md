@@ -33,6 +33,7 @@ the office truly comes alive.
 ### 🆕 Recently shipped
 BagIdea Office is updated **constantly** — every office gets a 🔄 banner and one-click `bagidea update`. The latest:
 
+- **v0.9.1–0.9.12 — 🐧 Linux (experimental) + a lot of polish:** an experimental **Linux** build — one-line **apt** installer; on **X11/Xorg** it attaches as the live desktop wallpaper, on **Wayland** it falls back to a fullscreen window pinned below. Plus accurate **per-model context windows** (Claude / DeepSeek V4 / Gemini 2.5 / GPT‑4.1 = **1M**) with the model picker **pre-selecting each provider's newest model**, a **Kimi Code** provider, **work auto-resumes after a rate-limit or a restart**, attached **images readable by any model** (vision OCR), **gender-aware agent voices**, a rock-solid **plugin install / uninstall** (confirm + live hub↔panel sync + overwrite-or-new on reinstall) with **📌 pin** for favourites, and a **voice hotkey** that can't wedge. A fresh office now installs **empty** (add plugins from the Hub).
 - **v0.9.0 — 🧠 More brains + safer delegation + agent-built workflows:** **18 model providers** built in now — added **Groq, Cerebras, xAI (Grok), Mistral, Together, Fireworks** (via the proxy), **local Ollama / LM Studio that need no API key**, and **Kimi (Moonshot)** direct — and the pickers fetch each provider's **live model list** so new models always show. Plus an opt-in **verification loop** (a reviewer double-checks delegated work before it reaches you), **approve/reject project proposals right in the chat or feed**, **agents that build workflows** (and a **🪄 Draft with Director** button), **protected built-in skills** with searchable Skill/Tool pickers, a **redesigned neon chat-head**, and a `bagidea brains` CLI.
 - **v0.8.0 — 🧠 Swappable Brains (the big one):** run **each agent on its own model**. Director on Claude (the thinker), builders on cheaper models → big cost savings with **zero** loss of Claude Code's tools/skills/sessions (Claude Code is still the engine — only the brain behind it swaps). Talk **direct** to Claude/GLM/DeepSeek/Qwen/MiniMax, or reach **OpenAI/Gemini/OpenRouter/NVIDIA + your own custom providers** through a **built-in, zero-dependency proxy** (no LiteLLM/Python). Plus **auto-compact + auto-new-thread for *every* model** (long chats never clog or freeze — see below), a **🧠 BRAINS monitor**, a per-message **model tag + context meter**, **per-provider cost** in STATS, a **typing indicator**, and **cancel-a-task** mid-flight.
 - **v0.7.8–0.7.9** — 🔀 **Workflow Builder** grows up: an n8n-style **graph canvas** (zoom/pan, branch & merge), **tabs**, **7 read-only examples**, and you can **▶️ Run** a flow or **🧠 save it as a Skill**. 🧰 **Tools Hub** — one-click MCP servers (Browser automation, Google, Postgres, Notion…) with a plain-language guide. New windows now follow your **language**, plugins open one way, the chat tucks aside for new windows, and a **wallpaper-stability** fix (no more vanishing on Win+D).
@@ -109,7 +110,7 @@ breaks down **estimated spend per provider**.
 
 ---
 
-> ✅ **Status: working product — Windows 11 (stable) + macOS 13+ (beta, new this release).** The full pipeline works end-to-end: wallpaper → daemon → real Claude Code sessions working *inside real project folders* → spatialized approvals → agent management UI → Telegram/Discord/LINE channels → CLI → self-updater. All visuals and sounds **ship in the repo** (free / CC0 art — see [Art assets](#art-assets)), so a fresh install and `bagidea update` carry the full look out of the box.
+> ✅ **Status: working product — Windows 11 (stable) · macOS 13+ (beta) · Linux (experimental 🧪).** The full pipeline works end-to-end: wallpaper → daemon → real Claude Code sessions working *inside real project folders* → spatialized approvals → agent management UI → Telegram/Discord/LINE channels → CLI → self-updater. All visuals and sounds **ship in the repo** (free / CC0 art — see [Art assets](#art-assets)), so a fresh install and `bagidea update` carry the full look out of the box.
 
 ---
 
@@ -238,7 +239,7 @@ Sponsorship is a **recurring monthly subscription handled entirely by GitHub Spo
 - **🔑 API key vault**: store `OPENAI_API_KEY` & friends once; they're injected into every agent run's environment, and agents are told which names exist
 - **♻️ Self-healing daemon**: a watchdog respawns the daemon if it ever dies, and `bagidea restart` is more resilient — the office stays up on its own
 - **🔄 Self-updating (version-gated)**: a `VERSION` file marks releases. The daemon compares the local `VERSION` with the one on `main` and only raises the in-app banner on a real version bump — routine commits and dev-branch work never nag users. The banner (or `bagidea update`) pulls, rebuilds what changed, and relaunches. `bagidea version` shows the current build and whether an update is out (release flow: [`RELEASING.md`](RELEASING.md))
-- **🪟 Start with Windows**: launch the office on boot — toggle it from the tray, settings (⚙ → AGENTS), or `bagidea startup on|off` (all share one HKCU Run key). Windows-only for now — autostart isn't wired on macOS yet
+- **🪟 Start at login**: launch the office on boot — toggle it from the tray, settings (⚙ → AGENTS), or `bagidea startup on|off`. Wired on **all three OSes**: a HKCU Run key (Windows), a LaunchAgent (macOS), and an XDG `~/.config/autostart` entry (Linux)
 
 ### 🛡️ Spatialized security
 When an agent needs a tool you have **not** granted:
@@ -264,7 +265,7 @@ Served by the daemon at `http://127.0.0.1:8787/` — best experienced through th
 - **🔵 NOW WORKING strip**: one calm line under the header — "กำลังทำ N งาน · latest…" — expandable into the full live task list; visible in feed mode too
 - **🔗 CONNECT tab**: API key vault (masked) + Telegram/Discord/LINE channel setup with live status dots
 - **📡 Feed mode**: right-click the chat head — the panel becomes a translucent right-edge activity stream (scrollback, hover-to-focus, 🧹 clear, actionable permission cards); the wallpaper stays clean for streaming/recording
-- **🎤 Push-to-talk**: hold **F6** anywhere in Windows, speak (Windows Voice Typing — Thai works), release; a pulsing live pill shows what was heard; feed mode auto-sends to the Director (the F6 global hotkey is Windows-only for now — on macOS use the in-overlay mic button)
+- **🎤 Push-to-talk**: hold **F6** anywhere in Windows, speak (Windows Voice Typing — Thai works), release; a pulsing live pill shows what was heard; feed mode auto-sends to the Director (the F6 global hotkey is Windows-only for now — on macOS/Linux use the in-overlay mic button)
 - **🌗 Atmosphere picker**, slide-over **🛡 Security/Mission/Office-Log sidebar** (edge handle pulses when an approval is waiting; pops open on arrival)
 - **🔄 Update banner** when a new version lands on GitHub — one click updates and relaunches
 - Circular **chat head** (Messenger-style, never steals focus) + system tray (Start with Windows, **Hide office**, Exit)
@@ -333,7 +334,7 @@ Three independent processes: the **daemon** keeps agents running even if renderi
 
 | Component | Requirement |
 |---|---|
-| OS | Windows 11 / macOS 13+ (wallpaper backend: WorkerW / DYLD shim) |
+| OS | Windows 11 · macOS 13+ (beta) · Linux (experimental) — wallpaper backend: WorkerW / DYLD shim / X11 EWMH (Wayland → fullscreen-below) |
 | Renderer | [Godot 4.6+](https://godotengine.org/download) (standard build) |
 | Daemon | [Node.js](https://nodejs.org) 18+ (no npm packages needed) |
 | Agent | [Claude Code CLI](https://claude.com/claude-code) (`claude --version` ≥ 2.x) |
@@ -506,7 +507,7 @@ office answers you anywhere. Discord and LINE work too —
 ### Speak instead of typing
 Hold **F6**, talk, release. In normal mode the words land in the input box for
 you to review; in 📡 feed mode they're sent to the Director automatically.
-(F6 is Windows-only for now — on macOS use the in-overlay mic button.)
+(F6 is Windows-only for now — on macOS/Linux use the in-overlay mic button.)
 
 ### Simulate events (no Claude needed)
 ```powershell
@@ -686,7 +687,7 @@ this makes them employable"*).
 - [x] **Social groups** (3–4 agents) → plugin-oriented proposals with approve/reject notes; **main-only calls** with assigned voices
 - [ ] Wake word; channel round-trip reports (delegate results back to the channel)
 - [x] macOS wallpaper backend (beta)
-- [ ] Linux wallpaper backend
+- [x] Linux wallpaper backend (experimental — X11 EWMH; Wayland fullscreen-below fallback)
 - [ ] Signed binary releases (skip the Rust build on install)
 
 ## License

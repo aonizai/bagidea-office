@@ -87,7 +87,7 @@
     <p data-i18n="d_c_grid_p">The floor is a 3×3 jigsaw of identical rooms; any room fits any slot, so you can rearrange the whole office in the editor.</p>
 
     <h2 id="install-win" data-i18n="d_install_h">Installation</h2>
-    <div class="note" data-i18n="d_install_plat">Platform support: Windows 11 (stable, wallpaper embedding uses the WorkerW technique) and macOS 13+ (beta, new this release). A Linux backend is planned for a later update.</div>
+    <div class="note" data-i18n="d_install_plat">Platform support: Windows 11 (stable, wallpaper embedding uses the WorkerW technique), macOS 13+ (beta, DYLD shim), and Linux (experimental — X11 EWMH desktop attach; Wayland falls back to a fullscreen window pinned below).</div>
     <h3 data-i18n="d_install_win_h">Windows — one-shot installer (recommended)</h3>
     <p data-i18n="d_install_win_p">Open PowerShell and run the command below. It installs every dependency (Git, Node LTS, Rust, Godot 4.6.3, Claude Code CLI), clones the app to %LOCALAPPDATA%\BagIdeaOffice, builds the desktop shell, brands the window icon, adds bagidea to your PATH, and creates a Start Menu shortcut. It is safe to re-run — each step skips what's already done.</p>
     <pre><code>irm https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install.ps1 | iex</code></pre>
@@ -95,6 +95,10 @@
     <h3 id="install-mac" data-i18n="d_install_mac_h">macOS — one-shot installer (beta)</h3>
     <p data-i18n="d_install_mac_p">Open Terminal and run the command below. It installs the dependencies (Git, Node, Rust, Godot, Claude Code CLI), clones the app to ~/BagIdeaOffice, builds the desktop shell and the wallpaper-embed shim, wires the Claude hooks, and sets up the bagidea command. Safe to re-run.</p>
     <pre><code>curl -fsSL https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install-mac.sh | bash</code></pre>
+
+    <h3 id="install-linux" data-i18n="d_install_lin_h">Linux — one-shot installer (experimental 🧪)</h3>
+    <p data-i18n="d_install_lin_p">Ubuntu/Debian (apt) for now. Open a terminal and run the command below. It installs the dependencies (Node 20, Rust, Git, WebKitGTK, GTK, wmctrl/xdotool, PulseAudio utils, Godot 4.6.3), builds the desktop shell, wires the Claude hooks, symlinks bagidea into ~/.local/bin, and adds an XDG autostart entry. On X11/Xorg the office attaches as the real desktop wallpaper; on Wayland it falls back to a fullscreen window pinned below everything. Please report problems with your distro, desktop, and the output of "echo $XDG_SESSION_TYPE".</p>
+    <pre><code>curl -fsSL https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install-linux.sh | bash</code></pre>
 
     <h3 id="install-manual" data-i18n="d_install_manual_h">Manual build</h3>
     <p data-i18n="d_install_manual_p">Clone the repository, point the Claude hook paths at your clone, then build the Rust shell:</p>
@@ -218,7 +222,7 @@ bagidea start   # launch the office</code></pre>
     <h3 data-i18n="d_faq_q2">Is my code/data sent anywhere?</h3>
     <p data-i18n="d_faq_a2">The daemon runs locally on 127.0.0.1. Agents are Claude Code sessions, so they use Claude like any Claude Code project. Optional features (voice, image, realtime) use your own OpenAI/Gemini keys only when you enable them.</p>
     <h3 data-i18n="d_faq_q3">Which platforms are supported?</h3>
-    <p data-i18n="d_faq_a3">Windows 11 and macOS 13+ (beta) today. A Linux wallpaper backend is on the roadmap.</p>
+    <p data-i18n="d_faq_a3">Windows 11, macOS 13+ (beta), and Linux (experimental) today.</p>
     <h3 data-i18n="d_faq_q4">Can I build my own plugin?</h3>
     <p data-i18n="d_faq_a4">Yes — fork the official template repo. A person or an agent can build a working plugin from it in minutes; the full spec is in the plugin guide.</p>
   </main>

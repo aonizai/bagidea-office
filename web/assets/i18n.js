@@ -28,7 +28,7 @@ const I18N = {
     cta_get:"Get started", cta_docs:"Read the docs", cta_github:"GitHub", upd_eyebrow:"Always improving", upd_title:"Updated constantly", upd_sub:"BagIdea Office ships real updates all the time — bug fixes, new features and polish. Every office gets a one-click update notice.", upd_latest:"Latest", upd_cta:"See what's new →",
     hero_title:'Your wallpaper <span class="grad">goes to work</span>.',
     hero_sub:"BagIdea Office turns your desktop into a living HD-2D office where every AI agent is a real Claude that walks to its desk, asks permission, holds meetings, and gets work done — behind your icons.",
-    badge_win:"Windows 11 · macOS (beta)", badge_open:"Open source", badge_free:"Free to run",
+    badge_win:"Windows · macOS (beta) · Linux (beta)", badge_open:"Open source", badge_free:"Free to run",
     badge_langs:"14 languages",
     shot_cap:"A real desktop, captured live — agents at their desks, the brand billboard, the day/night cycle following your local time.",
 
@@ -61,8 +61,8 @@ const I18N = {
 
     inst_eyebrow:"Installation", inst_title:"Up and running in minutes",
     inst_lead:"One command installs every dependency, builds the app, and wires it onto your PATH.",
-    inst_plat:"Windows 11 (stable) and macOS 13+ (beta) are supported. A Linux wallpaper backend is planned for a later update.",
-    inst_s1_h:"Run the one-shot installer", inst_s1_p:"On a fresh machine it installs Git, Node LTS, Rust, Godot 4.6.3 and the Claude Code CLI, clones the app, builds the shell, brands the icon, and adds the bagidea command to your PATH — in one pass.", dn_install_mac:"macOS (one-shot)", d_install_mac_h:"macOS — one-shot installer (beta)", d_install_mac_p:"Open Terminal and run the command below. It installs the dependencies (Git, Node, Rust, Godot, Claude Code CLI), clones the app to ~/BagIdeaOffice, builds the desktop shell and the wallpaper-embed shim, wires the Claude hooks, and sets up the bagidea command. Safe to re-run.",
+    inst_plat:"Windows 11 (stable), macOS 13+ (beta), and Linux (experimental) are supported. On X11 the office attaches as the desktop wallpaper; on Wayland it falls back to a fullscreen window pinned below.",
+    inst_s1_h:"Run the one-shot installer", inst_s1_p:"On a fresh machine it installs Git, Node LTS, Rust, Godot 4.6.3 and the Claude Code CLI, clones the app, builds the shell, brands the icon, and adds the bagidea command to your PATH — in one pass.", dn_install_mac:"macOS (one-shot)", d_install_mac_h:"macOS — one-shot installer (beta)", d_install_mac_p:"Open Terminal and run the command below. It installs the dependencies (Git, Node, Rust, Godot, Claude Code CLI), clones the app to ~/BagIdeaOffice, builds the desktop shell and the wallpaper-embed shim, wires the Claude hooks, and sets up the bagidea command. Safe to re-run.", d_install_lin_h:"Linux — one-shot installer (experimental 🧪)", d_install_lin_p:"Ubuntu/Debian (apt) for now. Open a terminal and run the command below. It installs the dependencies (Node 20, Rust, Git, WebKitGTK, GTK, wmctrl/xdotool, PulseAudio utils, Godot 4.6.3), builds the desktop shell, wires the Claude hooks, symlinks bagidea into ~/.local/bin, and adds an XDG autostart entry. On X11/Xorg the office attaches as the real desktop wallpaper; on Wayland it falls back to a fullscreen window pinned below everything. Please report problems with your distro, desktop, and the output of \"echo $XDG_SESSION_TYPE\".",
     inst_s2_h:"Log in to Claude (first time only)", inst_s2_p:"Open a new terminal and run claude once to sign in with your existing Claude account or subscription — that's the brain of every agent.",
     inst_s3_h:"Start the office", inst_s3_p:"Run bagidea start (or use the Start Menu shortcut). Your wallpaper becomes the office, with the chat head and tray icon ready.",
     inst_req_h:"Requirements", inst_req:"Windows 11 or macOS 13+ (beta) · a Vulkan-capable GPU (verified on a GTX 1060) · a Claude account (Claude Code CLI). Node, Rust and Godot are installed for you by the installer.",
@@ -134,7 +134,7 @@ const I18N = {
     d_install_manual_p:"Clone the repository, point the Claude hook paths at your clone, then build the Rust shell:",
     d_install_first_h:"First run",
     d_install_first_p:"Log in to Claude once, then start the office. Your wallpaper becomes the live office; a chat head and tray icon appear.",
-    d_install_plat:"Platform support: Windows 11 (stable, wallpaper embedding uses the WorkerW technique) and macOS 13+ (beta, new this release). A Linux backend is planned for a later update.",
+    d_install_plat:"Platform support: Windows 11 (stable, WorkerW), macOS 13+ (beta, DYLD shim), and Linux (experimental — X11 EWMH desktop attach; on Wayland it falls back to a fullscreen window pinned below).",
 
     d_using_h:"Using it",
     d_chat_h:"Chat & the CEO", d_chat_p:"The chat panel opens on your CEO seat. Type an order in the CEO seat and the Director walks over to take it, plans, and delegates — you watch the hand-offs on the wallpaper, and the summary is walked back to you. To talk to any agent directly, click their face in the rail or on the live map. Every conversation is a resumable thread with full history.",
@@ -174,7 +174,7 @@ const I18N = {
     d_faq_h:"FAQ",
     d_faq_q1:"Does it cost money to run?", d_faq_a1:"The app is free and open source (MIT). Agents run through your own Claude Code login, so usage follows your existing Claude account or subscription — there is no separate BagIdea fee.",
     d_faq_q2:"Is my code/data sent anywhere?", d_faq_a2:"The daemon runs locally on 127.0.0.1. Agents are Claude Code sessions, so they use Claude like any Claude Code project. Optional features (voice, image, realtime) use your own OpenAI/Gemini keys only when you enable them.",
-    d_faq_q3:"Which platforms are supported?", d_faq_a3:"Windows 11 and macOS 13+ (beta) today. A Linux wallpaper backend is on the roadmap.",
+    d_faq_q3:"Which platforms are supported?", d_faq_a3:"Windows 11, macOS 13+ (beta), and Linux (experimental) today.",
     d_faq_q4:"Can I build my own plugin?", d_faq_a4:"Yes — fork the official template repo. A person or an agent can build a working plugin from it in minutes; the full spec is in the plugin guide.",
   },
 
@@ -183,7 +183,7 @@ const I18N = {
     cta_get:"Loslegen", cta_docs:"Dokumentation lesen", cta_github:"GitHub", upd_eyebrow:"Immer besser", upd_title:"Ständig aktualisiert", upd_sub:"BagIdea Office erhält ständig Updates — Fehlerbehebungen, neue Funktionen und Feinschliff. Jedes Office bekommt eine Update-Benachrichtigung mit einem Klick.", upd_latest:"Neueste", upd_cta:"Was ist neu →",
     hero_title:'Ihr Hintergrundbild <span class="grad">geht arbeiten</span>.',
     hero_sub:"BagIdea Office verwandelt deinen Desktop in ein lebendiges HD-2D-Büro, in dem jeder KI-Agent ein echter Claude ist, der an seinen Schreibtisch geht, um Erlaubnis bittet, Meetings abhält und Arbeit erledigt – hinter deinen Icons.",
-    badge_win:"Windows 11 · macOS (beta)", badge_open:"Open Source", badge_free:"Kostenlos nutzbar",
+    badge_win:"Windows · macOS (beta) · Linux (beta)", badge_open:"Open Source", badge_free:"Kostenlos nutzbar",
     badge_langs:"14 Sprachen",
     shot_cap:"Ein echter Desktop, live aufgenommen — Agents an ihren Schreibtischen, das Marken-Billboard, der Tag-Nacht-Zyklus nach Ihrer lokalen Zeit.",
 
@@ -213,8 +213,8 @@ const I18N = {
 
     inst_eyebrow:"Installation", inst_title:"In Minuten einsatzbereit",
     inst_lead:"Ein Befehl installiert alle Abhängigkeiten, baut die App und fügt sie zu Ihrem PATH hinzu.",
-    inst_plat:"Windows 11 (stabil) und macOS 13+ (beta) werden unterstützt. Ein Linux-Hintergrundbild-Backend ist für ein späteres Update geplant.",
-    inst_s1_h:"Den Einzel-Installer ausführen", inst_s1_p:"Auf einem frischen System installiert es Git, Node LTS, Rust, Godot 4.6.3 und das Claude Code CLI, klont die App, baut die Shell, versieht das Icon mit dem Branding und fügt den bagidea-Befehl zu Ihrem PATH hinzu – in einem Durchgang.", dn_install_mac:"macOS (One-Shot)", d_install_mac_h:"macOS — One-Shot-Installer (beta)", d_install_mac_p:"Öffnen Sie das Terminal und führen Sie den folgenden Befehl aus. Er installiert die Abhängigkeiten (Git, Node, Rust, Godot, Claude Code CLI), klont die App nach ~/BagIdeaOffice, erstellt die Desktop-Shell und das Wallpaper-Embed-Shim, verbindet die Claude-Hooks und richtet den Befehl bagidea ein. Kann bedenkenlos erneut ausgeführt werden.",
+    inst_plat:"Windows 11 (stabil), macOS 13+ (beta) und Linux (experimentell) werden unterstützt. Unter X11 wird das Büro als Desktop-Hintergrundbild eingebunden; unter Wayland weicht es auf ein unten fixiertes Vollbildfenster aus.",
+    inst_s1_h:"Den Einzel-Installer ausführen", inst_s1_p:"Auf einem frischen System installiert es Git, Node LTS, Rust, Godot 4.6.3 und das Claude Code CLI, klont die App, baut die Shell, versieht das Icon mit dem Branding und fügt den bagidea-Befehl zu Ihrem PATH hinzu – in einem Durchgang.", dn_install_mac:"macOS (One-Shot)", d_install_mac_h:"macOS — One-Shot-Installer (beta)", d_install_mac_p:"Öffnen Sie das Terminal und führen Sie den folgenden Befehl aus. Er installiert die Abhängigkeiten (Git, Node, Rust, Godot, Claude Code CLI), klont die App nach ~/BagIdeaOffice, erstellt die Desktop-Shell und das Wallpaper-Embed-Shim, verbindet die Claude-Hooks und richtet den Befehl bagidea ein. Kann bedenkenlos erneut ausgeführt werden.", d_install_lin_h:"Linux — Einzel-Installer (experimentell 🧪)", d_install_lin_p:"Vorerst Ubuntu/Debian (apt). Öffnen Sie ein Terminal und führen Sie den folgenden Befehl aus. Er installiert die Abhängigkeiten (Node 20, Rust, Git, WebKitGTK, GTK, wmctrl/xdotool, PulseAudio-Tools, Godot 4.6.3), baut die Desktop-Shell, verbindet die Claude-Hooks, verlinkt bagidea nach ~/.local/bin und legt einen XDG-Autostart-Eintrag an. Unter X11/Xorg wird das Büro als echtes Desktop-Hintergrundbild eingebunden; unter Wayland weicht es auf ein Vollbildfenster aus, das unter allem fixiert ist. Bitte melden Sie Probleme mit Ihrer Distro, Ihrem Desktop und der Ausgabe von \"echo $XDG_SESSION_TYPE\".",
     inst_s2_h:"Bei Claude anmelden (nur beim ersten Mal)", inst_s2_p:"Öffnen Sie ein neues Terminal und führen Sie claude einmal aus, um sich mit Ihrem bestehenden Claude-Konto oder -Abonnement anzumelden — das ist das Gehirn jedes Agents.",
     inst_s3_h:"Das Büro starten", inst_s3_p:"Führen Sie bagidea start aus (oder verwenden Sie die Startmenü-Verknüpfung). Ihr Hintergrundbild wird zum Büro, mit Chat-Kopf und Tray-Icon bereit.",
     inst_req_h:"Systemanforderungen", inst_req:"Windows 11 oder macOS 13+ (beta) · eine Vulkan-fähige GPU (verifiziert auf einer GTX 1060) · ein Claude-Konto (Claude Code CLI). Node, Rust und Godot werden vom Installer für Sie installiert.",
@@ -270,7 +270,7 @@ const I18N = {
     d_install_manual_p:"Klonen Sie das Repository, zeigen Sie die Claude-Hook-Pfade auf Ihren Klon und bauen Sie dann die Rust-Shell:",
     d_install_first_h:"Erste Ausführung",
     d_install_first_p:"Melden Sie sich einmal bei Claude an, dann starten Sie das Büro. Ihr Hintergrundbild wird zum live Büro; ein Chat-Kopf und ein Tray-Icon erscheinen.",
-    d_install_plat:"Plattformunterstützung: Windows 11 (stabil, die Einbettung des Hintergrundbilds nutzt die WorkerW-Technik) und macOS 13+ (beta, neu in dieser Version). Ein Linux-Backend ist für ein späteres Update geplant.",
+    d_install_plat:"Plattformunterstützung: Windows 11 (stabil, die Einbettung des Hintergrundbilds nutzt die WorkerW-Technik), macOS 13+ (beta, DYLD-Shim) und Linux (experimentell — X11-EWMH-Desktop-Einbindung; unter Wayland weicht es auf ein unten fixiertes Vollbildfenster aus).",
 
     d_using_h:"Nutzung",
     d_chat_h:"Chat & CEO", d_chat_p:"Das Chat-Panel öffnet sich auf Ihrem CEO-Sitz. Geben Sie einen Befehl auf dem CEO-Sitz ein und der Director kommt herüber, um ihn entgegenzunehmen, plant und delegiert — Sie sehen die Übergaben auf dem Hintergrundbild, und die Zusammenfassung wird zu Ihnen zurückgebracht. Um direkt mit einem Agent zu sprechen, klicken Sie auf sein Gesicht in der Leiste oder auf der Live-Karte. Jedes Gespräch ist ein fortsetzbarer Thread mit vollständigem Verlauf.",
@@ -288,7 +288,7 @@ const I18N = {
     d_faq_h:"FAQ",
     d_faq_q1:"Kostet es Geld, es zu betreiben?", d_faq_a1:"Die App ist kostenlos und Open Source (MIT). Agents laufen über Ihr eigenes Claude Code-Login, sodass die Nutzung Ihrem bestehenden Claude-Konto oder -Abonnement folgt — es gibt keine separate BagIdea-Gebühr.",
     d_faq_q2:"Werden mein Code/meine Daten irgendwohin gesendet?", d_faq_a2:"Der Daemon läuft lokal auf 127.0.0.1. Agents sind Claude Code-Sitzungen, daher verwenden sie Claude wie jedes Claude Code-Projekt. Optionale Funktionen (Sprache, Bild, Echtzeit) verwenden nur Ihre eigenen OpenAI/Gemini-Schlüssel, wenn Sie sie aktivieren.",
-    d_faq_q3:"Welche Plattformen werden unterstützt?", d_faq_a3:"Windows 11 und macOS 13+ (beta) heute. Ein Linux-Hintergrundbild-Backend steht auf der Roadmap.",
+    d_faq_q3:"Welche Plattformen werden unterstützt?", d_faq_a3:"Windows 11, macOS 13+ (beta) und Linux (experimentell) heute.",
     d_faq_q4:"Kann ich mein eigenes Plugin bauen?", d_faq_a4:"Ja — forken Sie das offizielle Vorlagen-Repo. Eine Person oder ein Agent kann in Minuten ein funktionierendes Plugin daraus erstellen; die vollständige Spezifikation befindet sich im Plugin-Leitfaden.",
   },
 
@@ -310,7 +310,7 @@ const I18N = {
     cta_get:"เริ่มใช้งาน", cta_docs:"อ่านคู่มือ", cta_github:"GitHub", upd_eyebrow:"พัฒนาต่อเนื่อง", upd_title:"อัปเดตตลอดเวลา", upd_sub:"BagIdea Office อัปเดตจริงตลอด — แก้บั๊ก เพิ่มฟีเจอร์ใหม่ และขัดเกลา ทุกออฟฟิศได้รับแจ้งอัปเดตเพียงคลิกเดียว", upd_latest:"ล่าสุด", upd_cta:"ดูว่ามีอะไรใหม่ →",
     hero_title:'วอลเปเปอร์ของคุณ <span class="grad">ทำงานได้จริง</span>',
     hero_sub:"BagIdea Office เปลี่ยนเดสก์ท็อปของคุณให้เป็นออฟฟิศ HD-2D ที่มีชีวิตชีวา ซึ่งเอเจนต์ AI ทุกตัวคือ Claude ตัวจริงที่เดินไปที่โต๊ะทำงานของตัวเอง ขออนุญาต จัดประชุม และทำงานจนเสร็จสิ้น — อยู่เบื้องหลังไอคอนต่างๆ ของคุณ",
-    badge_win:"Windows 11 · macOS (beta)", badge_open:"โอเพนซอร์ส", badge_free:"ใช้ฟรี",
+    badge_win:"Windows · macOS (beta) · Linux (beta)", badge_open:"โอเพนซอร์ส", badge_free:"ใช้ฟรี",
     badge_langs:"14 ภาษา",
     shot_cap:"เดสก์ท็อปจริง ถ่ายสด — agents นั่งทำงานที่โต๊ะ, ป้ายแบรนด์, วงจรกลางวัน-กลางคืนตามเวลาเครื่องคุณ",
 
@@ -343,8 +343,8 @@ const I18N = {
 
     inst_eyebrow:"การติดตั้ง", inst_title:"พร้อมใช้ในไม่กี่นาที",
     inst_lead:"คำสั่งเดียวติดตั้ง dependency ทั้งหมด, build แอป, และผูกคำสั่งเข้า PATH ให้",
-    inst_plat:"รองรับ Windows 11 (stable) และ macOS 13+ (beta) สำหรับแบ็กเอนด์วอลเปเปอร์ของ Linux มีแผนจะเพิ่มเข้ามาในการอัปเดตภายหลัง",
-    inst_s1_h:"รันตัวติดตั้งคำสั่งเดียว", inst_s1_p:"บนเครื่องใหม่ ระบบจะติดตั้ง Git, Node LTS, Rust, Godot 4.6.3 และ Claude Code CLI, โคลนแอป, บิลด์เชลล์, ใส่แบรนด์ให้กับไอคอน และเพิ่มคำสั่ง bagidea ไปยัง PATH ของคุณ — ทั้งหมดนี้ในขั้นตอนเดียว", dn_install_mac:"macOS (one-shot)", d_install_mac_h:"macOS — ตัวติดตั้งแบบ one-shot (beta)", d_install_mac_p:"เปิด Terminal และรันคำสั่งด้านล่าง ซึ่งจะติดตั้ง dependencies (Git, Node, Rust, Godot, Claude Code CLI), โคลนแอปไปยัง ~/BagIdeaOffice, บิลด์ desktop shell และ wallpaper-embed shim, เชื่อมต่อ Claude hooks และตั้งค่าคำสั่ง bagidea สามารถรันซ้ำได้อย่างปลอดภัย",
+    inst_plat:"รองรับ Windows 11 (stable), macOS 13+ (beta) และ Linux (experimental) — บน X11 ออฟฟิศจะเป็น desktop wallpaper, บน Wayland จะเป็นหน้าต่างเต็มจออยู่ล่างสุด",
+    inst_s1_h:"รันตัวติดตั้งคำสั่งเดียว", inst_s1_p:"บนเครื่องใหม่ ระบบจะติดตั้ง Git, Node LTS, Rust, Godot 4.6.3 และ Claude Code CLI, โคลนแอป, บิลด์เชลล์, ใส่แบรนด์ให้กับไอคอน และเพิ่มคำสั่ง bagidea ไปยัง PATH ของคุณ — ทั้งหมดนี้ในขั้นตอนเดียว", dn_install_mac:"macOS (one-shot)", d_install_mac_h:"macOS — ตัวติดตั้งแบบ one-shot (beta)", d_install_mac_p:"เปิด Terminal และรันคำสั่งด้านล่าง ซึ่งจะติดตั้ง dependencies (Git, Node, Rust, Godot, Claude Code CLI), โคลนแอปไปยัง ~/BagIdeaOffice, บิลด์ desktop shell และ wallpaper-embed shim, เชื่อมต่อ Claude hooks และตั้งค่าคำสั่ง bagidea สามารถรันซ้ำได้อย่างปลอดภัย", d_install_lin_h:"Linux — ตัวติดตั้งแบบ one-shot (experimental 🧪)", d_install_lin_p:"ตอนนี้รองรับ Ubuntu/Debian (apt) เปิด terminal แล้วรันคำสั่งด้านล่าง ซึ่งจะติดตั้ง dependencies (Node 20, Rust, Git, WebKitGTK, GTK, wmctrl/xdotool, PulseAudio utils, Godot 4.6.3), บิลด์ desktop shell, เชื่อมต่อ Claude hooks, ทำ symlink bagidea ไปที่ ~/.local/bin และเพิ่ม XDG autostart entry บน X11/Xorg ออฟฟิศจะผูกเป็น desktop wallpaper จริง; บน Wayland จะเป็นหน้าต่างเต็มจออยู่ล่างสุด (fallback) หากพบปัญหา รบกวนแจ้งพร้อม distro, desktop และผลของ \"echo $XDG_SESSION_TYPE\"",
     inst_s2_h:"ล็อกอิน Claude (ครั้งแรกครั้งเดียว)", inst_s2_p:"เปิดเทอร์มินัลใหม่ รัน claude หนึ่งครั้งเพื่อเข้าสู่ระบบด้วยบัญชี/แพ็กเกจ Claude ที่คุณมีอยู่ — นั่นคือสมองของทุก agent",
     inst_s3_h:"เปิดออฟฟิศ", inst_s3_p:"รัน bagidea start (หรือใช้ทางลัด Start Menu) วอลเปเปอร์จะกลายเป็นออฟฟิศ พร้อมหัวแชทและไอคอนถาดระบบ",
     inst_req_h:"ความต้องการของระบบ", inst_req:"Windows 11 หรือ macOS 13+ (beta) · GPU ที่รองรับ Vulkan (ผ่านการตรวจสอบแล้วบน GTX 1060) · บัญชี Claude (Claude Code CLI) โดย Node, Rust และ Godot จะถูกติดตั้งให้คุณโดยตัวติดตั้ง",
@@ -415,7 +415,7 @@ const I18N = {
     d_install_manual_p:"clone repo, ชี้ path ของ Claude hook มาที่ clone ของคุณ แล้ว build Rust shell:",
     d_install_first_h:"เปิดครั้งแรก",
     d_install_first_p:"ล็อกอิน Claude หนึ่งครั้ง แล้วเปิดออฟฟิศ วอลเปเปอร์จะกลายเป็นออฟฟิศสด พร้อมหัวแชทและไอคอนถาดระบบ",
-    d_install_plat:"แพลตฟอร์มที่รองรับ: Windows 11 (stable, การฝังวอลเปเปอร์ใช้เทคนิค WorkerW) และ macOS 13+ (beta, ใหม่ในรุ่นนี้) สำหรับแบ็กเอนด์ของ Linux มีแผนจะเพิ่มเข้ามาในการอัปเดตภายหลัง",
+    d_install_plat:"แพลตฟอร์มที่รองรับ: Windows 11 (stable, WorkerW), macOS 13+ (beta, DYLD shim) และ Linux (experimental — ผูกเป็น desktop wallpaper บน X11; บน Wayland เป็นหน้าต่างเต็มจออยู่ล่างสุด)",
 
     d_using_h:"การใช้งาน",
     d_chat_h:"แชท & CEO", d_chat_p:"หน้าต่างแชทเปิดที่ที่นั่ง CEO ของคุณ พิมพ์สั่งงานในนาม CEO แล้ว Director จะเดินมารับ วางแผน และมอบหมาย — คุณเห็นการส่งงานบนวอลเปเปอร์ แล้วเขาเดินกลับมารายงานสรุป จะคุยกับ agent ตัวไหนตรง ๆ ก็คลิกหน้าในแถบหรือบนแผนที่สด ทุกบทสนทนาเป็น thread ที่กลับมาต่อได้พร้อมประวัติ",
@@ -455,7 +455,7 @@ const I18N = {
     d_faq_h:"คำถามที่พบบ่อย",
     d_faq_q1:"รันแล้วเสียเงินไหม?", d_faq_a1:"ตัวแอปฟรีและโอเพนซอร์ส (MIT) agents รันผ่าน Claude Code login ของคุณเอง การใช้งานจึงเป็นไปตามบัญชี/แพ็กเกจ Claude ที่คุณมี — ไม่มีค่าธรรมเนียม BagIdea แยกต่างหาก",
     d_faq_q2:"โค้ด/ข้อมูลของฉันถูกส่งไปไหนไหม?", d_faq_a2:"daemon รันในเครื่องที่ 127.0.0.1 agents คือ Claude Code session จึงใช้ Claude เหมือนโปรเจค Claude Code ทั่วไป ฟีเจอร์เสริม (เสียง รูป เรียลไทม์) ใช้ key OpenAI/Gemini ของคุณเองเฉพาะเมื่อเปิดใช้",
-    d_faq_q3:"รองรับแพลตฟอร์มไหน?", d_faq_a3:"Windows 11 และ macOS 13+ (beta) ในปัจจุบัน สำหรับแบ็กเอนด์วอลเปเปอร์ของ Linux อยู่ในแผนงานพัฒนา",
+    d_faq_q3:"รองรับแพลตฟอร์มไหน?", d_faq_a3:"Windows 11, macOS 13+ (beta) และ Linux (experimental) ในปัจจุบัน",
     d_faq_q4:"เขียน plugin เองได้ไหม?", d_faq_a4:"ได้ — fork เทมเพลตทางการ ทั้งคนและ agent สร้าง plugin ที่ใช้งานได้จากมันในไม่กี่นาที spec เต็มอยู่ในคู่มือ plugin",
   },
 };

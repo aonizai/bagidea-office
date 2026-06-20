@@ -51,7 +51,7 @@ Unity is the fallback if team familiarity dictates; Unreal is overkill (footprin
 
 - **Windows**: spawn the renderer window, find `Progman` → send `0x052C` to create `WorkerW`, re-parent the window between the wallpaper and the icon `SHELLDLL_DefView` layer (the Wallpaper Engine technique). Overlay (Process C) remains a normal layered window with `WS_EX_TRANSPARENT` outside hit-test regions.
 - **macOS**: `NSWindow` at `kCGDesktopWindowLevel`, `collectionBehavior = .stationary` (icons render above).
-- **Linux**: layer-shell (wlroots) background layer / X11 desktop window type.
+- **Linux** (experimental 🧪): on **X11/Xorg**, push the Godot window to the desktop layer via EWMH hints (`_NET_WM_WINDOW_TYPE_DESKTOP` + below/sticky/skip-taskbar/skip-pager, applied with `wmctrl`/`xdotool`/`xprop`); on **Wayland**, fall back to a borderless fullscreen window pinned below. Overlay + orb stay always-on-top above it.
 - **Occlusion-aware**: when a fullscreen app covers the wallpaper, renderer drops to 1 fps state-sync (or full pause), daemon unaffected. (Details in [Performance](06-performance.md).)
 
 ## 5.4 Office Event Protocol (OEP)

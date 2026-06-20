@@ -49,6 +49,27 @@
 - ลบ `%LOCALAPPDATA%\BagIdeaOffice` แล้วรันตัวติดตั้งใหม่ (ข้อมูลในนั้นจะหายด้วย —
   สำรอง `app\daemon\*.json` ไว้ก่อนถ้าต้องการเก็บ registry/sessions)
 
+## Linux (experimental 🧪)
+
+**คอมไพล์ shell ไม่ผ่าน (ขาด WebKitGTK ฯลฯ)**
+- ตัวติดตั้งลง `libwebkit2gtk-4.1-dev` (Ubuntu ใหม่) หรือ `4.0` (เก่า) ให้อัตโนมัติ —
+  ถ้าพังให้ลงเองแล้วรัน `./build-linux.sh` ใหม่: `sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev build-essential pkg-config`
+
+**`bagidea: command not found`**
+- ตัวติดตั้งทำ symlink ที่ `~/.local/bin/bagidea` — เปิด terminal ใหม่ หรือ
+  `export PATH="$HOME/.local/bin:$PATH"`
+
+**วอลเปเปอร์ไม่ติดพื้นหลัง (เป็นหน้าต่างลอย)**
+- เช็คว่าเป็น X11: `echo $XDG_SESSION_TYPE` → ถ้าได้ `x11` ต้องมี `wmctrl`/`xdotool`
+  (`sudo apt install wmctrl xdotool`). ถ้าได้ `wayland` = ใช้ fallback หน้าต่างเต็มจอล่างสุด (ตามดีไซน์)
+- orb โปร่งใสต้องมี compositor ทำงาน (DE ส่วนใหญ่มีให้อยู่แล้ว)
+
+**ไม่มีเสียง (`bagidea say`)**
+- ลง player: `sudo apt install pulseaudio-utils alsa-utils`
+
+> เจอปัญหาอื่นบน Linux: แจ้ง [issue](https://github.com/bagidea/bagidea-office/issues)
+> พร้อม distro, desktop, และ `echo $XDG_SESSION_TYPE`
+
 ## โปรแกรม / วอลเปเปอร์
 
 **เปิดแล้วไม่มีอะไรเกิดขึ้น / วอลเปเปอร์ไม่เปลี่ยน**

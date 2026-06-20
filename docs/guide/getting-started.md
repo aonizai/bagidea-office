@@ -6,11 +6,28 @@
 
 ## 1. ติดตั้ง
 
-เปิด PowerShell แล้วรันบรรทัดเดียว:
+**Windows** — เปิด PowerShell แล้วรันบรรทัดเดียว:
 
 ```powershell
 irm https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install.ps1 | iex
 ```
+
+**macOS** (beta) — เปิด Terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install-mac.sh | bash
+```
+
+**Linux** (Ubuntu/Debian · 🧪 experimental) — เปิด Terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install-linux.sh | bash
+```
+
+> 🧪 Linux ยังเป็น **experimental** — บน **X11/Xorg** ออฟฟิศจะเป็น desktop wallpaper จริง,
+> บน **Wayland** จะเป็นหน้าต่างเต็มจออยู่ล่างสุด (fallback). ถ้าติดตั้ง/แสดงผลมีปัญหา
+> รบกวนแจ้ง [issue](https://github.com/bagidea/bagidea-office/issues) พร้อม distro,
+> desktop และผลของ `echo $XDG_SESSION_TYPE`
 
 ตัวติดตั้งจะจัดการให้ครบ **แม้บนเครื่องเปล่า** — ลงทุกอย่างที่ต้องใช้ให้เอง:
 Git, Node.js LTS, Rust, **Visual Studio C++ Build Tools** (ตัว linker ที่ Rust ต้องใช้

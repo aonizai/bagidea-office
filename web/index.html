@@ -41,7 +41,7 @@
       <a class="btn ghost" href="docs.html" data-i18n="cta_docs">Read the docs</a>
     </div>
     <div class="badges">
-      <span data-i18n="badge_win">Windows 11 · macOS (beta)</span>
+      <span data-i18n="badge_win">Windows · macOS (beta) · Linux (beta)</span>
       <span data-i18n="badge_open">Open source</span>
       <span data-i18n="badge_free">Free to run</span>
       <span data-i18n="badge_langs">14 languages</span>
@@ -133,7 +133,7 @@
     <p class="eyebrow" data-i18n="inst_eyebrow">Installation</p>
     <h2 class="title" data-i18n="inst_title">Up and running in minutes</h2>
     <p class="lead" data-i18n="inst_lead">One command installs every dependency, builds the app, and wires it onto your PATH.</p>
-    <div class="note" data-i18n="inst_plat">Windows 11 (stable) and macOS 13+ (beta) are supported. A Linux wallpaper backend is planned for a later update.</div>
+    <div class="note" data-i18n="inst_plat">Windows 11 (stable), macOS 13+ (beta), and Linux (experimental) are supported. On X11 the office attaches as the desktop wallpaper; on Wayland it falls back to a fullscreen window pinned below.</div>
     <div class="steps">
       <div class="step">
         <h4 data-i18n="inst_s1_h">Run the one-shot installer</h4>
@@ -142,6 +142,8 @@
         <pre><code>irm https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install.ps1 | iex</code></pre>
         <p style="margin:12px 0 4px"><b>🍎 macOS</b> <span class="muted">(beta)</span> — <span data-i18n="inst_s1_mac">Terminal</span></p>
         <pre><code>curl -fsSL https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install-mac.sh | bash</code></pre>
+        <p style="margin:12px 0 4px"><b>🐧 Linux</b> <span class="muted">(Ubuntu/Debian · experimental)</span> — <span data-i18n="inst_s1_mac">Terminal</span></p>
+        <pre><code>curl -fsSL https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install-linux.sh | bash</code></pre>
       </div>
       <div class="step">
         <h4 data-i18n="inst_s2_h">Log in to Claude (first time only)</h4>
