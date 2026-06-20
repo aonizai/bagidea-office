@@ -4,6 +4,40 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.9.9] — Resilient work, smarter brains, a livelier office
+
+**Added**
+- **Work resumes after a rate limit or a restart** — a delegated task that hits a
+  temporary ceiling (rate/usage limit, 429, overloaded) or gets killed by a restart is
+  no longer dropped. It's parked and **auto-resumed on its own thread** (`--resume`, full
+  context) once the cooldown passes, with backoff and a give-up after a few tries.
+- **Model picker pre-selects the best/newest model** — choosing a provider now suggests
+  its flagship (Claude Opus 4.8, GPT-4.1, Gemini 2.5 Pro, Grok-4, DeepSeek V4-Pro, …) — a
+  quiet nudge that a newer model exists; older ones stay selectable.
+
+**Improved**
+- **Claude agents always have an explicit model** — never the blank/implicit one; they
+  default to **Opus 4.8** (flagship, 1M context), editable per agent.
+- **Context windows are accurate per model** — Claude shows its real **1M** (was 200k);
+  every provider's default model resolves to the correct window.
+- **Empty office on install** — no plugins are bundled anymore; add what you want from the
+  Plugins Hub (each its own GitHub clone).
+- **Plugins Hub is clearer** — the publish flow is spelled out in 3 steps and the
+  "submit guide" / "view source" links actually open now (office webviews route external
+  links to your system browser).
+- **Task board on the wall** — each running task shows the agent's **face** on a square,
+  state-coloured tile (running/blocked/done/failed) instead of a text label.
+- **Overflow workers sit side by side** — when all desks are taken, extra workers line up
+  at the shared ops bench instead of clustering on one point.
+
+**Fixed**
+- **Stale "working" cleared after a restart** — the wallpaper no longer shows agents as
+  working when nothing is (a journaled `task.reset` clears it on boot).
+- **Proposal cards settle everywhere** — approving/rejecting from 🗂 Tasks (or another
+  window) now updates the inline proposal card in the chat too.
+- **Plugin output no longer turns to "?"** — agents are guided to send non-ASCII plugin
+  args via a UTF-8 file (the Windows shell mangled inline non-English to `?`).
+
 ## [0.9.8] — Attached images readable by any model
 
 **Fixed**
