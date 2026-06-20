@@ -123,9 +123,10 @@ function help() {
   console.log("");
 }
 
+const { findShellExe: _findShell } = require("./find-shell");
+
 function findShellExe() {
-  const exe = path.join(ROOT, "shell", "target", "release", "bagidea-office-shell.exe");
-  return fs.existsSync(exe) ? exe : null;
+  return _findShell(ROOT);
 }
 
 const NOT_RUNNING = () => bad(`The office isn't running — run ${c.accent}bagidea start${c.reset} first`);
