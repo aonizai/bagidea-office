@@ -4,6 +4,23 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.9.16] — Tidier settings tabs + much fuller docs
+
+**Changed**
+- **The ⚙ settings tabs wrap into balanced rows.** With CHANNELS added the tab row was
+  cramped (and "CHANNELS" truncated); now the tabs wrap ~4 per row and each row stretches
+  to fill — Settings becomes 4+3, Office Ops 4+2 — with no lone tab spanning a whole row.
+
+**Docs**
+- Filled the real gaps so every feature has a how-to (all verified against the code):
+  ghost-clone splitting & agent discussions, UI language switch / live map / multi-monitor,
+  microphone & ambient mood voices, social & proposal-frequency settings, cancelling a
+  running task, per-project MEMORY.md, and a note that realtime calls go to the Director.
+  Corrected two stale claims: the Workflow Builder now **runs** workflows (not analysis-only),
+  and the office ships with **no bundled plugins** (install the Music Player from the Hub).
+- The website **Tools page** is now a full hub — all 15 built-in tools plus popular MCP
+  integrations (GitHub, Filesystem, Memory, Postgres, Slack, Brave Search, and more).
+
 ## [0.9.15] — More channels + a Channels settings tab
 
 **Added**
