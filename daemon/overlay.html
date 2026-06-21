@@ -2607,6 +2607,12 @@
         renderConnectTab();
       };
     }
+  }
+
+  // Channels — now their own settings tab (split out of the crowded CONNECT tab).
+  async function renderChannels() {
+    const regAll = await fetch("/registry").then((x) => x.json()).catch(() => ({}));
+    const chStatus = await fetch("/channels/status").then((x) => x.json()).catch(() => ({}));
     // Channel cards: enable switch + the fields each platform needs.
     const CH = [
       ["telegram", "✈️ Telegram", "สร้าง bot กับ @BotFather แล้ววาง token — ใช้ได้ทันที ไม่ต้องมี public URL",
@@ -2615,8 +2621,15 @@
         [["token", "Bot token"], ["channel", "(ไม่บังคับ) channel id — จำกัดห้อง"]]],
       ["line", "💬 LINE", "Messaging API: ตั้ง webhook ชี้มาที่ /channels/line/webhook ผ่าน public HTTPS (เช่น cloudflared)",
         [["token", "Channel access token"], ["secret", "Channel secret (ตรวจลายเซ็น webhook)"]]],
+      ["slack", "🔷 Slack", "Slack app: เปิด Event Subscriptions แล้วชี้ Request URL มาที่ /channels/slack/webhook ผ่าน public HTTPS (cloudflared)",
+        [["token", "Bot User OAuth Token (xoxb-…)"], ["secret", "Signing Secret (ตรวจลายเซ็น)"]]],
+      ["whatsapp", "🟢 WhatsApp", "WhatsApp Cloud API (Meta): ตั้ง Callback URL /channels/whatsapp/webhook + verify token ด้านล่าง ผ่าน public HTTPS",
+        [["token", "Access token (Meta)"], ["phone", "Phone number ID"], ["verify", "Verify token (ตั้งเองให้ตรงกับ Meta)"]]],
+      ["messenger", "💠 Messenger", "Facebook Page (Meta): ตั้ง Callback URL /channels/messenger/webhook + verify token ด้านล่าง ผ่าน public HTTPS",
+        [["token", "Page access token"], ["verify", "Verify token (ตั้งเองให้ตรงกับ Meta)"]]],
     ];
     const box = modalCard.querySelector("#chbox");
+    if (!box) return;
     box.innerHTML = "";
     for (const [kind, title, hint, fields] of CH) {
       const cfg = (regAll.channels || {})[kind] || {};
@@ -2643,7 +2656,7 @@
         const config = { enabled: sw.classList.contains("on") };
         card.querySelectorAll("input[data-f]").forEach((i) => (config[i.dataset.f] = i.value.trim()));
         await api("/registry/channel", { kind, config });
-        setTimeout(() => renderConnectTab(), 900);  // show fresh status
+        setTimeout(() => renderChannels(), 900);  // show fresh status
       };
       box.appendChild(card);
     }
@@ -2652,7 +2665,7 @@
   function openSettings(tab) {
     modal.classList.add("open");
     const T = (t, label) => `<div class="tab ${tab === t ? "on" : ""}" data-t="${t}">${label}</div>`;
-    const tabs = `<div class="tabs">${T("agents", "AGENTS")}${T("roles", "ROLES")}${T("skills", "SKILLS")}${T("tools", "TOOLS")}${T("connect", "CONNECT")}${T("threads", "THREADS")}</div>`;
+    const tabs = `<div class="tabs">${T("agents", "AGENTS")}${T("roles", "ROLES")}${T("skills", "SKILLS")}${T("tools", "TOOLS")}${T("connect", "CONNECT")}${T("channels", "CHANNELS")}${T("threads", "THREADS")}</div>`;
     let bodyHtml = "";
     if (tab === "agents") {
       bodyHtml = `<div class="switch ${SOUND ? "on" : ""}" id="sndSw">
@@ -2739,9 +2752,12 @@
             <button class="sparkle" id="addKey">＋</button>
           </div></div>
         <div class="field"><label>🧠 MODELS / PROVIDERS — สมองของ agent (วาง key แล้วกด Connect · ตั้ง provider ต่อ agent ในหน้า AGENTS)</label>
-          <div id="provbox"></div></div>
-        <div class="field"><label>📡 CHANNELS — คุยกับออฟฟิศจากภายนอกผ่าน Director (main)</label>
-          <div id="chbox"></div></div>`;
+          <div id="provbox"></div></div>`;
+    } else if (tab === "channels") {
+      bodyHtml = `<div style="font-size:11px;color:var(--dim);margin-bottom:10px">
+          📡 คุยกับออฟฟิศจากภายนอกผ่าน Director (main) — เปิดช่องทางที่ต้องการ แล้วสั่งงานจากมือถือได้เลย<br>
+          (Telegram ใช้ได้ทันที · ที่เหลือ ตั้ง webhook ผ่าน public HTTPS เช่น cloudflared)</div>
+        <div id="chbox"></div>`;
     } else if (tab === "threads") {
       bodyHtml = `<div style="font-size:11px;color:var(--dim);margin-bottom:8px">
           ความจำสนทนาแยกตามตัว agent — คำสั่งผ่าน CEO จะอยู่กับ Claude (Director)
@@ -2916,6 +2932,8 @@
       wireFilter(modalCard.querySelector("#tFilter"), list, ml);
     } else if (tab === "connect") {
       renderConnectTab();
+    } else if (tab === "channels") {
+      renderChannels();
     } else if (tab === "threads") {
       fetch("/sessions/all").then((x) => x.json()).then((r) => {
         const box = modalCard.querySelector("#thlist");

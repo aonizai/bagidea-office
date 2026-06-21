@@ -100,7 +100,8 @@ function wsConnect(host, path, hooks) {
 // ---- connectors --------------------------------------------------------------
 module.exports = function initChannels(ctx) {
   // ctx: getConfig() → reg.channels, onMessage(channel, from, text, reply), log(s)
-  const state = { telegram: "off", discord: "off", line: "off" };
+  const state = { telegram: "off", discord: "off", line: "off",
+    slack: "off", whatsapp: "off", messenger: "off" };
   // Generation tokens, NOT shared booleans: a restart bumps the generation,
   // and any in-flight long-poll / reconnect from an older generation dies
   // the moment it next checks — a shared "alive" flag resurrected old
@@ -247,6 +248,97 @@ module.exports = function initChannels(ctx) {
     }
   }
 
+  // ---- Slack: Events API webhook in, chat.postMessage out. Needs a public
+  // HTTPS URL (same cloudflared tunnel as LINE) set as the app's Request URL.
+  let lastSlack = null;   // {token, channel} for relay()
+  function slackWebhook(req, res, rawBody) {
+    const cfg = (ctx.getConfig().slack) || {};
+    if (!cfg.enabled || !cfg.token) { res.writeHead(404); return res.end(); }
+    let j; try { j = JSON.parse(rawBody.toString("utf8")); } catch { res.writeHead(400); return res.end(); }
+    // Slack's one-time URL verification handshake.
+    if (j.type === "url_verification") {
+      res.writeHead(200, { "content-type": "text/plain" }); return res.end(j.challenge || "");
+    }
+    if (cfg.secret) {  // verify v0 signature
+      const ts = req.headers["x-slack-request-timestamp"] || "";
+      const base = "v0:" + ts + ":" + rawBody.toString("utf8");
+      const mine = "v0=" + crypto.createHmac("sha256", cfg.secret).update(base).digest("hex");
+      if (mine !== req.headers["x-slack-signature"]) { res.writeHead(403); return res.end(); }
+    }
+    res.writeHead(200); res.end("ok");   // ack fast — Slack retries slow webhooks
+    state.slack = "on";
+    const ev = j.event;
+    if (!ev || ev.type !== "message" || ev.bot_id || ev.subtype || !ev.text) return;
+    lastSlack = { token: cfg.token, channel: ev.channel };
+    ctx.onMessage("slack", "Slack user", ev.text,
+      (reply) => sendSlack(cfg.token, ev.channel, reply), () => {});
+  }
+  function sendSlack(token, channel, text) {
+    for (const part of chunk(String(text), 3800))
+      jreq("POST", "slack.com", "/api/chat.postMessage",
+        { authorization: "Bearer " + token }, { channel, text: part }, () => {});
+  }
+
+  // ---- Meta (WhatsApp Cloud API + Messenger): both are Graph API webhooks with
+  // the same GET verify handshake (hub.challenge) and a POST event body.
+  let lastWa = null, lastMsgr = null;
+  function metaVerify(req, res, cfg) {
+    const u = new URL(req.url, "http://x");
+    if (u.searchParams.get("hub.mode") === "subscribe" &&
+        u.searchParams.get("hub.verify_token") === (cfg.verify || "")) {
+      res.writeHead(200, { "content-type": "text/plain" });
+      res.end(u.searchParams.get("hub.challenge") || ""); return true;
+    }
+    res.writeHead(403); res.end(); return true;
+  }
+  function whatsappWebhook(req, res, rawBody) {
+    const cfg = (ctx.getConfig().whatsapp) || {};
+    if (!cfg.enabled) { res.writeHead(404); return res.end(); }
+    if (req.method === "GET") return metaVerify(req, res, cfg);
+    res.writeHead(200); res.end("ok");
+    state.whatsapp = "on";
+    let j; try { j = JSON.parse(rawBody.toString("utf8")); } catch { return; }
+    for (const entry of j.entry || [])
+      for (const ch of entry.changes || []) {
+        const v = ch.value || {};
+        for (const m of v.messages || []) {
+          if (!m.text || !m.text.body) continue;
+          const to = m.from;
+          lastWa = { token: cfg.token, phone: cfg.phone, to };
+          ctx.onMessage("whatsapp", "WhatsApp user", m.text.body,
+            (reply) => sendWhatsApp(cfg.token, cfg.phone, to, reply), () => {});
+        }
+      }
+  }
+  function sendWhatsApp(token, phoneId, to, text) {
+    for (const part of chunk(String(text), 3800))
+      jreq("POST", "graph.facebook.com", `/v22.0/${phoneId}/messages`,
+        { authorization: "Bearer " + token },
+        { messaging_product: "whatsapp", to, type: "text", text: { body: part } }, () => {});
+  }
+  function messengerWebhook(req, res, rawBody) {
+    const cfg = (ctx.getConfig().messenger) || {};
+    if (!cfg.enabled) { res.writeHead(404); return res.end(); }
+    if (req.method === "GET") return metaVerify(req, res, cfg);
+    res.writeHead(200); res.end("ok");
+    state.messenger = "on";
+    let j; try { j = JSON.parse(rawBody.toString("utf8")); } catch { return; }
+    for (const entry of j.entry || [])
+      for (const ev of entry.messaging || []) {
+        if (!ev.message || !ev.message.text || (ev.message.is_echo)) continue;
+        const to = ev.sender && ev.sender.id;
+        if (!to) continue;
+        lastMsgr = { token: cfg.token, to };
+        ctx.onMessage("messenger", "Messenger user", ev.message.text,
+          (reply) => sendMessenger(cfg.token, to, reply), () => {});
+      }
+  }
+  function sendMessenger(token, to, text) {
+    for (const part of chunk(String(text), 1900))
+      jreq("POST", "graph.facebook.com", `/v22.0/me/messages?access_token=${encodeURIComponent(token)}`,
+        null, { recipient: { id: to }, messaging_type: "RESPONSE", message: { text: part } }, () => {});
+  }
+
   function chunk(s, n) {
     const out = [];
     for (let i = 0; i < s.length && out.length < 5; i += n) out.push(s.slice(i, i + n));
@@ -276,11 +368,17 @@ module.exports = function initChannels(ctx) {
           { authorization: "Bearer " + lastLine.token },
           { to: lastLine.to, messages: [{ type: "text", text: part }] }, () => {});
     }
+    if (lastSlack && lastSlack.token) sendSlack(lastSlack.token, lastSlack.channel, t);
+    if (lastWa && lastWa.token) sendWhatsApp(lastWa.token, lastWa.phone, lastWa.to, t);
+    if (lastMsgr && lastMsgr.token) sendMessenger(lastMsgr.token, lastMsgr.to, t);
   }
 
   return {
     restart() { stopAll(); setTimeout(() => { startTelegram(); startDiscord(); }, 300); },
     lineWebhook,
+    slackWebhook,
+    whatsappWebhook,
+    messengerWebhook,
     relay,
     status: () => ({ ...state }),
   };

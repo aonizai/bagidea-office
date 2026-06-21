@@ -4040,13 +4040,15 @@ const server = http.createServer((req, res) => {
     readBody(req, (body) => {
       try {
         const { kind, config } = JSON.parse(body);
-        if (!["telegram", "discord", "line"].includes(kind)) throw new Error("bad kind");
+        if (!["telegram", "discord", "line", "slack", "whatsapp", "messenger"].includes(kind)) throw new Error("bad kind");
         reg.channels[kind] = {
           enabled: !!(config && config.enabled),
           token: String((config && config.token) || "").trim().slice(0, 300),
           chat: String((config && config.chat) || "").trim().slice(0, 80),
           channel: String((config && config.channel) || "").trim().slice(0, 80),
           secret: String((config && config.secret) || "").trim().slice(0, 200),
+          phone: String((config && config.phone) || "").trim().slice(0, 80),     // WhatsApp phone number id
+          verify: String((config && config.verify) || "").trim().slice(0, 200),  // Meta webhook verify token
         };
         saveReg();
         channels.restart();
@@ -4447,6 +4449,20 @@ const server = http.createServer((req, res) => {
     // LINE Messaging API webhook — point your channel's webhook URL here
     // through a public HTTPS tunnel (e.g. cloudflared).
     readBodyRaw(req, (raw) => channels.lineWebhook(req, res, raw));
+
+  } else if (req.method === "POST" && req.url.split("?")[0] === "/channels/slack/webhook") {
+    // Slack Events API webhook (public HTTPS tunnel; same as LINE).
+    readBodyRaw(req, (raw) => channels.slackWebhook(req, res, raw));
+
+  } else if (req.url.split("?")[0] === "/channels/whatsapp/webhook") {
+    // WhatsApp Cloud API webhook — GET verifies the URL, POST delivers messages.
+    if (req.method === "GET") channels.whatsappWebhook(req, res, null);
+    else readBodyRaw(req, (raw) => channels.whatsappWebhook(req, res, raw));
+
+  } else if (req.url.split("?")[0] === "/channels/messenger/webhook") {
+    // Messenger (Meta Graph) webhook — GET verifies, POST delivers.
+    if (req.method === "GET") channels.messengerWebhook(req, res, null);
+    else readBodyRaw(req, (raw) => channels.messengerWebhook(req, res, raw));
 
   } else if (req.method === "POST" && req.url === "/registry/heartbeat") {
     // Director overview cadence: 0 = off, otherwise minutes between passes.
