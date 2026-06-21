@@ -1,87 +1,91 @@
-# การสนับสนุน (Sponsors & Partners)
+# Support (Sponsors & Partners)
 
-BagIdea Office เป็นโอเพนซอร์สและใช้ฟรี การสนับสนุนช่วยทุนพัฒนา ค่าลิขสิทธิ์อาร์ต
-และ backend ข้ามแพลตฟอร์ม — และทำให้โปรแกรมยังฟรีต่อไป ชื่อ/โลโก้ของผู้สนับสนุน
-จะแสดงบน [เว็บ official](https://bagidea.com/#sponsors) และใน README ของ repo
+BagIdea Office is open-source and free to use. Support funds development, art
+licensing, and cross-platform backends — and keeps the program free. Sponsors'
+names/logos appear on the [official website](https://bagidea.com/#sponsors) and
+in the repo's README.
 
-> **ภาพรวมสั้นๆ:** การสนับสนุนเป็น **สมาชิกรายเดือนผ่าน GitHub Sponsors ทั้งหมด**
-> (เหมือนสมาชิก YouTube / Patreon) — การจ่ายเงิน ภาษี และ payout เป็นหน้าที่ของ
-> GitHub ไม่ใช่เรา เราแค่ดึง "ชื่อ + โลโก้ + ลิงก์" มาแสดงอัตโนมัติ
+> **Quick overview:** support is **entirely a monthly membership through GitHub
+> Sponsors** (like a YouTube / Patreon membership) — payments, taxes, and payouts
+> are GitHub's responsibility, not ours. We just pull "name + logo + link" and
+> display them automatically.
 
-## Tier (ตามยอดต่อเดือน)
+## Tiers (by monthly amount)
 
-| Tier | ยอด/เดือน | ได้อะไร |
+| Tier | Per month | What you get |
 |---|---|---|
-| 👑 **Gold Partner** | $3,000+ | โลโก้ใหญ่ตำแหน่งบนสุด (เว็บ + README + เครดิตในแอป) · ร่วมกำหนด roadmap · ขอบคุณใน release notes |
-| 🥈 **Silver Partner** | $300+ | โลโก้บนเว็บ + README · กล่าวถึงใน release notes · เข้าถึง build ก่อนใคร |
-| 🥉 **Bronze / Backer** | $30+ | โลโก้หรือชื่อ + ลิงก์ บนกำแพงผู้สนับสนุน |
-| 💛 **Supporter** | เท่าไหร่ก็ได้ | ชื่อ + ลิงก์ บนกำแพงผู้สนับสนุน |
+| 👑 **Gold Partner** | $3,000+ | Large logo in the top spot (website + README + in-app credits) · help shape the roadmap · thanked in release notes |
+| 🥈 **Silver Partner** | $300+ | Logo on the website + README · mentioned in release notes · early access to builds |
+| 🥉 **Bronze / Backer** | $30+ | Logo or name + link on the sponsor wall |
+| 💛 **Supporter** | Any amount | Name + link on the sponsor wall |
 
-ทุก tier ได้ **ลิงก์คลิกได้ไปเว็บ/โซเชียลของตัวเอง** เสมอ · เรียงตามยอดมากไปน้อยอัตโนมัติ
-· **ไม่แสดงตัวเลขยอด** ที่ไหนทั้งสิ้น
+Every tier always gets a **clickable link to its own website/social** · sorted
+automatically from highest amount to lowest · **no amounts are shown** anywhere.
 
-## ขั้นตอนสำหรับผู้ที่อยากสนับสนุน
+## Steps for those who want to sponsor
 
-1. **เลือก tier แล้วกดสนับสนุน** — กดปุ่ม **💖 Sponsor on GitHub** บนเว็บ
-   (หรือไป [github.com/sponsors/bagidea](https://github.com/sponsors/bagidea) ตรงๆ)
-   เลือก tier รายเดือน แล้วยืนยัน GitHub จะตัดเงินทุกเดือนจนกว่าจะยกเลิก
-2. **โลโก้และลิงก์ดึงจากโปรไฟล์ GitHub อัตโนมัติ** — รูป avatar ชื่อ และลิงก์
-   ของผู้สนับสนุน ดึงจากบัญชี GitHub ของเขาเองโดยตรง **ไม่ต้องส่งอะไรมาให้เรา**
-   - อยากกำหนดลิงก์เอง → ตั้งช่อง **Website** ในโปรไฟล์ GitHub (*Settings → Public profile*)
-   - เป็นบริษัท → สนับสนุนในนาม **GitHub Organization** จะได้โลโก้ + เว็บบริษัท
-3. **ชื่อขึ้นภายใน ~6 ชั่วโมง** — ขอแค่เลือก **"Make my sponsorship public"** ตอนจ่าย
-   ระบบอัตโนมัติจะเพิ่มชื่อขึ้นกำแพงผู้สนับสนุนบนเว็บ + README ให้เอง (คนที่ตั้ง Private
-   จะไม่ถูกแสดง ตามความเป็นส่วนตัว)
+1. **Pick a tier and sponsor** — click the **💖 Sponsor on GitHub** button on the
+   website (or go to [github.com/sponsors/bagidea](https://github.com/sponsors/bagidea)
+   directly), choose a monthly tier, and confirm. GitHub charges every month until
+   you cancel.
+2. **Logo and link are pulled from your GitHub profile automatically** — a
+   sponsor's avatar, name, and link come straight from their own GitHub account,
+   **you don't need to send us anything**.
+   - Want a custom link? → set the **Website** field in your GitHub profile (*Settings → Public profile*)
+   - A company? → sponsor as a **GitHub Organization** to get the org logo + company website
+3. **Your name appears within ~6 hours** — just choose **"Make my sponsorship public"**
+   when you pay, and the automation adds your name to the sponsor wall on the
+   website + README for you (anyone set to Private won't be shown, respecting privacy).
 
-## ระบบทำงานเบื้องหลังยังไง
+## How the system works behind the scenes
 
 ```
-คนกด Sponsor (เว็บ / repo / profile)
-   → GitHub Sponsors ตัดเงินรายเดือน
-   → GitHub Action (.github/workflows/sponsors.yml) รันทุก 6 ชม.
-   → ดึงรายชื่อ public ผ่าน GitHub Sponsors GraphQL API
-   → จัด tier ตามยอด + merge กับรายชื่อนอกแพลตฟอร์ม
-   → เขียน web/sponsors.json + บล็อกใน README
-   → GitHub Pages redeploy → ขึ้นกำแพงบนเว็บ + README
+Someone clicks Sponsor (website / repo / profile)
+   → GitHub Sponsors charges monthly
+   → GitHub Action (.github/workflows/sponsors.yml) runs every 6 hrs
+   → pulls the public list via the GitHub Sponsors GraphQL API
+   → sorts into tiers by amount + merges with off-platform names
+   → writes web/sponsors.json + the block in README
+   → GitHub Pages redeploys → appears on the wall on the website + README
 ```
 
-ไฟล์ที่เกี่ยวข้อง:
+Related files:
 
-| ไฟล์ | หน้าที่ |
+| File | Role |
 |---|---|
-| `web/sponsors.json` | **(generated — ห้ามแก้มือ)** ข้อมูลที่เว็บใช้ render |
-| `web/sponsors.manual.json` | **แก้มือได้** — ผู้สนับสนุนนอกแพลตฟอร์ม (partner / โอนตรง) |
-| `web/assets/sponsors.js` | render กำแพงบนเว็บ (โลโก้ → ชื่อ → avatar-chip ตาม tier) |
-| `scripts/sync-sponsors.mjs` | ดึงจาก GitHub Sponsors + merge + เขียนไฟล์ |
-| `.github/workflows/sponsors.yml` | รัน sync ทุก 6 ชม. + กดเองได้ + commit เมื่อมีการเปลี่ยน |
-| `.github/FUNDING.yml` | ปุ่ม 💖 Sponsor บนหน้า repo |
+| `web/sponsors.json` | **(generated — do not edit by hand)** the data the website renders |
+| `web/sponsors.manual.json` | **editable by hand** — off-platform sponsors (partner / direct transfer) |
+| `web/assets/sponsors.js` | renders the wall on the website (logo → name → avatar-chip per tier) |
+| `scripts/sync-sponsors.mjs` | pulls from GitHub Sponsors + merges + writes the files |
+| `.github/workflows/sponsors.yml` | runs the sync every 6 hrs + can be triggered manually + commits on change |
+| `.github/FUNDING.yml` | the 💖 Sponsor button on the repo page |
 
-## ผู้สนับสนุนนอกแพลตฟอร์ม (ข้อยกเว้น)
+## Off-platform sponsors (the exception)
 
-โดยปกติ **ทุกคนสนับสนุนผ่าน GitHub Sponsors** เพื่อให้ระบบทำงานอัตโนมัติเต็มที่
-ข้อยกเว้นมีเฉพาะ:
+Normally **everyone sponsors through GitHub Sponsors** so the automation works
+fully. The exceptions are:
 
-- **WARRIX** — พาร์ตเนอร์หลัก แสดงด้วยมือใน `web/sponsors.manual.json` และ **pin อันดับ 1 เสมอ**
-- **Reuannamphung** — จ่ายตรงมาก่อน แสดงให้ชั่วคราว **จนกว่าจะย้ายไปใช้ GitHub Sponsors**
+- **WARRIX** — the main partner, listed by hand in `web/sponsors.manual.json` and **always pinned at #1**
+- **Reuannamphung** — paid directly first, shown temporarily **until they move to GitHub Sponsors**
 
-วิธีเพิ่ม/แก้ผู้สนับสนุนนอกแพลตฟอร์ม (สำหรับผู้ดูแล):
+How to add/edit off-platform sponsors (for maintainers):
 
-1. โหลดโลโก้มาเก็บใน `web/img/sponsors/` (**ห้าม hotlink URL จาก CDN/Facebook** — มันหมดอายุ)
-2. เพิ่ม object ใน `web/sponsors.manual.json`:
+1. Download the logo and store it in `web/img/sponsors/` (**don't hotlink a URL from a CDN/Facebook** — it expires)
+2. Add an object to `web/sponsors.manual.json`:
    ```json
-   { "name": "ชื่อ", "tier": "supporter", "weight": 5,
-     "url": "https://ลิงก์", "logo": "img/sponsors/ไฟล์.png", "since": "2026-06" }
+   { "name": "Name", "tier": "supporter", "weight": 5,
+     "url": "https://example.com", "logo": "img/sponsors/file.png", "since": "2026-06" }
    ```
-   - `weight` = เลขไว้จัดเรียงเท่านั้น (ไม่แสดง) ใส่เท่าไหร่ก็ได้
-   - ระบบ sync จะ merge ให้ ไม่ทับกับ GitHub sponsors
+   - `weight` = a number used only for sorting (not shown); use any value
+   - the sync will merge it in without overwriting GitHub sponsors
 
-> ⚠️ **ห้ามแก้ `web/sponsors.json` ด้วยมือ** — มันถูก generate ทับทุกครั้งที่ sync
-> แก้ที่ `web/sponsors.manual.json` เท่านั้นสำหรับรายชื่อนอกแพลตฟอร์ม
+> ⚠️ **Don't edit `web/sponsors.json` by hand** — it gets regenerated and overwritten
+> on every sync. Edit `web/sponsors.manual.json` only, for off-platform names.
 
-## ตั้งค่าครั้งเดียว (ผู้ดูแล)
+## One-time setup (for maintainers)
 
-1. เปิด GitHub Sponsors ที่ [github.com/sponsors](https://github.com/sponsors) → สร้าง
-   tier รายเดือนที่ยอด **$5 / $30 / $300 / $3,000** → **Publish** ทุก tier
-2. สร้าง **classic PAT** ของบัญชี (scope **`read:user` + `read:org`** — ต้องมีทั้งสอง
-   เพราะ sponsor อาจเป็น Organization) → ใส่เป็น repo secret ชื่อ **`SPONSORS_TOKEN`**
-3. รัน workflow **"Sync sponsors"** ในแท็บ Actions หนึ่งครั้งเพื่อทดสอบ
+1. Open GitHub Sponsors at [github.com/sponsors](https://github.com/sponsors) → create
+   monthly tiers at **$5 / $30 / $300 / $3,000** → **Publish** every tier
+2. Create a **classic PAT** for the account (scopes **`read:user` + `read:org`** — you
+   need both, because a sponsor might be an Organization) → add it as a repo secret named **`SPONSORS_TOKEN`**
+3. Run the **"Sync sponsors"** workflow once in the Actions tab to test it

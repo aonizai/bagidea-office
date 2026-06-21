@@ -1,114 +1,120 @@
-# 🔀 Workflow Builder — วางแผนงานเป็นภาษามนุษย์ ให้ AI คิดต่อ
+# 🔀 Workflow Builder — Plan work in plain language, let the AI take it from there
 
-Workflow Builder คือกระดานวาดงาน (canvas) ที่ให้คุณ **ลากวาง node แล้วพิมพ์สั่งเป็นภาษาคนธรรมดา**
-เช่น "ทุกเช้าสรุปข่าว AI แล้วส่งเข้า Telegram" จากนั้นกด **วิเคราะห์** แล้ว **Director (น้อง) จะอ่าน
-แผนของคุณ บอกว่าต้องใช้ skill/tool อะไร ต้องขอ permission ไหน ควรมอบหมายให้ใคร** — เหมาะมาก
-สำหรับคนที่ "อยากให้ออฟฟิศทำอะไรสักอย่าง แต่ไม่รู้จะสั่งยังไง"
+The Workflow Builder is a canvas for sketching out work that lets you **drag and drop
+nodes and type instructions in plain, everyday language** — for example, "Every
+morning, summarize AI news and send it to Telegram" — then press **Analyze**, and the
+**Director (Shino) reads your plan and tells you which skills/tools it needs, which
+permissions to grant, and who to assign it to**. It's perfect for anyone who "wants
+the office to do something but doesn't know how to ask for it."
 
-> 💡 ต่างจาก n8n ตรงที่ **ไม่ต้องต่อ logic ให้เป๊ะ** — node คือ "เจตนา" ส่วนรายละเอียด+การตัดสินใจ
-> ปล่อยให้ทีม AI คิดเอง
+> 💡 The difference from n8n is that **you don't have to wire up the logic precisely** —
+> a node is an "intention," while the details and decisions are left to the AI team to
+> figure out.
 
-> 📌 **ทำอะไรได้บ้างตอนนี้** — Workflow Builder มี 3 ปุ่มจริงในแผงขวา:
-> - **🔍 วิเคราะห์** — Director อ่าน workflow แล้วบอกว่าต้องใช้ skill/tool/permission อะไร และมอบหมายให้ใคร (วางแผน ไม่ลงมือ)
-> - **▶️ รันเลย** — สั่งให้ทีมทำตาม workflow นี้ **เดี๋ยวนี้** แล้วรายงานผลกลับ (node ที่แตกหลายแขนงจะรันขนานกันเป็น ghost clone)
-> - **🧠 สร้างเป็น Skill** — คอมไพล์ workflow เป็น skill ที่นำไปติ๊กให้ agent ในหน้าตั้งค่า เพื่อเรียกใช้ซ้ำเมื่อไหร่ก็ได้ (หรือพิมพ์สั่ง agent ว่า "รัน &lt;ชื่อ workflow&gt;")
+> 📌 **What it can do right now** — the Workflow Builder has 3 real buttons in the right panel:
+> - **🔍 Analyze** — the Director reads the workflow and tells you which skills/tools/permissions are needed and who to assign it to (planning, no action taken)
+> - **▶️ Run now** — tells the team to carry out this workflow **right now** and report back (nodes that branch into several paths run in parallel as ghost clones)
+> - **🧠 Build as a Skill** — compiles the workflow into a skill you can tick on for an agent in the settings page, to reuse anytime (or just tell an agent "run &lt;workflow name&gt;")
 >
-> แนวทางที่แนะนำ: **วิเคราะห์ก่อน → เตรียมของ (skill/permission/agent) ให้พร้อม → กดรันเลย** หรือ **สร้างเป็น Skill** ถ้าจะใช้งานซ้ำ
+> Recommended approach: **Analyze first → get everything ready (skill/permission/agent) → press Run now**, or **Build as a Skill** if you'll use it repeatedly.
 
 ---
 
-## เปิดใช้งานยังไง
+## How to open it
 
-1. คลิกปุ่ม **⋯** (เมนูเพิ่มเติม) บนหัวแชท → เลือก **🔀 Workflow Builder**
-2. หน้าต่าง canvas จะเด้งขึ้นมา (ลากย้าย/ปรับขนาดได้เหมือนหน้าต่างปกติ)
+1. Click the **⋯** button (more menu) on the chat header → choose **🔀 Workflow Builder**
+2. The canvas window pops up (drag to move/resize it like a normal window)
 
-หน้าตาคร่าวๆ:
+Rough layout:
 
 ```
 ┌─ 🔀 Workflow Builder ───────────────────────────────────────────┐
-│ [ชื่อ workflow…]  ＋Node   📂เปิด…            💾บันทึก   🔍วิเคราะห์ │
+│ [workflow name…]  ＋Node   📂Open…            💾Save   🔍Analyze  │
 ├──────────────────────────────────────┬──────────────────────────┤
-│  ┌──────────────────────────┐        │  🤖 แผนจาก Director        │
-│  │ 1  ⚡ เริ่มเมื่อ        ✕ │        │  ───────────────────────  │
-│  │ "ทุกเช้า 9:00"           │        │  • workflow นี้ทำ…         │
-│  └────────────┬─────────────┘        │  • ใช้ skill: …            │
-│  ┌────────────┴─────────────┐        │  • ต้องเปิด tool: …        │
-│  │ 2  ⚙ ทำงาน             ✕ │        │  • มอบหมายให้: …           │
-│  │ "สรุป 5 หัวข้อเด่น"      │        │  • คำถามที่ต้องตอบ: …       │
+│  ┌──────────────────────────┐        │  🤖 Plan from Director     │
+│  │ 1  ⚡ Start when        ✕ │        │  ───────────────────────  │
+│  │ "Every morning 9:00"     │        │  • this workflow does…     │
+│  └────────────┬─────────────┘        │  • uses skill: …           │
+│  ┌────────────┴─────────────┐        │  • needs to enable tool: … │
+│  │ 2  ⚙ Action            ✕ │        │  • assign to: …            │
+│  │ "Summarize 5 top topics" │        │  • questions to answer: …  │
 │  └────────────┬─────────────┘        │                          │
 │  ┌────────────┴─────────────┐        │                          │
-│  │ 3  📤 ส่งผล             ✕ │        │                          │
-│  │ "ส่งเข้า Telegram"       │        │                          │
+│  │ 3  📤 Output            ✕ │        │                          │
+│  │ "Send to Telegram"       │        │                          │
 │  └──────────────────────────┘        │                          │
 └──────────────────────────────────────┴──────────────────────────┘
-        ↑ ลากการ์ดเรียงบน→ล่าง = ลำดับการทำงาน
+        ↑ drag cards top→bottom = order of execution
 ```
 
 ---
 
-## ชนิดของ node
+## Node types
 
-| ชนิด | ใช้เมื่อ | ตัวอย่าง |
+| Type | Use when | Example |
 |---|---|---|
-| ⚡ **เริ่มเมื่อ** (trigger) | จุดเริ่ม / เงื่อนไขเวลา | "ทุกเช้า 9:00", "เมื่อสั่งให้เริ่ม" |
-| ⬇ **ดึงข้อมูล** (fetch) | หาข้อมูลเข้ามา | "ค้นข่าว AI", "อ่านไฟล์ X", "เปิด URL" |
-| ⚙ **ทำงาน** (action) | ประมวลผล/สร้าง | "สรุป", "เขียนโค้ด", "สร้างรูป" |
-| ◆ **ตัดสินใจ** (decision) | เงื่อนไขแยกทาง | "ถ้าเว็บล่ม", "ถ้ายอดเกิน 100" |
-| 📤 **ส่งผล** (output) | ปลายทางผลลัพธ์ | "ส่ง Telegram", "เขียนลงไฟล์", "รายงาน CEO" |
-| 📝 **โน้ต** (note) | คำอธิบายเฉยๆ | "หมายเหตุ: ใช้ key ของทีม" |
+| ⚡ **Start when** (trigger) | A starting point / time condition | "Every morning 9:00", "When told to start" |
+| ⬇ **Fetch** (fetch) | Pulling data in | "Search AI news", "Read file X", "Open URL" |
+| ⚙ **Action** (action) | Process/create | "Summarize", "Write code", "Generate an image" |
+| ◆ **Decision** (decision) | A branching condition | "If the site is down", "If the total exceeds 100" |
+| 📤 **Output** (output) | Where the result goes | "Send to Telegram", "Write to a file", "Report to CEO" |
+| 📝 **Note** (note) | Just a description | "Note: use the team's key" |
 
-**ลำดับการทำงาน = เรียงจากบนลงล่าง** (ตามตำแหน่ง Y ของการ์ด) — ลากการ์ดขึ้น/ลงเพื่อจัดลำดับ
-
----
-
-## ขั้นตอนการใช้ (4 ขั้น)
-
-1. **เพิ่ม node** — กด **＋ Node** แล้วลากไปวางเรียงบนลงล่าง
-2. **พิมพ์คำสั่ง** — ดับเบิลคลิกในการ์ด พิมพ์สิ่งที่อยากให้ทำ (ภาษาคนปกติ) + เลือกชนิด node
-3. **กด 🔍 วิเคราะห์** — Director จะอ่านทั้ง workflow แล้วตอบกลับในแผงขวา:
-   - workflow นี้ทำอะไร (สรุปสั้น)
-   - แต่ละขั้นใช้ **skill/tool** ไหน (ถ้ายังไม่มี skill ที่เหมาะ จะบอกว่าควรสร้างอะไร)
-   - ต้องเปิด **permission/tool** อะไรเพิ่ม
-   - ควรมอบหมายให้ **agent** คนไหน หรือควรจ้างเพิ่ม
-   - คำถาม/ช่องโหว่ที่คุณต้องตัดสินใจก่อนรันจริง
-4. **💾 บันทึก** — เก็บไว้แก้/เปิดซ้ำได้ (เก็บที่ `workspace/workflows/<id>.json`)
-5. **▶️ รันเลย / 🧠 สร้างเป็น Skill** — เมื่อพร้อมแล้ว สั่งทีมทำตาม workflow ทันที หรือบันทึกเป็น skill ไว้ใช้ซ้ำ
-
-> ℹ️ **"วิเคราะห์" คือการวางแผน ไม่ลงมือ** — ใช้ดูว่าต้องเตรียม skill/permission/agent อะไร
-> เมื่อพร้อมค่อยกด **▶️ รันเลย** (ลงมือจริง) หรือ **🧠 สร้างเป็น Skill** (เก็บไว้เรียกซ้ำ)
+**Order of execution = top to bottom** (by the card's Y position) — drag cards up/down to reorder.
 
 ---
 
-## 3 ตัวอย่างพร้อมใช้ (เปิดเรียนรู้ได้เลย)
+## How to use it (4 steps)
 
-ครั้งแรกที่เปิดโปรแกรม ระบบจะใส่ตัวอย่างพวกนี้ให้แล้ว — กด **📂 เปิด…** เลือกดูได้:
+1. **Add nodes** — press **＋ Node** and drag them into place from top to bottom
+2. **Type instructions** — double-click inside a card, type what you want it to do (plain language) + pick the node type
+3. **Press 🔍 Analyze** — the Director reads the whole workflow and replies in the right panel:
+   - what this workflow does (short summary)
+   - which **skill/tool** each step uses (if there's no suitable skill yet, it tells you what to build)
+   - which extra **permission/tool** needs to be enabled
+   - which **agent** to assign it to, or whether to hire more
+   - questions/gaps you need to decide on before actually running it
+4. **💾 Save** — keep it to edit/reopen later (stored at `workspace/workflows/<id>.json`)
+5. **▶️ Run now / 🧠 Build as a Skill** — when ready, tell the team to carry out the workflow immediately, or save it as a skill for reuse
 
-### 1) สรุปข่าว AI ประจำวัน
-```
-⚡ ทุกเช้า 9:00  →  ⬇ ค้นข่าว AI ล่าสุด  →  ⚙ สรุป 5 หัวข้อเด่น+ลิงก์  →  📤 ส่งเข้าแชท/Telegram
-```
-สอนเรื่อง: trigger ตามเวลา + การดึงข้อมูลเว็บ (skill `deep-research`, tool `WebSearch/WebFetch`) + ส่งออกช่องทาง
-
-### 2) เฝ้าดูเว็บไซต์ล่ม
-```
-⚡ ทุก 30 นาที  →  ⬇ เปิด URL เว็บ  →  ◆ ถ้าไม่ใช่ 200 OK  →  📤 แจ้งเตือนทันที
-```
-สอนเรื่อง: trigger เป็นช่วงเวลา + node ตัดสินใจ (decision) + การแจ้งเตือน
-
-### 3) สรุปบันทึกการประชุม
-```
-⚡ เมื่อสั่ง (แนบ transcript)  →  ⬇ อ่านไฟล์  →  ⚙ สรุป+action items+ผู้รับผิดชอบ  →  📤 เขียนลง notes.md
-```
-สอนเรื่อง: รับไฟล์ + ประมวลผลข้อความ (tool `Read/Write`) + บันทึกผลลงไฟล์ออฟฟิศ
+> ℹ️ **"Analyze" is planning, not acting** — use it to see what skills/permissions/agents
+> you need to prepare. When ready, press **▶️ Run now** (act for real) or **🧠 Build as a
+> Skill** (keep it for reuse).
 
 ---
 
-## เคล็ดลับ
+## 3 ready-to-use examples (open them to learn)
 
-- **เขียนเป็นเจตนา ไม่ต้องเป๊ะ** — "สรุปข่าวให้หน่อย" ดีกว่า "GET /api แล้ว parse JSON…" ปล่อยให้ Director คิดวิธี
-- 1 node = 1 ขั้นตอนที่เข้าใจง่าย อย่ายัดหลายอย่างใน node เดียว
-- กด **วิเคราะห์** บ่อยๆ ระหว่างวาง — จะรู้ว่ายังขาด skill/permission อะไร
-- ถ้า Directorบอกว่า "ควรมี skill X" → ไปสร้าง skill นั้น (ดู [คู่มือ skills](ai-features.md)) แล้ววิเคราะห์ใหม่
+The first time you open the program, the system adds these examples for you — press
+**📂 Open…** to browse them:
 
-> 🚧 กำลังจะมาต่อ: เชื่อมเส้น node แบบอิสระบน canvas, ตั้งเวลาให้ workflow รันเองอัตโนมัติตาม trigger,
-> และ Workflow Hub สำหรับแชร์ workflow สำเร็จรูป (ตอนนี้ ▶️ รันเลย เป็นการสั่งรันด้วยตัวเองทีละครั้ง)
+### 1) Daily AI news summary
+```
+⚡ Every morning 9:00  →  ⬇ Search latest AI news  →  ⚙ Summarize 5 top topics+links  →  📤 Send to chat/Telegram
+```
+Teaches: a time-based trigger + web data fetching (skill `deep-research`, tool `WebSearch/WebFetch`) + sending to a channel
+
+### 2) Watch for a website going down
+```
+⚡ Every 30 minutes  →  ⬇ Open the site's URL  →  ◆ If not 200 OK  →  📤 Alert immediately
+```
+Teaches: an interval trigger + a decision node + alerting
+
+### 3) Summarize meeting notes
+```
+⚡ On demand (attach transcript)  →  ⬇ Read the file  →  ⚙ Summarize+action items+owners  →  📤 Write to notes.md
+```
+Teaches: accepting a file + processing text (tool `Read/Write`) + saving the result to an office file
+
+---
+
+## Tips
+
+- **Write the intent, not the exact steps** — "Summarize the news for me" is better than "GET /api then parse JSON…"; let the Director figure out how
+- 1 node = 1 easy-to-understand step; don't cram several things into one node
+- Press **Analyze** often while building — you'll learn what skills/permissions are still missing
+- If the Director says "you should have skill X" → go build that skill (see the [skills guide](ai-features.md)) and analyze again
+
+> 🚧 Coming up next: freely connecting nodes with lines on the canvas, scheduling
+> workflows to run automatically on a trigger, and a Workflow Hub for sharing
+> ready-made workflows (right now ▶️ Run now is a one-off, manual run).

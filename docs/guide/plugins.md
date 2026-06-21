@@ -4,36 +4,37 @@ A **plugin** extends the office in real ways — a panel the user opens, HTTP
 routes, and **commands agents can drive**. Plugins are plain folders; no build
 step, zero dependencies. Drop one in `plugins/` and reload.
 
-![แผง PLUGINS — ติดตั้ง/รีโหลด/ลบ + ติดตั้งจาก GitHub](../img/plugins.png)
+![PLUGINS panel — install/reload/remove + install from GitHub](../img/plugins.png)
 
-> ⚙ → **PLUGINS**: ดูปลั๊กอินที่ติดตั้ง, เปิดแผงของแต่ละตัว, ลบ, หรือ
-> **ติดตั้งจาก GitHub repo ใดก็ได้** — วาง URL แล้วกดติดตั้ง (เริ่มจาก
-> template ทางการได้: `github.com/bagidea/bagidea-office-template`)
+> ⚙ → **PLUGINS**: see installed plugins, open each one's panel, remove them, or
+> **install from any GitHub repo** — paste a URL and click install (you can start
+> from the official template: `github.com/bagidea/bagidea-office-template`)
 
 This guide is written so a **person** OR an **agent** can build a working plugin
 from scratch. The `music` and `calculator` plugins (§7) are full examples to read.
 
-> 📦 **ออฟฟิศติดตั้งมาแบบว่างเปล่า — ไม่มีปลั๊กอินติดมาให้** เลย (ดู `.gitignore`:
-> `plugins/*`). เจ้าของออฟฟิศเป็นคนเลือกติดตั้งเองจาก **Plugins Hub** ทีละตัว
-> (แต่ละตัวคือ GitHub repo ที่ clone เข้ามา) ดูวิธีใช้ในหัวข้อ **"ใช้ปลั๊กอินสำเร็จรูป"** ด้านล่าง
+> 📦 **The office installs empty — no plugins ship with it** at all (see `.gitignore`:
+> `plugins/*`). The office owner installs them one at a time from the **Plugins Hub**
+> (each one is a GitHub repo that gets cloned in). See how in the **"Use a ready-made
+> plugin"** section below.
 
-## ใช้ปลั๊กอินสำเร็จรูป (เริ่มจาก 🎵 Music Player)
+## Use a ready-made plugin (start with 🎵 Music Player)
 
-ครั้งแรกที่เปิดออฟฟิศจะ **ยังไม่มีปลั๊กอินสักตัว** ติดเองได้จาก ⚙ → **🧩 PLUGINS**:
+The first time you open the office there are **no plugins yet**. Install one from ⚙ → **🧩 PLUGINS**:
 
-1. เปิดแผง **🧩 PLUGINS** แล้วไปแท็บ **Hub** (แคตาล็อกทางการอยู่ที่ `web/plugins.json`)
-2. กดติดตั้ง **🎵 Music Player** (ปลั๊กอินทางการตัวแรก) — ออฟฟิศจะ clone จาก repo ให้อัตโนมัติ
-3. (หรือวาง URL ของ GitHub repo ใดก็ได้ที่มี `plugin.json` แล้วกดติดตั้ง)
+1. Open the **🧩 PLUGINS** panel and go to the **Hub** tab (the official catalog lives in `web/plugins.json`)
+2. Click install on **🎵 Music Player** (the first official plugin) — the office clones it from the repo automatically
+3. (Or paste the URL of any GitHub repo that has a `plugin.json` and click install)
 
-**ใช้งาน 🎵 Music Player** — เปิดแผงของมันแล้ว:
-- **เพิ่มเพลง** — อัปโหลดไฟล์เสียงเข้าเพลย์ลิสต์ (รองรับชื่อไฟล์ภาษาไทย/หลายภาษา)
-- **เล่น/หยุด/เพลงถัดไป-ก่อนหน้า** — ปุ่มควบคุม + แถบ seek เลื่อนตำแหน่งได้
-- **วนเพลย์ลิสต์ (loop) + ปรับเสียง (volume)**
-- **ลบหลายเพลงพร้อมกัน** — เลือกหลายรายการ (multi-select) แล้วลบทีเดียว
-- **agents สั่งได้ด้วย** — คำสั่งในมือ agent: `play / pause / next / prev / loop / volume / remove / status`
-  (เช่นพิมพ์สั่งว่า "เปิดเพลง" ทีมก็เปิดให้ และแผงที่เปิดอยู่หน้าจอจะอัปเดตสด)
+**Using 🎵 Music Player** — open its panel, then:
+- **Add songs** — upload audio files into the playlist (Thai/multilingual filenames supported)
+- **Play/pause/next/previous** — control buttons + a seek bar you can drag
+- **Loop the playlist + adjust the volume**
+- **Remove several songs at once** — multi-select rows and delete them in one go
+- **Agents can drive it too** — agent commands: `play / pause / next / prev / loop / volume / remove / status`
+  (e.g. say "play some music" and the team does it, and the panel open on screen updates live)
 
-ลบปลั๊กอินได้จากปุ่ม 🗑 บนแผง 🧩 (ดูหัวข้อ §6 ติดตั้ง/ลบ)
+Remove a plugin with the 🗑 button on the 🧩 panel (see §6 Installing / removing)
 
 ---
 

@@ -1,84 +1,85 @@
-# bagidea CLI — คุมออฟฟิศจากเทอร์มินัล
+# bagidea CLI — Run the office from your terminal
 
 ![bagidea --help](../img/cli.png)
 
-ตัวติดตั้งผูกคำสั่ง `bagidea` เข้า PATH ให้แล้ว (ติดตั้งเอง: ใช้ `bagidea.cmd`
-ที่ root ของ repo หรือเพิ่มโฟลเดอร์ repo เข้า PATH)
+The installer wires the `bagidea` command into your PATH (manual install: use the
+`bagidea.cmd` at the root of the repo, or add the repo folder to your PATH).
 
-## คำสั่งทั้งหมด
+## All commands
 
 ```
-โปรแกรม
-  bagidea start                 เปิดออฟฟิศ (ถ้ายังไม่เปิด)
-  bagidea stop                  ปิดทั้งชุด
-  bagidea restart               ปิดแล้วเปิดใหม่ (โหลดโค้ด/ฉาก/ปลั๊กอินใหม่)
-  bagidea status                ภาพรวมระบบ + agents + โปรเจค + keys
-  bagidea stats                 📊 สถิติงาน 7 วัน + ค่าใช้จ่าย + กราฟ
-  bagidea update                อัปเดต + รีสตาร์ท
-  bagidea version               เวอร์ชันปัจจุบัน + บอกถ้ามีอัปเดต
-  bagidea startup [on|off]      เปิดออฟฟิศพร้อม Windows (ดู/ตั้งค่า)
-  bagidea uninstall [--keep-data]  ถอนการติดตั้ง (PATH, shortcut, autostart, ไฟล์)
-  bagidea --help                หน้านี้
+Program
+  bagidea start                 Open the office (if not already running)
+  bagidea stop                  Shut everything down
+  bagidea restart               Stop and start again (reload code/scenes/plugins)
+  bagidea status                System overview + agents + projects + keys
+  bagidea stats                 📊 7-day work stats + costs + charts
+  bagidea update                Update + restart
+  bagidea version               Current version + notice if an update is available
+  bagidea startup [on|off]      Launch the office with Windows (view/set)
+  bagidea uninstall [--keep-data]  Uninstall (PATH, shortcut, autostart, files)
+  bagidea --help                This page
 
-คุยกับออฟฟิศ
-  bagidea ask "<ข้อความ>"        สั่งงานในนาม CEO และรอคำตอบจบ
-  bagidea chat <agent> "<msg>"  ส่งงานให้ agent ระบุตัว (ไม่รอ)
-  bagidea feed                  ดูเหตุการณ์สด (Ctrl+C ออก)
-  bagidea note "<ข้อความ>"       แปะโน้ตบนกระดานกลาง
+Talk to the office
+  bagidea ask "<message>"       Issue a task as CEO and wait for the final answer
+  bagidea chat <agent> "<msg>"  Send a task to a specific agent (no wait)
+  bagidea feed                  Watch live events (Ctrl+C to exit)
+  bagidea note "<message>"      Pin a note on the central board
 
-ทีมและงาน
-  bagidea agents                รายชื่อพนักงาน + เสียง + เครื่องมือ
-  bagidea projects              รายชื่อโปรเจค + ใครทำงาน
-  bagidea open "<โปรเจค>"        เปิดหน้าต่างโปรเจค (= ▶)
-  bagidea memory <agent>        อ่านสมุดความจำของ agent
-  bagidea office                อ่าน OFFICE.md (ข้อมูลกลาง)
+Team and work
+  bagidea agents                List of staff + voices + tools
+  bagidea projects              List of projects + who is working on them
+  bagidea open "<project>"      Open a project window (= ▶)
+  bagidea memory <agent>        Read an agent's memory notebook
+  bagidea office                Read OFFICE.md (shared info)
 
-ข้อเสนอจากทีม
-  bagidea proposals             ข้อเสนอโปรเจคที่รออนุมัติ
-  bagidea proposal show <id>    อ่านรายละเอียดเต็ม
-  bagidea proposal approve <id> [ข้อความ]   อนุมัติ (+ ข้อความถึงทีม)
-  bagidea proposal reject <id> [ข้อความ]    ไม่อนุมัติ (+ เหตุผล)
+Proposals from the team
+  bagidea proposals             Project proposals awaiting approval
+  bagidea proposal show <id>    Read the full details
+  bagidea proposal approve <id> [message]   Approve (+ message to the team)
+  bagidea proposal reject <id> [message]    Reject (+ reason)
 
-ปลั๊กอิน
-  bagidea plugins               รายการปลั๊กอินที่ติดตั้ง
-  bagidea plugin install <url>  ติดตั้งจาก GitHub
-  bagidea plugin remove <id>    ถอน (ปลั๊กอินหลักถอนไม่ได้)
+Plugins
+  bagidea plugins               List of installed plugins
+  bagidea plugin install <url>  Install from GitHub
+  bagidea plugin remove <id>    Remove (built-in plugins cannot be removed)
 
-AI features (ใช้ main API keys)
-  bagidea lang [code]               ดู/ตั้งภาษาออฟฟิศ (14 ภาษา)
-  bagidea say "<ข้อความ>" [preset]  ให้เสียง TTS พูด (default sunny)
-  bagidea voices                    รายชื่อเสียง preset
-  bagidea image "<prompt>"          สร้างภาพ AI → ได้ path
-  bagidea keys                      ดู key ที่ตั้งไว้ (ไม่โชว์ค่า)
-  bagidea channels                  สถานะ Telegram / Discord / LINE
+AI features (use main API keys)
+  bagidea lang [code]               View/set the office language (14 languages)
+  bagidea say "<message>" [preset]  Have a TTS voice speak (default sunny)
+  bagidea voices                    List of voice presets
+  bagidea image "<prompt>"          Generate an AI image → returns a path
+  bagidea keys                      View configured keys (values not shown)
+  bagidea channels                  Status of Telegram / Discord / LINE
 
-ซ่อมบำรุง
-  bagidea fixmic                รีเซ็ตแผงไมค์ Windows ที่ค้าง
+Maintenance
+  bagidea fixmic                Reset a stuck Windows mic panel
 ```
 
-## ตัวอย่างการใช้จริง
+## Real-world examples
 
 ```powershell
-# เปิดเครื่องมา สั่งเปิดออฟฟิศจากเทอร์มินัลเลย
+# Boot up your machine and open the office straight from the terminal
 bagidea start
 
-# ถามอะไรก็ได้ — คำสั่งค้างรอจนคำตอบจบ (เหมาะกับใช้ในสคริปต์)
-bagidea ask "สรุปงานที่ทีมทำไปเมื่อคืนให้หน่อย"
+# Ask anything — the command blocks until the answer is complete (great for scripts)
+bagidea ask "Summarize the work the team did last night for me"
 
-# สั่งงานยาวๆ แบบไม่รอ แล้วเปิดจอดูเหตุการณ์
-bagidea chat pixel "รีแฟกเตอร์ CSS ของโปรเจค Calculator ทั้งหมด"
+# Issue a long task without waiting, then open a screen to watch events
+bagidea chat pixel "Refactor all the CSS in the Calculator project"
 bagidea feed
 
-# เช็คว่าใครทำอะไรอยู่
+# Check who is doing what
 bagidea status
 ```
 
-## ใช้ร่วมกับสคริปต์/automation
+## Using it with scripts/automation
 
-- `ask` คืนข้อความล้วนทาง stdout — pipe ต่อได้เลย:
+- `ask` returns plain text on stdout — pipe it straight on:
   ```powershell
-  bagidea ask "เขียน commit message จาก git diff นี้: $(git diff --stat)" | clip
+  bagidea ask "Write a commit message from this git diff: $(git diff --stat)" | clip
   ```
-- ทุกคำสั่งคุยกับ daemon ที่ `http://127.0.0.1:8787` — endpoint เดียวกับที่
-  UI ใช้ (ดูตาราง HTTP API ใน README) เขียน integration ของคุณเองได้ตรงๆ
-- `feed` อ่านจาก `daemon/journal.jsonl` — log ถาวรของทั้งออฟฟิศ
+- Every command talks to the daemon at `http://127.0.0.1:8787` — the same
+  endpoint the UI uses (see the HTTP API table in the README); you can write
+  your own integrations directly against it.
+- `feed` reads from `daemon/journal.jsonl` — the permanent log of the whole office.

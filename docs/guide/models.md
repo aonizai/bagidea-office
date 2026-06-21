@@ -1,152 +1,152 @@
-# Models & Providers — สมองถอดเปลี่ยนได้ (เลือกโมเดลต่อ agent)
+# Models & Providers — a swappable brain (pick a model per agent)
 
-ออฟฟิศรันด้วย **Claude Code CLI** เป็น engine เสมอ (tools, การแก้ไฟล์, skills,
-session loop) — แต่ **"สมอง" (โมเดล) ที่อยู่เบื้องหลังเปลี่ยนได้ต่อ agent** ตั้งที่
-⚙ → AGENTS → แก้ไข agent → ช่อง **🧠 สมอง (โมเดล/ผู้ให้บริการ)**
+The office always runs on the **Claude Code CLI** as its engine (tools, file editing, skills,
+session loop) — but **the "brain" (the model) behind it can be swapped per agent**, set at
+⚙ → AGENTS → edit agent → the **🧠 Brain (model/provider)** field.
 
-> `claude` เป็นแค่ตัวส่งคำขอ — ชี้ `ANTHROPIC_BASE_URL` ไปเจ้าอื่น มันก็คุยกับเจ้านั้นแทน
-> โดย tools/loop ยังเป็นของ Claude Code (ฟรี ในเครื่อง) เปลี่ยนแค่โมเดล
+> `claude` is just the request sender — point `ANTHROPIC_BASE_URL` at another provider and it talks to that one instead,
+> while the tools/loop stay Claude Code (free, local). Only the model changes.
 
-![เลือก provider + โมเดลต่อ agent พร้อมมิเตอร์ context ในแชต](../img/swappable-brains.png)
+![Pick a provider + model per agent, with a context meter in chat](../img/swappable-brains.png)
 
-## ทำไมถึงคุ้ม
+## Why it's worth it
 
-- **ประหยัด** — โมเดลอย่าง DeepSeek/GLM/Qwen/MiniMax ถูกกว่า Claude หลายเท่าต่อ token
-- **ไม่ต้องมี Claude plan ก็ได้** — ถ้าทุก agent ใช้ provider อื่น ก็ **ไม่แตะ credit Claude เลย**
-  (ตั้ง provider อื่น + วาง key ของเจ้านั้น แล้วใช้งานได้ — Claude เป็นแค่ค่าเริ่มต้น)
-- **fail-open** — agent ที่เป็น Claude หรือยังไม่ตั้ง key จะทำงานเหมือนเดิมทุกประการ
+- **Cheaper** — models like DeepSeek/GLM/Qwen/MiniMax are several times cheaper than Claude per token
+- **No Claude plan required** — if every agent uses another provider, you **never touch Claude credit at all**
+  (set another provider + drop in its key, and you're set — Claude is just the default)
+- **fail-open** — an agent on Claude, or one with no key set yet, works exactly as before
 
-## ตั้งค่ายังไง (2 ขั้น)
+## How to set it up (2 steps)
 
-**ขั้น 1 — ต่อ provider (ทำครั้งเดียว)**
+**Step 1 — connect a provider (one time)**
 
-⚙ → **CONNECT → 🧠 MODELS / PROVIDERS** → วาง API key ของเจ้าที่อยากใช้ → กด **🔌 Connect**
-ให้ขึ้น ✅ (ระบบจะ "test key + ดึงรายชื่อโมเดล" ให้อัตโนมัติ) · key จะถูกโชว์แบบ mask
-(`sk-proj-••••••2rAA`) เพื่อให้รู้ว่าใช้ key ไหนอยู่
+⚙ → **CONNECT → 🧠 MODELS / PROVIDERS** → paste the API key of the provider you want → press **🔌 Connect**
+until it turns ✅ (the system "tests the key + fetches the model list" automatically) · the key is shown masked
+(`sk-proj-••••••2rAA`) so you know which one is in use.
 
-| แยกเป็นหมวด: Claude · ต่อตรง · ผ่าน proxy | Others + custom provider เพิ่มเอง |
+| Grouped by category: Claude · direct · via proxy | Others + add your own custom provider |
 |---|---|
-| ![รายชื่อ provider: Claude, GLM, DeepSeek, Qwen, MiniMax, OpenAI, Gemini](../img/brains-connect.png) | ![OpenRouter, NVIDIA build และฟอร์ม custom provider](../img/brains-providers.png) |
+| ![Provider list: Claude, GLM, DeepSeek, Qwen, MiniMax, OpenAI, Gemini](../img/brains-connect.png) | ![OpenRouter, NVIDIA build, and the custom provider form](../img/brains-providers.png) |
 
-**ขั้น 2 — เลือกสมองให้ agent**
+**Step 2 — pick a brain for the agent**
 
-1. ⚙ → AGENTS → กดแก้ไข agent ที่ต้องการ
-2. ช่อง **🧠 สมอง** → เลือกผู้ให้บริการ (ดีฟอลต์ = Claude)
-3. ช่อง **โมเดล** ระบบเลือก default ที่ใช้ได้ให้เลย หรือพิมพ์/เลือกเองจาก dropdown
-4. 💾 บันทึก — กด **บันทึกไม่ได้ถ้า provider ยังไม่ได้ connect** (กันพลาด)
-5. มีผลกับ session ใหม่ของ agent นั้นทันที (session ที่ resume อยู่จะคงโมเดลเดิมจนเริ่มเธรดใหม่ — หรือจน auto-compact)
+1. ⚙ → AGENTS → click to edit the agent you want
+2. The **🧠 Brain** field → pick a provider (default = Claude)
+3. The **Model** field — the system picks a usable default for you, or type/select your own from the dropdown
+4. 💾 Save — you **can't save if the provider isn't connected yet** (to prevent mistakes)
+5. Takes effect on that agent's next session immediately (a resumed session keeps its existing model until a new thread starts — or until auto-compact)
 
-> 🧠 ghost (sub-agent) ใช้ provider เดียวกับ agent แม่อัตโนมัติ
+> 🧠 A ghost (sub-agent) uses the same provider as its parent agent automatically
 
-## ผู้ให้บริการที่รองรับ
+## Supported providers
 
-### 🟢 คุยตรง (Anthropic-compatible) — ไม่ผ่านอะไรเลย
+### 🟢 Direct (Anthropic-compatible) — nothing in between
 
-| Provider | โมเดลแนะนำ | endpoint (สากล) | ขอ key |
+| Provider | Recommended model | Endpoint (global) | Get a key |
 |---|---|---|---|
-| **Claude** (ดีฟอลต์) | opus / sonnet / haiku | — (ใช้ login/แผนของคุณ) | claude.ai หรือ ANTHROPIC_API_KEY |
-| **GLM** (Z.AI) | `glm-4.6` | `https://api.z.ai/api/anthropic` | z.ai (มี coding plan แบบ key) |
+| **Claude** (default) | opus / sonnet / haiku | — (uses your login/plan) | claude.ai or ANTHROPIC_API_KEY |
+| **GLM** (Z.AI) | `glm-4.6` | `https://api.z.ai/api/anthropic` | z.ai (has a key-based coding plan) |
 | **DeepSeek** | `deepseek-v4-pro` / `-flash` | `https://api.deepseek.com/anthropic` | platform.deepseek.com |
 | **Qwen** (Alibaba) | `qwen3-coder-plus` | `https://dashscope-intl.aliyuncs.com/apps/anthropic` | Alibaba Model Studio |
 | **MiniMax** | `MiniMax-M3` | `https://api.minimax.io/anthropic` | platform.minimax.io |
 | **Kimi** (Moonshot) | `kimi-k2.5` | `https://api.moonshot.ai/anthropic` | platform.moonshot.ai |
 
-### 🔵 ผ่าน proxy ในตัว (OpenAI-compatible) — ไม่ต้องลง LiteLLM/Python
+### 🔵 Via the built-in proxy (OpenAI-compatible) — no LiteLLM/Python to install
 
-ออฟฟิศมี **proxy แปลร่าง Anthropic ↔ OpenAI ฝังในตัว (zero-dependency)** ให้แล้ว ใส่แค่ key:
+The office ships a **built-in, zero-dependency proxy that translates Anthropic ↔ OpenAI** — just add a key:
 
-| Provider | โมเดลแนะนำ | รูปแบบชื่อโมเดล |
+| Provider | Recommended model | Model name format |
 |---|---|---|
-| **OpenAI** | `gpt-4o` | ชื่อเปล่า |
-| **Gemini** (Google) | `gemini-2.5-flash` | ชื่อเปล่า |
+| **OpenAI** | `gpt-4o` | bare name |
+| **Gemini** (Google) | `gemini-2.5-flash` | bare name |
 | **OpenRouter** | `openai/gpt-4o`, `anthropic/claude-…` | **`vendor/model`** |
 | **NVIDIA build** | `meta/llama-3.3-70b-instruct` | **`vendor/model`** |
-| **Groq** | `llama-3.3-70b-versatile` | ชื่อเปล่า · เร็วมาก + free tier |
-| **Cerebras** | `llama-3.3-70b` | ชื่อเปล่า · เร็วมาก + free tier |
-| **xAI (Grok)** | `grok-3` | ชื่อเปล่า |
-| **Mistral** | `mistral-large-latest`, `codestral-latest` | ชื่อเปล่า |
+| **Groq** | `llama-3.3-70b-versatile` | bare name · very fast + free tier |
+| **Cerebras** | `llama-3.3-70b` | bare name · very fast + free tier |
+| **xAI (Grok)** | `grok-3` | bare name |
+| **Mistral** | `mistral-large-latest`, `codestral-latest` | bare name |
 | **Together AI** | `meta-llama/Llama-3.3-70B-Instruct-Turbo` | **`vendor/model`** |
-| **Fireworks AI** | `accounts/fireworks/models/…` | path ของ Fireworks |
-| **Custom** | อะไรก็ได้ | ตามเจ้านั้น |
+| **Fireworks AI** | `accounts/fireworks/models/…` | Fireworks path |
+| **Custom** | anything | as the provider requires |
 
-### 💻 Local — ในเครื่อง ไม่ต้องใช้ key
+### 💻 Local — on your machine, no key needed
 
-รันโมเดลในเครื่องผ่านเซิร์ฟเวอร์ OpenAI-compatible — **ไม่ต้องวาง API key** แค่เปิดเซิร์ฟเวอร์แล้วกด Connect
-(ออฟฟิศยิงไป `localhost`) · ฟรี · ออฟไลน์ · เป็นส่วนตัว
+Run models locally through an OpenAI-compatible server — **no API key to paste**, just start the server and press Connect
+(the office sends to `localhost`) · free · offline · private.
 
-| Provider | Endpoint (ดีฟอลต์) | โมเดล |
+| Provider | Endpoint (default) | Models |
 |---|---|---|
-| **Ollama** | `http://127.0.0.1:11434/v1` | `llama3.1`, `qwen2.5-coder`, `deepseek-r1` … (ที่ `ollama pull` ไว้) |
-| **LM Studio** | `http://127.0.0.1:1234/v1` | โมเดลที่โหลดใน LM Studio |
+| **Ollama** | `http://127.0.0.1:11434/v1` | `llama3.1`, `qwen2.5-coder`, `deepseek-r1` … (whatever you've `ollama pull`ed) |
+| **LM Studio** | `http://127.0.0.1:1234/v1` | the models loaded in LM Studio |
 
-> พอร์ตไม่ใช่ค่าเริ่มต้น → ใช้ **Custom provider** ใส่ Base URL เอง (OpenAI-compatible)
+> Non-default port → use a **Custom provider** and set the Base URL yourself (OpenAI-compatible)
 
-> daemon รับ request จาก claude (ภาษา Anthropic) → แปลเป็น OpenAI → ยิงไปปลายทางด้วย key ใน CONNECT
-> (key จริงไม่เข้า sandbox) · ถ้าไม่มี key → fall back เป็น Claude (ไม่ค้าง)
+> The daemon takes a request from claude (in Anthropic format) → translates it to OpenAI → sends it on with the key from CONNECT
+> (the real key never enters the sandbox) · no key → it falls back to Claude (never hangs)
 
-### 🛠 Custom provider — เพิ่มเองได้
+### 🛠 Custom provider — add your own
 
-ใน CONNECT มีฟอร์ม **Custom** — ใส่ **ชื่อ + Base URL + API key** เลือกได้ว่าจะคุยแบบ
-**Anthropic-compatible** หรือ **OpenAI-compatible** → ใครมี **LiteLLM gateway** ของตัวเองอยู่แล้ว
-ก็ชี้ Base URL มาที่ gateway นั้นได้เลย (เลี่ยง LiteLLM เวอร์ชัน 1.82.7/1.82.8 ที่เคยติด malware)
+CONNECT has a **Custom** form — enter a **name + Base URL + API key**, and choose whether it speaks
+**Anthropic-compatible** or **OpenAI-compatible** → anyone who already has their own **LiteLLM gateway**
+can just point the Base URL at it (avoid LiteLLM versions 1.82.7/1.82.8, which once carried malware).
 
-## 🆓 ลองฟรีได้ — แต่มีลิมิต
+## 🆓 Free to try — but with limits
 
-| Provider | ฟรี? | ข้อจำกัดที่ต้องรู้ |
+| Provider | Free? | Limits to know |
 |---|---|---|
-| **NVIDIA build** | ✅ ฟรีทดสอบ | **rate limit ต่ำ (~40 req/นาที)** — งาน agent ที่แนบ context หนักชน 429 เร็ว เหมาะกับงานเบา/ลองเล่น |
-| **OpenRouter** | ✅ มีโมเดล `:free` | **จำกัดต่อวัน + อาจรอคิว** · ต้องใช้ id แบบ `vendor/model` · งานหนักแนะนำเติมเครดิต |
-| **Gemini** | ✅ โควต้าใจดี | เหมาะกับผู้ช่วยทั่วไป — flash ฟรีค่อนข้างเยอะ |
-| **OpenAI** | ❌ จ่ายตามใช้ | **Tier 1 = 30k tokens/นาที** เล็กไปสำหรับงาน agent หนัก (แต่ auto-compact ช่วยได้ ดูด้านล่าง) |
+| **NVIDIA build** | ✅ free to test | **low rate limit (~40 req/min)** — agent tasks with heavy context hit 429 quickly; best for light tasks/playing around |
+| **OpenRouter** | ✅ has `:free` models | **daily cap + possible queueing** · must use `vendor/model` ids · for heavy work, add credit |
+| **Gemini** | ✅ generous quota | great for a general assistant — flash has a fairly large free allowance |
+| **OpenAI** | ❌ pay-as-you-go | **Tier 1 = 30k tokens/min**, too small for heavy agent work (but auto-compact helps, see below) |
 
-## ♻️ Auto-Compact + Auto-New-Thread — ทำงานกับ *ทุกโมเดล*
+## ♻️ Auto-Compact + Auto-New-Thread — works with *every model*
 
-> คุยยาวแค่ไหนก็ไม่ตัน ไม่ค้าง ไม่ต้องเปิด thread ใหม่เอง
+> No matter how long the conversation, it won't clog, won't hang, no need to open a new thread yourself
 
-ปกติคุยยาวๆ context จะเต็มแล้วพัง — Claude Code แก้ให้เฉพาะ Claude แต่ออฟฟิศทำให้
-**ทุกโมเดล**ทำได้อัตโนมัติ:
+Normally, a long conversation fills the context and breaks — Claude Code handles this for Claude only, but the office makes it
+automatic for **every model**:
 
-- 🧠 **Proactive** — ก่อนคุยต่อทุกครั้ง เช็คขนาดบทสนทนาเทียบ context window ของโมเดลนั้น ถ้าใกล้เต็ม → **สรุปด้วย Claude → เปิด thread ใหม่ → ทำงานต่อ** ก่อนจะพัง
-- 🛟 **Reactive** — ถ้าโมเดลปัดเพราะ rate-limit / context เต็มที่คาดไม่ถึง → กู้ให้แบบเดียวกัน (rate-limit ชั่วคราวจะ retry เองไม่เด้ง error)
-- 🪄 **ความต่อเนื่องไม่หาย** — สรุปด้วย **Claude** (สมองใหญ่) แล้วป้อนให้ thread ใหม่ · หน้าจอ **พาคุณตามไป thread ใหม่** ให้เอง ไม่งงว่าน้องหายไปไหน
+- 🧠 **Proactive** — before every continuation, it checks the conversation size against that model's context window; if it's nearly full → **summarize with Claude → open a new thread → carry on** before anything breaks
+- 🛟 **Reactive** — if the model bails due to rate-limit / unexpected full context → it recovers the same way (a temporary rate-limit retries itself, no error bounce)
+- 🪄 **Continuity never lost** — it summarizes with **Claude** (the big brain) and feeds it into the new thread · the screen **takes you along to the new thread** so you're never confused about where the agent went
 
-ปรับ context window ต่อ provider เองได้ที่ registry `providerConfig.<p>.contextWindow`
-(และ budget ที่ใช้ตัดสินใจ compact ที่ `providerConfig.<p>.contextBudget`)
+You can tune the context window per provider in the registry at `providerConfig.<p>.contextWindow`
+(and the budget used to decide on compaction at `providerConfig.<p>.contextBudget`)
 
-## 📊 มอนิเตอร์
+## 📊 Monitoring
 
-- 🏷 **ทุกข้อความบอกโมเดลที่ใช้** + แถบ **context ใช้ไปกี่ %** (เช่น `gpt-4o · 40k/128k`)
-- 🧠 **หน้า BRAINS** (sidebar 🛡) — สถานะ connect ของทุก provider + context ของทุก agent แบบสด
-- 💰 **หน้า STATS** (🗂 Office Ops) — ค่าใช้จ่ายแยกราย provider (ประมาณการจาก token จริง) + ยอดรวมต่อวัน
+- 🏷 **Every message shows the model used** + a bar for **what % of context is used** (e.g. `gpt-4o · 40k/128k`)
+- 🧠 **The BRAINS page** (🛡 sidebar) — connect status of every provider + every agent's context, live
+- 💰 **The STATS page** (🗂 Office Ops) — costs broken down by provider (estimated from real tokens) + daily totals
 
-![แชตติดแท็กโมเดล + มิเตอร์ context ในแถบ thread](../img/brains-chat.png)
+![Chat tagged with the model + a context meter in the thread bar](../img/brains-chat.png)
 
-> ค่าใช้จ่าย provider อื่นเป็น **ประมาณการ** (provider พวกนี้ไม่ส่งบิลจริงเหมือน Claude) —
-> คำนวณจาก token × ราคาสาธารณะโดยประมาณ ปรับเรตได้ที่ `BRAIN_PRICES` ใน `daemon/server.js`
+> Costs for other providers are **estimates** (these providers don't send real bills like Claude does) —
+> calculated from tokens × approximate public pricing; adjust the rates in `BRAIN_PRICES` in `daemon/server.js`
 
-## คำแนะนำการจัดทีม (tiered)
+## Team-building advice (tiered)
 
-ความแม่นของ tool-use สำคัญต่อ "เงินที่เสียไปกับงานพัง/ทำซ้ำ" — เลือกตามงาน:
+Tool-use accuracy matters for "money wasted on failed/redone work" — choose by the job:
 
-| บทบาท | แนะนำ | เหตุผล |
+| Role | Recommended | Why |
 |---|---|---|
-| **Director / main** (วางแผน, มอบงาน) | **Claude** | leverage สูง ผิดแล้วกระทบทั้งทีม — เก็บสมองดีไว้ |
-| **น้อง build โปรเจค** | **DeepSeek V4 Pro** / GLM | ใกล้ Claude, ถูกกว่า ~10 เท่า, ต่อตรง |
-| **น้อง assistant / social** | Qwen / MiniMax / Gemini | งานเบา ไม่ต้องแม่น, ถูกสุด |
+| **Director / main** (planning, delegating) | **Claude** | high leverage — a mistake affects the whole team, so keep the good brain here |
+| **Project builders** | **DeepSeek V4 Pro** / GLM | close to Claude, ~10x cheaper, direct connection |
+| **Assistant / social agents** | Qwen / MiniMax / Gemini | light work, accuracy not critical, cheapest |
 
-> โมเดลถูกเหมาะกับงาน assistant/chat (มีคนดู แก้ได้ทันที) มากกว่างาน autonomous loop ยาวๆ
+> Cheap models suit assistant/chat work (someone's watching, can fix it on the spot) more than long autonomous loops
 
-## ตัวตนของโมเดล
+## Model identity
 
-โมเดลที่สลับเข้ามาจะอ่าน system prompt ของ Claude Code แล้วอาจอ้างว่าตัวเองเป็น Claude —
-ออฟฟิศฉีด note บอก backend จริงทุกเทิร์น ดังนั้นถ้าถาม **"ใช้โมเดลอะไร"** น้องจะตอบตามจริง
-(เช่น `gpt-4o`) ตรงกับแท็กที่โชว์ใต้ข้อความ
+A model swapped in reads Claude Code's system prompt and may claim to be Claude —
+the office injects a note about the real backend every turn, so if you ask **"which model are you using"** it answers truthfully
+(e.g. `gpt-4o`), matching the tag shown under the message.
 
-## หมายเหตุเรื่อง credit / นโยบาย
+## Notes on credit / policy
 
-- เลือก provider อื่น = **จ่ายเจ้านั้น ไม่แตะ credit Claude** — `claude` แค่ส่งคำขอไปปลายทางที่ตั้ง
-- การเลือกโมเดล/ผู้ให้บริการ **ไม่ผิดนโยบาย** — เป็นฟีเจอร์มาตรฐาน
-- token เก็บใน `registry.json` ในเครื่องเท่านั้น (ที่เดียวกับ API keys อื่น) ไม่ถูกส่งไป Anthropic
+- Choosing another provider = **you pay that provider, no Claude credit touched** — `claude` just forwards the request to the configured endpoint
+- Choosing a model/provider **isn't against policy** — it's a standard feature
+- Tokens are stored in `registry.json` locally only (the same place as other API keys); they're never sent to Anthropic
 
-> **endpoint จีน** ต่างจากสากล — ถ้าอยู่จีนแผ่นดินใหญ่ตั้ง baseUrl เองได้ (registry `providerConfig.<p>.baseUrl`):
-> Qwen `https://dashscope.aliyuncs.com/apps/anthropic` · MiniMax `https://api.minimaxi.com/anthropic` (มี "i" เพิ่ม)
+> **China endpoints** differ from the global ones — if you're in mainland China you can set the baseUrl yourself (registry `providerConfig.<p>.baseUrl`):
+> Qwen `https://dashscope.aliyuncs.com/apps/anthropic` · MiniMax `https://api.minimaxi.com/anthropic` (note the extra "i")

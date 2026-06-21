@@ -1,122 +1,122 @@
-# Agents & Skills — สร้างทีมของคุณ
+# Agents & Skills — Build Your Team
 
-![หน้าต่างแชทกับ agent](../img/overlay.png)
+![Chat window with an agent](../img/overlay.png)
 
-## ทีมเริ่มต้น
+## The starting team
 
-ออฟฟิศใหม่มี 2 คน: **คุณ (CEO 👑)** และ **Shino** — Director (มือขวาของคุณ)
-ที่ตั้งค่ามาครบแล้ว: บุคลิกหนุ่มขี้เล่นแต่จริงจังกับงาน เน้น**สั่งงานและบริหารทีม**
-เป็นหลัก (มี tool ทำงานน้อย แต่สั่งงานเป็นเลิศ), สกิล `office-ops` + `plugin-builder`
-+ `project-kickoff`, aura 🌿 nature, เสียง 🎈 หนุ่มขี้เล่น. จากนั้นค่อยจ้างทีมเพิ่ม
-ตามงาน — Shino จะกระจายงานให้เองตามความถนัด
+A fresh office has 2 people: **you (CEO 👑)** and **Shino** — the Director (your right hand),
+already fully configured: a playful young guy who's serious about work, focused mainly on **delegating and
+managing the team** (he has few hands-on tools, but excels at directing), with the `office-ops` + `plugin-builder`
++ `project-kickoff` skills, a 🌿 nature aura, and a 🎈 playful young voice. From there you hire more of the team
+as work demands — Shino will distribute the work himself based on each person's strengths
 
-ทุกคนเรียงเป็นผังองค์กรอัตโนมัติ (🗂 → ORG): CEO → Director → tier 2 → tier 3
+Everyone is arranged into an automatic org chart (🗂 → ORG): CEO → Director → tier 2 → tier 3
 
-![ผังองค์กรอัตโนมัติ](../img/org.png)
+![Automatic org chart](../img/org.png)
 
-## จ้างพนักงานใหม่
+## Hire a new employee
 
 ⚙ Settings → AGENTS → **＋ Hire a new agent**
 
-| ช่อง | ความหมาย |
+| Field | Meaning |
 |---|---|
-| ชื่อ + ตำแหน่ง | แสดงบนป้ายชื่อในโลกและในแชท |
-| Avatar (12 หน้า) + Aura | หน้าตา + วงแหวนเวทมนตร์ใต้เท้า (เลือกธาตุได้) |
-| 🏢 ระดับในองค์กร (tier 1-3) | ตำแหน่งในผังองค์กร (🗂 → ORG) |
-| Prompt + Persona v2 | ตัวตน: ความเชี่ยวชาญ / บุคลิก / ภาษา / กฎการทำงาน |
-| Skills / Tools | ความสามารถพิเศษ + เครื่องมือที่อนุญาต |
+| Name + Title | Shown on their name tag in the world and in chat |
+| Avatar (12 faces) + Aura | Their look + the magic ring beneath their feet (pick an element) |
+| 🏢 Org tier (tier 1-3) | Position in the org chart (🗂 → ORG) |
+| Prompt + Persona v2 | Their identity: expertise / personality / language / working rules |
+| Skills / Tools | Special abilities + the tools they're allowed |
 
-ขี้เกียจเขียน persona เอง? พิมพ์ brief สั้นๆ บรรทัดเดียว (ภาษาไทยได้) แล้วกด
-**✨ Draft** — Persona Copilot จะร่างให้ครบทุกช่อง (prompt, ความเชี่ยวชาญ, บุคลิก,
-ภาษา, กฎการทำงาน) **และเลือก skills + tools ที่เหมาะกับหน้าที่ให้ด้วย** (เลือกจากที่มี
-จริงเท่านั้น — ผู้จัดการได้ tool น้อย, สายลงมือได้มากกว่า) แก้เพิ่มเองได้หลังร่าง
+Don't feel like writing a persona yourself? Type a short one-line brief and press
+**✨ Draft** — the Persona Copilot drafts every field for you (prompt, expertise, personality,
+language, working rules) **and picks the skills + tools that fit the role** (only from what
+actually exists — managers get fewer tools, hands-on roles get more). You can edit it afterward
 
-> รายชื่อ agent เยอะแล้ว? ทุกแท็บมีช่อง 🔍 ค้นหา — พิมพ์กรองได้ทันที
-> (เรียง CEO ก่อน → Director → ที่เหลือตามลำดับ). ออฟฟิศรับได้สูงสุด **18 คน**
-> (ไม่นับ CEO) — ใต้รายชื่อมีตัวนับ **N / 18 agents** บอกว่าจ้างไปกี่คนแล้ว
-> เต็มเมื่อไหร่ปุ่มจ้างจะปิด (งานขนานใช้การแตกร่างผี 👻 แทนได้ไม่จำกัด)
+> Long agent list? Every tab has a 🔍 search box — type to filter instantly
+> (sorted CEO first → Director → the rest in order). An office holds up to **18 people**
+> (not counting the CEO) — below the list a counter shows **N / 18 agents**, how many you've hired.
+> When it's full, the hire button disables (parallel work can use ghost-forking 👻 instead, unlimited)
 
-## Tools และ Security Center
+## Tools and the Security Center
 
-- **Tools ที่ติ๊กให้ = อนุญาตถาวร** — agent ใช้ได้เงียบๆ ไม่มีการ์ดถาม (มี log ใน feed)
-  และ**ไม่เดินออกจากโต๊ะ**ด้วย (รอจังหวะสั้นๆ ยืนยันก่อนว่าจำเป็นต้องไปขอจริง)
-- เครื่องมือที่*ไม่ได้*ให้ → ตัวละครเดิน เข้า Security Center และการ์ดคำขอเด้งขึ้น
-  พร้อมคำสั่งเป๊ะๆ ที่จะรัน: **✓ Allow** (ครั้งนี้) / **✓✓ ตลอดไป** (จดจำ + เพิ่มเข้า
-  tools ของ agent) / **✗ Deny**
-- ไม่ตอบใน 50 วินาที = ปฏิเสธอัตโนมัติ (agent จะวางแผนใหม่เอง)
-- อยู่ใน feed mode ก็กดได้ — การ์ดมีปุ่มครบในตัว
+- **Tools you tick = permanently allowed** — the agent uses them silently, with no prompt card (there's a log in the feed)
+  and **without walking away from the desk** (it briefly pauses to confirm it really needs to go ask first)
+- Tools you *didn't* grant → the character walks into the Security Center and a request card pops up
+  with the exact command it will run: **✓ Allow** (this time) / **✓✓ Always** (remember + add to the
+  agent's tools) / **✗ Deny**
+- No answer within 50 seconds = auto-deny (the agent re-plans on its own)
+- You can act on it from feed mode too — the card has all the buttons built in
 
-## Skills — ห้องสมุดความสามารถ
+## Skills — the ability library
 
-⚙ → SKILLS: ทุกออฟฟิศมาพร้อม **10 ชุดสกิลพื้นฐาน** (office-ops, deep-research,
+⚙ → SKILLS: every office ships with **10 base skill sets** (office-ops, deep-research,
 office-control, plugin-builder, code-review, doc-writer, debug-detective,
-data-wrangler, project-kickoff, diagram-maker) — assign ให้ใครก็ได้ในหน้าแก้ไข. เขียนสกิลของ
-ตัวเองเพิ่มก็ได้ (เช่น "วิธี deploy เว็บของบริษัท") แล้ว assign ให้ agent คนไหนก็ได้ —
-มันจะติดไปกับทุก session ใหม่ของเขา
+data-wrangler, project-kickoff, diagram-maker) — assign them to anyone in the edit screen. You can also write
+your own skills (e.g. "how to deploy the company website") and assign them to any agent —
+they'll travel with every new session of that agent
 
-**Auto-learn** (เปิด/ปิดได้): หลังจบงานจริงที่ใช้หลายเครื่องมือ ระบบจะถามตัวเองว่า
-งานนี้กลั่นเป็นสกิลใช้ซ้ำได้ไหม — ถ้าได้ สกิลใหม่จะถูกบันทึก, assign ให้คนที่ทำ,
-และมีประกาศ 📚 ในออฟฟิศ (เห็นแสงทองแตกเหนือหัว)
+**Auto-learn** (can be toggled on/off): after finishing a real task that used several tools, the system asks itself
+whether the task could be distilled into a reusable skill — if so, a new skill is saved, assigned to the person who
+did it, and announced 📚 in the office (you'll see gold light burst above their head)
 
-## MCP Servers — ความสามารถใหม่ไม่จำกัด
+## MCP Servers — unlimited new abilities
 
-⚙ → TOOLS → MCP SERVERS: ใส่ชื่อ + คำสั่งรัน เช่น
+⚙ → TOOLS → MCP SERVERS: enter a name + run command, e.g.
 
-| ชื่อ | คำสั่ง |
+| Name | Command |
 |---|---|
 | `github` | `npx -y @modelcontextprotocol/server-github` |
-| `playwright` | `npx -y @playwright/mcp` (คุมเบราว์เซอร์ได้) |
+| `playwright` | `npx -y @playwright/mcp` (can drive a browser) |
 
-แล้วไปติ๊ก `mcp:github` ในหน้าแก้ไข agent — เครื่องมือทั้งชุดของ server นั้น
-จะปรากฏให้ agent ใช้ (ผ่านระบบ permission เหมือนเครื่องมือปกติ)
+then tick `mcp:github` in the agent's edit screen — that server's entire tool set
+becomes available to the agent (through the permission system, like any normal tool)
 
-## สิ่งที่ agents ทำเองโดยไม่ต้องสอน
+## What agents do on their own, without being taught
 
-- **แตกร่าง** (sub-agents): งานที่ขนานได้จะถูกแบ่งเป็นโคลน 2-4 ตัวทำพร้อมกัน (ดู 👻 ด้านล่าง)
-- **อ่าน/เขียนกระดานโน้ตกลาง** (`workspace/notes.md`) ฝากเรื่องถึงคุณได้
-- **รู้จักทุกโปรเจค** ที่ลงทะเบียนไว้ — เอ่ยชื่อในแชทแล้วเขาเข้าไปทำในโฟลเดอร์จริง
-- **ใช้ API keys** ที่คุณเก็บไว้ใน 🔗 CONNECT (ฉีดเข้า env อัตโนมัติ)
-- เหงาๆ ก็ดูทีวี เตะบอล เล่นกับแมว หรือไปงีบที่หอพัก 😴
+- **Forking** (sub-agents): work that can run in parallel is split into 2-4 clones running at once (see 👻 below)
+- **Read/write the central note board** (`workspace/notes.md`) to leave you messages
+- **Know every registered project** — mention one by name in chat and they go work inside the real folder
+- **Use the API keys** you stored in 🔗 CONNECT (auto-injected into the env)
+- When idle, they watch TV, play football, hang out with the cat, or nap in the dorm 😴
 
-## 👻 แตกร่าง (Ghost clones) — ทำงานขนานกัน
+## 👻 Forking (Ghost clones) — working in parallel
 
-agent ในออฟฟิศนี้ **แตกร่างเป็นปกติ** — ถ้างานแบ่งเป็นส่วนอิสระที่ทำพร้อมกันได้
-เขาจะไม่ทำทีละอย่างให้เสียเวลา แต่จะแยกตัวเป็น**โคลนวิญญาณโปร่งแสง 2-4 ตัว**
-ทำขนานกันทันที. เจอบ่อยตอน: หาข่าว/ค้นคว้าหลายหัวข้อหรือหลายแหล่ง, ตรวจ/แก้หลายไฟล์,
-เปรียบเทียบหลายตัวเลือก, เก็บข้อมูลหลายเว็บ, ทดสอบหลายเคส
+Agents in this office **fork as a matter of course** — if a task breaks into independent parts that can run at once,
+they won't do them one at a time and waste your time. Instead they split into **2-4 translucent spirit clones**
+working in parallel right away. Common cases: gathering news / researching multiple topics or sources, reviewing/fixing
+multiple files, comparing several options, scraping multiple sites, testing multiple cases
 
-**เห็นมันเกิดขึ้นได้จริง** บนจอ: โคลนโปร่งแสงจะ**ลอยขึ้นบันไดแก้วไปที่ "Ghost Deck"**
-(ลานลอยมุมขวาบน) ไปนั่งโต๊ะของตัวเอง มีป้ายสถานะบอกว่ากำลังทำอะไร แล้วพอเสร็จก็
-ล่องกลับมา**รวมร่างเข้ากับเจ้าของ**. ในเมนู 🧵 thread ร่างแต่ละตัวมี session ของตัวเอง
-ติดป้าย 👻 ให้เปิดดูได้
+**You can watch it happen for real** on screen: the translucent clones **float up a glass staircase to the "Ghost Deck"**
+(a floating platform in the top-right), take their own desks, with status tags showing what they're doing, then when
+they finish they **drift back and merge into their owner**. In the 🧵 thread menu, each clone has its own session
+tagged 👻 that you can open and read
 
-> ปล่อยให้เขาแตกร่างเองก็ได้ หรือ**สั่งตรงๆ** ก็ได้ เช่น
-> "แตกร่างไปหาข่าว A, B, C พร้อมกัน" — เขาจะแยกงานย่อยตามที่สั่ง
+> You can let them fork on their own, or **tell them directly**, e.g.
+> "Fork off to find news on A, B, C at the same time" — they'll split the subtasks as instructed
 
-พอโคลนทุกตัวรายงานกลับ เจ้าของจะ**สรุปรวมเป็นคำตอบเดียว**ให้คุณ — คุณได้ผลลัพธ์
-ก้อนเดียวที่กลั่นมาจากงานขนานทั้งหมด ไม่ใช่หลายคำตอบกระจัดกระจาย
-(การแตกร่างไม่นับโควต้า 18 คน — ใช้ได้ไม่จำกัด)
+Once every clone reports back, the owner **merges everything into a single answer** for you — you get one consolidated
+result distilled from all the parallel work, not a scattering of separate answers
+(forking doesn't count against the 18-person quota — unlimited)
 
-## 🗣 ประชุม/ปรึกษาทีม (Discussions)
+## 🗣 Team meetings/discussions (Discussions)
 
-อยากให้ agent หลายคน**ถกปัญหากันเอง**แทนที่จะถามทีละคน? เปิดวงประชุมได้เลย
+Want several agents to **debate a problem among themselves** instead of asking each one separately? Open a discussion
 
-**เปิดวง:** กดปุ่ม **⋯** (เมนูเพิ่มเติม บน header) → **🗣 ประชุม agents**
-จะเด้งหน้าต่าง **AGENT DISCUSSION** ขึ้นมา กรอก 3 อย่าง:
+**Open one:** press **⋯** (the More menu in the header) → **🗣 Agent discussion**
+to bring up the **AGENT DISCUSSION** window, then fill in 3 things:
 
-| ช่อง | ใส่อะไร |
+| Field | What to enter |
 |---|---|
-| **TOPIC** | หัวข้อให้ทีมถกกัน เช่น "วางแผนฟีเจอร์ onboarding ใหม่" |
-| **PARTICIPANTS** | ติ๊กเลือก **2-4 คน** จากทีม (CEO คือคุณ ไม่ร่วมวงของ AI) |
-| **ROUNDS** | จำนวนรอบที่วน: **1 เร็ว · 2 มาตรฐาน · 3 ลึก** |
+| **TOPIC** | The topic for the team to debate, e.g. "Plan the new onboarding feature" |
+| **PARTICIPANTS** | Tick **2-4 people** from the team (the CEO is you, and doesn't join the AI discussion) |
+| **ROUNDS** | How many rounds to loop: **1 quick · 2 standard · 3 deep** |
 
-แล้วกด **🗣 Start discussion** (ต้องมีหัวข้อ + เลือกอย่างน้อย 2 คน)
+then press **🗣 Start discussion** (you need a topic + at least 2 people selected)
 
-**ดูเขาประชุม:** คนที่เลือกจะ**เดินมารวมกันในห้องประชุม** แล้ว**พูดทีละคนวนเป็นรอบ**
-— แต่ละคนต่อยอดความเห็นของคนก่อนหน้า บทสนทนาขึ้นเป็นกระดานบันทึก (whiteboard minutes)
-ให้คุณอ่านสดได้. ถ้าระหว่างคุยมีไอเดียที่ "ควรสร้างจริง" agent อาจยื่น **PROPOSAL**
-ให้คุณกดอนุมัติ/ปฏิเสธ. หลายวงประชุมรันพร้อมกันได้ (คนละทีม)
+**Watch them meet:** the selected people **walk over and gather in the meeting room**, then **speak one at a time,
+round by round** — each builds on the previous person's view, with the conversation posted as whiteboard minutes
+you can read live. If an idea that "should really be built" comes up during the talk, an agent may submit a **PROPOSAL**
+for you to approve/reject. Multiple discussions can run at once (different teams)
 
-**ประวัติย้อนหลัง:** ทุกการประชุมถูกเก็บเป็น session กลุ่ม — เปิดอ่านได้ในเมนู 🧵 thread
-หัวข้อ **"🗣 การประชุม"** (อ่านอย่างเดียว) และยังบันทึกเป็นไฟล์ Markdown ใน
-`workspace/meetings/` ให้ agent คนอื่น grep ไปใช้ต่อได้ด้วย
+**History:** every meeting is saved as a group session — open it in the 🧵 thread menu
+under **"🗣 Meetings"** (read-only), and it's also saved as a Markdown file in
+`workspace/meetings/` so other agents can grep it for reuse

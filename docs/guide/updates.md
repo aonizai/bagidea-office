@@ -1,86 +1,90 @@
-# อัปเดตโปรแกรม & ตัวติดตั้ง
+# Updating the program & installer
 
-## ระบบแจ้งเตือนอัปเดต (อิงเวอร์ชัน)
+## Update notification system (version-based)
 
-โปรแกรมมีไฟล์ **`VERSION`** (เช่น `0.3.1`). มันเช็คเองทุก 6 ชั่วโมง (และหลังเปิด
-~90 วินาที) ว่าเวอร์ชันบน `main` ใหม่กว่าของคุณไหม — **เฉพาะตอนที่ออกเวอร์ชันใหม่จริง
-(bump ไฟล์ VERSION)** เท่านั้นถึงจะเด้งเตือน. การแก้เล็กๆ น้อยๆ (เอกสาร, เว็บ, งานใน
-branch dev) จะ **ไม่** รบกวนผู้ใช้ — ดู [แผนการออกเวอร์ชัน](#แผนการออกเวอร์ชัน-dev--main)
+The program has a **`VERSION`** file (e.g. `0.3.1`). It checks itself every 6 hours
+(and ~90 seconds after launch) whether the version on `main` is newer than yours —
+**only when a new version is actually released (the VERSION file is bumped)** does it
+prompt you. Small changes (docs, website, work on the dev branch) **won't** bother
+users — see the [release plan](#release-plan-dev--main).
 
-เมื่อมีเวอร์ชันใหม่:
+When there's a new version:
 
-- แถบ **🔄 มีเวอร์ชันใหม่ vX.Y.Z — คลิกเพื่ออัปเดต** ปรากฏเหนือหน้าแชท
-- มีแจ้งใน 📡 feed ด้วย
-- เช็คเองได้: `bagidea version` (โชว์เวอร์ชันปัจจุบัน + บอกถ้ามีใหม่)
+- A bar **🔄 New version vX.Y.Z available — click to update** appears above the chat
+- It's also announced in the 📡 feed
+- Check it yourself: `bagidea version` (shows your current version + tells you if a new one exists)
 
-คลิกแถบ (หรือสั่ง `bagidea update`) แล้วระบบจะ:
+Click the bar (or run `bagidea update`) and the system will:
 
-1. ปิดโปรแกรมทั้งชุด
-2. `git pull` โค้ดล่าสุด
-3. คอมไพล์ shell ใหม่*เฉพาะเมื่อ*โค้ดส่วน shell เปลี่ยน (ไม่มี Rust ในเครื่อง
-   ก็ใช้ exe เดิมต่อได้ พร้อมคำแนะนำ)
-4. เปิดโปรแกรมกลับมาเอง
+1. Close the whole suite
+2. `git pull` the latest code
+3. Recompile the shell *only when* the shell code changed (no Rust on the machine
+   means it keeps using the existing exe, with guidance)
+4. Reopen the program by itself
 
-> ข้อมูลของคุณ (ทีม agents, threads, โปรเจค, โน้ต, key vault) อยู่ในไฟล์
-> ที่ git ไม่แตะ (`registry.json`, `sessions.json`, `projects.json`, …) —
-> อัปเดตกี่ครั้งก็ไม่หาย
+> Your data (agent team, threads, projects, notes, key vault) lives in files that
+> git doesn't touch (`registry.json`, `sessions.json`, `projects.json`, …) —
+> it's never lost no matter how many times you update.
 
-## เปิดอัตโนมัติตอนล็อกอิน (auto-start)
+## Auto-start at login (auto-start)
 
-ตั้งให้ออฟฟิศเปิดเองตอนเปิดเครื่องได้ 3 ทาง — รองรับครบทั้ง 3 OS (Windows = HKCU Run key,
-macOS = LaunchAgent, Linux = ไฟล์ XDG `~/.config/autostart/bagidea-office.desktop`):
+You can set the office to open itself when you boot — supported on all 3 OSes
+(Windows = HKCU Run key, macOS = LaunchAgent, Linux = the XDG file
+`~/.config/autostart/bagidea-office.desktop`):
 
-- **Settings** ⚙ → AGENTS → สวิตช์ **🪟 Start at login**
-- **CLI:** `bagidea startup on` / `bagidea startup off` (ไม่ใส่ = ดูสถานะ)
-- **Tray:** คลิกขวาไอคอน → **Start at login**
+- **Settings** ⚙ → AGENTS → the **🪟 Start at login** switch
+- **CLI:** `bagidea startup on` / `bagidea startup off` (no argument = show status)
+- **Tray:** right-click the icon → **Start at login**
 
-> **อัปเดตบน macOS/Linux:** `bagidea update` ใช้ได้เหมือนกัน (Linux เรียก
-> `installer/update-linux.sh` = git pull + คอมไพล์ shell ใหม่ถ้าจำเป็น + รีสตาร์ท).
+> **Updating on macOS/Linux:** `bagidea update` works the same way (Linux calls
+> `installer/update-linux.sh` = git pull + recompile the shell if needed + restart).
 
-## แผนการออกเวอร์ชัน (dev → main)
+## Release plan (dev → main)
 
-ระบบแจ้งเตือนผูกกับไฟล์ `VERSION` บน `main` เพื่อให้ผู้ใช้ได้แต่ของที่พร้อมจริง:
+The notification system is tied to the `VERSION` file on `main` so users only get
+things that are truly ready:
 
-1. พัฒนาบน branch **`dev`** (push ขึ้น dev ได้เรื่อยๆ — ไม่กระทบผู้ใช้)
-2. ตรวจจนมั่นใจว่าไม่มีบัค แล้ว merge `dev` → `main`
-3. ออกเวอร์ชันใหม่ = **bump `VERSION`** (semver) บน `main` แล้ว push
-   → เครื่องผู้ใช้เห็นว่ามีใหม่กว่า แล้วเด้งแถบ 🔄
+1. Develop on the **`dev`** branch (keep pushing to dev — it doesn't affect users)
+2. Once you're confident there are no bugs, merge `dev` → `main`
+3. Release a new version = **bump `VERSION`** (semver) on `main` and push
+   → users' machines see it's newer and the 🔄 bar appears
 
-> สรุป: merge เข้า main ได้โดยยังไม่เด้งเตือน ตราบใดที่ยังไม่ bump `VERSION` —
-> เด้งเตือน "เมื่อเราตั้งใจปล่อยเวอร์ชันใหม่" เท่านั้น (ดู `RELEASING.md`)
+> In short: you can merge into main without triggering a notification, as long as
+> you haven't bumped `VERSION` — the notification fires "only when we intend to
+> release a new version" (see `RELEASING.md`).
 
-## ตัวติดตั้ง (สำหรับเครื่องใหม่)
+## Installer (for a new machine)
 
 ```powershell
 irm https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install.ps1 | iex
 ```
 
-| ขั้น | ทำอะไร |
+| Step | What it does |
 |---|---|
-| 1-4 | ติดตั้ง Git / Node LTS / Rust / **VS C++ Build Tools** (ผ่าน winget — ข้ามของที่มี) |
-| 5-6 | ดาวน์โหลด Godot 4.6.3 + ตั้ง `BAGIDEA_GODOT` · ติดตั้ง Claude Code CLI |
-| 7 | clone โปรแกรม → `%LOCALAPPDATA%\BagIdeaOffice\app` (มีแล้ว = pull) |
-| 8 | คอมไพล์ shell (ครั้งแรก ~2-3 นาที) + ตีตราไอคอน |
-| 9-11 | แก้ hook paths · ผูกคำสั่ง `bagidea` เข้า PATH · สร้าง Start Menu shortcut |
+| 1-4 | Install Git / Node LTS / Rust / **VS C++ Build Tools** (via winget — skips what's already there) |
+| 5-6 | Download Godot 4.6.3 + set `BAGIDEA_GODOT` · install the Claude Code CLI |
+| 7 | clone the program → `%LOCALAPPDATA%\BagIdeaOffice\app` (already there = pull) |
+| 8 | compile the shell (first time ~2-3 minutes) + brand the icon |
+| 9-11 | fix hook paths · wire the `bagidea` command into PATH · create a Start Menu shortcut |
 
-> ติดตั้งไม่ผ่าน? ดู [แก้ปัญหาการติดตั้ง](troubleshooting.md#แก้ปัญหาการติดตั้ง)
+> Install didn't go through? See [Installation problems](troubleshooting.md)
 
-รันซ้ำได้เสมอ — ใช้เป็น "repair install" ได้ในตัว
+You can always re-run it — it doubles as a built-in "repair install".
 
-**หลังติดตั้งครั้งแรก:** เปิดเทอร์มินัลใหม่ → `claude` (login บัญชี Claude
-ครั้งเดียว) → `bagidea start` 🎉
+**After the first install:** open a new terminal → `claude` (log into your Claude
+account once) → `bagidea start` 🎉
 
-## ถอนการติดตั้ง
+## Uninstalling
 
 ```powershell
-bagidea uninstall              # ถอนทั้งหมด (ยืนยันก่อน)
-bagidea uninstall --keep-data  # สำรองข้อมูล (agents/projects/keys) ไว้ก่อนลบ
+bagidea uninstall              # remove everything (confirms first)
+bagidea uninstall --keep-data  # back up data (agents/projects/keys) before removing
 ```
 
-ลบเฉพาะของ BagIdea Office เอง: หยุดโปรแกรม, เอา `bagidea` ออกจาก PATH,
-ลบ Start Menu shortcut, ปิด start-with-Windows, และลบโฟลเดอร์
-`%LOCALAPPDATA%\BagIdeaOffice` — **ไม่ยุ่ง** Git / Node / Rust / Claude
-(เครื่องมือที่ใช้ร่วมกับโปรแกรมอื่น ถ้าอยากลบค่อยใช้ winget เอง).
-`--keep-data` จะสำรอง `registry/sessions/projects/...` + `workspace` ไปไว้ที่
-`%USERPROFILE%\BagIdeaOffice-data-backup` ก่อน เผื่ออยากติดตั้งใหม่ภายหลัง
-(เปิดเทอร์มินัลใหม่หลังถอนเพื่อให้ PATH อัปเดต)
+Removes only BagIdea Office's own files: stops the program, removes `bagidea` from PATH,
+deletes the Start Menu shortcut, turns off start-with-Windows, and deletes the folder
+`%LOCALAPPDATA%\BagIdeaOffice` — it **doesn't touch** Git / Node / Rust / Claude
+(tools shared with other programs; remove them yourself with winget if you want).
+`--keep-data` backs up `registry/sessions/projects/...` + `workspace` to
+`%USERPROFILE%\BagIdeaOffice-data-backup` first, in case you want to reinstall later
+(open a new terminal after uninstalling so PATH updates).

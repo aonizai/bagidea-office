@@ -1,142 +1,144 @@
-# แก้ปัญหาที่พบบ่อย
+# Common problems
 
-## แก้ปัญหาการติดตั้ง
+## Installation problems
 
-ตัวติดตั้งออกแบบให้ "จบรวดเดียวบนเครื่องเปล่า" แต่บางเครื่องมีเงื่อนไขต่างกัน
-ด้านล่างคืออาการที่พบบ่อยทั้งหมด พร้อมวิธีแก้ — เกือบทุกอย่างแก้ได้ด้วยการ
-**เปิดเทอร์มินัลใหม่แล้วรันตัวติดตั้งซ้ำ** (รันซ้ำปลอดภัย ข้อมูลไม่หาย)
+The installer is designed to "finish in one pass on a clean machine," but some
+machines have different conditions. Below are all the common symptoms and how to
+fix them — almost everything is solved by **opening a new terminal and re-running
+the installer** (re-running is safe; no data is lost).
 
-**`irm ... | iex` แล้วขึ้น error เรื่อง execution policy**
-- รันด้วยบรรทัดนี้แทน:
+**`irm ... | iex` shows an execution policy error**
+- Run this line instead:
   ```powershell
   powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install.ps1 | iex"
   ```
 
-**ขึ้น `winget not found`**
-- Windows เก่ายังไม่มี winget — ติดตั้ง **App Installer** จาก Microsoft Store
-  (`https://apps.microsoft.com/detail/9nblggh4nns1`) แล้วเปิดเทอร์มินัลใหม่ รันซ้ำ
+**`winget not found`**
+- Older Windows doesn't have winget yet — install **App Installer** from the Microsoft Store
+  (`https://apps.microsoft.com/detail/9nblggh4nns1`), then open a new terminal and re-run.
 
-**ลง Git/Node เสร็จแต่ขึ้นว่า `git`/`node` ไม่พบ ตอนรันต่อ**
-- winget เขียน PATH ลง registry แต่เทอร์มินัลเดิมยังไม่เห็น — ตัวติดตั้งดึง PATH
-  ใหม่ให้แล้วในรอบเดียว แต่ถ้ายังเจอ ให้**ปิดเทอร์มินัลแล้วเปิดใหม่ รันซ้ำ** หายแน่นอน
+**Git/Node installed but `git`/`node` not found when it continues**
+- winget writes PATH to the registry, but the existing terminal doesn't see it yet — the
+  installer refreshes PATH for you within the same pass, but if it still happens,
+  **close the terminal, open a new one, and re-run** and it will definitely be fixed.
 
-**`BUILD FAILED` / `cargo build` ขึ้น `error: linker 'link.exe' not found` หรือ `link.exe returned exit code`**
-- นี่คืออาการที่พบบ่อยที่สุด: Rust ต้องใช้ **C++ linker** ของ Visual Studio
-- ตัวติดตั้งเวอร์ชันนี้ลง **VS C++ Build Tools** ให้อัตโนมัติ แต่ถ้ารอบนั้นข้ามไป/ลงไม่ครบ
-  ลงเองด้วย:
+**`BUILD FAILED` / `cargo build` shows `error: linker 'link.exe' not found` or `link.exe returned exit code`**
+- This is the most common symptom: Rust needs Visual Studio's **C++ linker**.
+- This version of the installer installs the **VS C++ Build Tools** automatically, but if that
+  round was skipped/incomplete, install it yourself:
   ```powershell
   winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
   ```
-  หรือเปิด **Visual Studio Installer** → Modify → ติ๊ก **Desktop development with C++** → Install
-- เสร็จแล้ว **เปิดเทอร์มินัลใหม่** (ให้ตัวแปร build แวดล้อมโหลด) แล้วรันตัวติดตั้งซ้ำ
+  Or open the **Visual Studio Installer** → Modify → check **Desktop development with C++** → Install
+- When done, **open a new terminal** (so the build environment variables load) and re-run the installer.
 
-**`cargo`/`rustup` ไม่พบ หลังเพิ่งลง Rust**
-- เปิดเทอร์มินัลใหม่ หรือรันชั่วคราว: `$env:Path += ";$env:USERPROFILE\.cargo\bin"` แล้วรันซ้ำ
+**`cargo`/`rustup` not found right after installing Rust**
+- Open a new terminal, or temporarily run: `$env:Path += ";$env:USERPROFILE\.cargo\bin"` then re-run.
 
-**ดาวน์โหลด Godot ค้าง/ล้มเหลว**
-- ปัญหาเครือข่าย/ไฟร์วอลล์ระหว่างโหลดไฟล์จาก GitHub releases — เช็คเน็ตแล้วรันซ้ำ
-  (ตัวติดตั้งจะข้ามขั้นที่เสร็จแล้ว ดาวน์โหลดเฉพาะที่ยังขาด)
+**Godot download hangs/fails**
+- A network/firewall issue while downloading the file from GitHub releases — check your
+  connection and re-run (the installer skips steps that are already done and downloads only what's missing).
 
-**SmartScreen / Defender บล็อกสคริปต์หรือ exe**
-- สคริปต์เป็น open-source อ่านได้ที่ repo — กด **More info → Run anyway**
-  หรือดาวน์โหลด `install.ps1` มาอ่านก่อนแล้วรันเอง
+**SmartScreen / Defender blocks the script or exe**
+- The script is open-source and readable in the repo — click **More info → Run anyway**,
+  or download `install.ps1`, read it first, then run it yourself.
 
-**build สำเร็จแต่พิมพ์ `bagidea` ไม่เจอ**
-- คำสั่งเพิ่งถูกเติมเข้า PATH — **เปิดเทอร์มินัลใหม่** แล้วลองอีกครั้ง
-  (หรือเปิดจาก Start Menu → "BagIdea Office")
+**Build succeeds but typing `bagidea` isn't found**
+- The command was just added to PATH — **open a new terminal** and try again
+  (or open it from the Start Menu → "BagIdea Office").
 
-**อยากเริ่มใหม่ทั้งหมด**
-- ลบ `%LOCALAPPDATA%\BagIdeaOffice` แล้วรันตัวติดตั้งใหม่ (ข้อมูลในนั้นจะหายด้วย —
-  สำรอง `app\daemon\*.json` ไว้ก่อนถ้าต้องการเก็บ registry/sessions)
+**Want to start completely over**
+- Delete `%LOCALAPPDATA%\BagIdeaOffice` and re-run the installer (the data in there will be lost too —
+  back up `app\daemon\*.json` first if you want to keep the registry/sessions).
 
 ## Linux (experimental 🧪)
 
-**คอมไพล์ shell ไม่ผ่าน (ขาด WebKitGTK ฯลฯ)**
-- ตัวติดตั้งลง `libwebkit2gtk-4.1-dev` (Ubuntu ใหม่) หรือ `4.0` (เก่า) ให้อัตโนมัติ —
-  ถ้าพังให้ลงเองแล้วรัน `./build-linux.sh` ใหม่: `sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev build-essential pkg-config`
+**Shell won't compile (missing WebKitGTK, etc.)**
+- The installer installs `libwebkit2gtk-4.1-dev` (newer Ubuntu) or `4.0` (older) automatically —
+  if it fails, install it yourself and re-run `./build-linux.sh`: `sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev build-essential pkg-config`
 
 **`bagidea: command not found`**
-- ตัวติดตั้งทำ symlink ที่ `~/.local/bin/bagidea` — เปิด terminal ใหม่ หรือ
+- The installer creates a symlink at `~/.local/bin/bagidea` — open a new terminal, or
   `export PATH="$HOME/.local/bin:$PATH"`
 
-**วอลเปเปอร์ไม่ติดพื้นหลัง (เป็นหน้าต่างลอย)**
-- เช็คว่าเป็น X11: `echo $XDG_SESSION_TYPE` → ถ้าได้ `x11` ต้องมี `wmctrl`/`xdotool`
-  (`sudo apt install wmctrl xdotool`). ถ้าได้ `wayland` = ใช้ fallback หน้าต่างเต็มจอล่างสุด (ตามดีไซน์)
-- orb โปร่งใสต้องมี compositor ทำงาน (DE ส่วนใหญ่มีให้อยู่แล้ว)
+**The wallpaper doesn't attach to the background (it's a floating window)**
+- Check that you're on X11: `echo $XDG_SESSION_TYPE` → if it says `x11` you need `wmctrl`/`xdotool`
+  (`sudo apt install wmctrl xdotool`). If it says `wayland` = it uses a fullscreen bottom-most window fallback (by design).
+- A transparent orb requires a running compositor (most desktop environments already have one).
 
-**ไม่มีเสียง (`bagidea say`)**
-- ลง player: `sudo apt install pulseaudio-utils alsa-utils`
+**No sound (`bagidea say`)**
+- Install a player: `sudo apt install pulseaudio-utils alsa-utils`
 
-> เจอปัญหาอื่นบน Linux: แจ้ง [issue](https://github.com/bagidea/bagidea-office/issues)
-> พร้อม distro, desktop, และ `echo $XDG_SESSION_TYPE`
+> Hit another problem on Linux: file an [issue](https://github.com/bagidea/bagidea-office/issues)
+> with your distro, desktop, and `echo $XDG_SESSION_TYPE`
 
-## โปรแกรม / วอลเปเปอร์
+## Program / wallpaper
 
-**เปิดแล้วไม่มีอะไรเกิดขึ้น / วอลเปเปอร์ไม่เปลี่ยน**
-- เปิดซ้ำสองรอบ? โปรแกรมเป็น single-instance — ตัวที่สองจะเงียบๆ ออกเอง
-  เช็ค tray icon ก่อน (อาจเปิดอยู่แล้ว)
-- Godot หาไม่เจอ: ตั้ง env `BAGIDEA_GODOT` ชี้ไปที่ exe ของ Godot 4.6.x
-  แล้วเปิดใหม่ (ตัวติดตั้งตั้งให้อัตโนมัติ)
-- `bagidea status` บอกได้ว่า daemon ขึ้นหรือยัง
+**Nothing happens when I open it / the wallpaper doesn't change**
+- Opened it twice? The program is single-instance — the second one quietly exits.
+  Check the tray icon first (it may already be running).
+- Godot not found: set the `BAGIDEA_GODOT` env var to point at the Godot 4.6.x exe,
+  then reopen (the installer sets this automatically).
+- `bagidea status` tells you whether the daemon is up.
 
-**อยากซ่อนออฟฟิศชั่วคราว (ประชุม/อัดจอ)**
-- คลิกขวา tray icon → **Hide office** — วอลเปเปอร์กลับเป็นปกติ เสียงเงียบ
-  แต่ agents ทำงานต่อเบื้องหลังครบ — กดอีกครั้งเพื่อเรียกกลับ
+**Want to temporarily hide the office (meeting/screen recording)**
+- Right-click the tray icon → **Hide office** — the wallpaper returns to normal, sound goes quiet,
+  but agents keep working in the background — click again to bring it back.
 
-**ปิดโปรแกรมยังไงให้สนิท**
-- ทางเดียวคือ tray icon → **Exit BagIdea Office** (หรือ `bagidea stop`) —
-  ปิดทั้งชุด + คืนวอลเปเปอร์เดิม
+**How to close the program completely**
+- The only way is the tray icon → **Exit BagIdea Office** (or `bagidea stop`) —
+  closes the whole suite + restores your original wallpaper.
 
 ## Agents
 
-**agent ไม่ตอบเลย / task.failed ทันที**
-- login Claude หรือยัง? เปิดเทอร์มินัล รัน `claude` หนึ่งครั้ง
-- โควต้า/credit หมดก็อาการเดียวกัน — ลอง `claude -p "hi"` ดูคำตอบตรงๆ
+**An agent doesn't respond at all / task.failed immediately**
+- Are you logged into Claude yet? Open a terminal and run `claude` once.
+- Out of quota/credit has the same symptom — try `claude -p "hi"` to see the answer directly.
 
-**การ์ดขอ permission เด้งทั้งที่ติ๊ก tools ให้แล้ว**
-- ติ๊กใน "หน้าแก้ไข agent" แล้วกดบันทึกหรือยัง? tools ที่ให้ = เงียบเสมอ
-- เครื่องมือที่*ไม่ได้*ติ๊กยังถามตามปกติ — กด **✓✓ ตลอดไป** เพื่อจำถาวร
+**A permission card pops up even though I checked the tools**
+- Did you check them in the "edit agent" screen and save? Tools you grant = always silent.
+- Tools you *didn't* check still ask as usual — click **✓✓ Always** to remember it permanently.
 
-**สั่งแล้วเงียบ ไม่เห็นความเคลื่อนไหว**
-- ดูแถบ 🔵 NOW WORKING / 📡 feed — งานอาจกำลังรันอยู่
-- `bagidea feed` ในเทอร์มินัลก็เห็นเหตุการณ์สดทั้งหมด
+**I gave a command but it's silent, no activity visible**
+- Look at the 🔵 NOW WORKING / 📡 feed bar — the task may be running.
+- `bagidea feed` in the terminal also shows all live events.
 
 ## Projects
 
-**กด ▶ แล้วขึ้น "No conversation found to continue"**
-- เป็นข้อจำกัดของ `claude -c` กับ session ที่เกิดแบบ headless — ปุ่ม ▶
-  เวอร์ชันปัจจุบันใช้ `claude --resume <id>` ตรงๆ แล้ว ไม่ควรเจออีก
-  (เจอ = เวอร์ชันเก่า → `bagidea update`)
+**Clicking ▶ shows "No conversation found to continue"**
+- This is a limitation of `claude -c` with sessions created headless — the current version's ▶
+  button uses `claude --resume <id>` directly now, so you shouldn't see it again
+  (if you do = old version → `bagidea update`).
 
-**ลบโปรเจค (🗑) ไม่สำเร็จ**
-- มีโปรแกรมล็อกไฟล์อยู่ — ระบบจะปิด dev server ที่ agent ลืมทิ้งไว้ให้เอง
-  แล้วลองใหม่ ถ้ายังไม่ได้จะบอก error ในแถว: ปิดเทอร์มินัล/Explorer
-  ที่ค้างอยู่ในโฟลเดอร์นั้นแล้วกดซ้ำ
+**Deleting a project (🗑) fails**
+- A program is locking a file — the system closes a dev server the agent left running and
+  retries automatically. If it still fails it shows an error in the row: close any terminal/Explorer
+  stuck in that folder and click again.
 
-**สถานะหน้าต่าง (เปิด/ปิด) ไม่ตรง**
-- ระบบกวาดทุก 5 วินาที — รอแป๊บเดียว หรือปิด-เปิดแท็บ PROJECTS
+**The window state (open/closed) is out of sync**
+- The system sweeps every 5 seconds — wait a moment, or close and reopen the PROJECTS tab.
 
-## เสียง (F6)
+## Voice (F6)
 
-**กดแล้วไม่มีอะไรขึ้น**
-- เปิด Windows Voice Typing หรือยัง: Settings → Time & language → Speech
-  → online speech recognition + ติดตั้งภาษาไทย
-- ลองกด `Win+H` ตรงๆ ในช่องข้อความใดๆ — ถ้าไม่ขึ้นแปลว่าฟีเจอร์ OS ยังไม่พร้อม
-- ปุ่มชน? เปลี่ยนคีย์ใน ⚙ → AGENTS → PUSH-TO-TALK HOTKEY
+**Nothing happens when I press it**
+- Have you turned on Windows Voice Typing? Settings → Time & language → Speech
+  → online speech recognition + install the Thai language pack.
+- Try pressing `Win+H` directly in any text field — if nothing appears, the OS feature isn't ready yet.
+- Key conflict? Change the key in ⚙ → AGENTS → PUSH-TO-TALK HOTKEY.
 
-**พูดแล้วข้อความไปลงโปรแกรมอื่น**
-- เวอร์ชันปัจจุบันบังคับ focus ก่อนเปิดไมค์แล้ว — ถ้ายังเจอ ให้คลิกหน้าต่าง
-  แชทหนึ่งครั้งก่อนกด F6 และแจ้ง issue มาได้เลย
+**My speech goes into another program**
+- The current version forces focus before opening the mic — if you still hit it, click the
+  chat window once before pressing F6, and feel free to file an issue.
 
 ## Channels
 
-**Telegram ขึ้น error: bad token** — token ผิด/หมดอายุ ขอใหม่จาก @BotFather
-**Discord ค้าง connecting** — ลืมเปิด MESSAGE CONTENT INTENT ในหน้า Bot
-**LINE ไม่เด้ง** — webhook URL ต้องเป็น public HTTPS และลงท้าย
-`/channels/line/webhook`; เช็คว่า cloudflared ยังรันอยู่
+**Telegram shows error: bad token** — the token is wrong/expired; get a new one from @BotFather
+**Discord stuck connecting** — you forgot to enable MESSAGE CONTENT INTENT on the Bot page
+**LINE doesn't fire** — the webhook URL must be public HTTPS and end with
+`/channels/line/webhook`; check that cloudflared is still running
 
-## ดู log ดิบ
+## View raw logs
 
-- เหตุการณ์ทั้งหมด: `daemon/journal.jsonl`
-- ประวัติแชท: `daemon/sessions.json`
-- รัน daemon เองเพื่อดู console สด: ปิดโปรแกรมก่อน แล้ว `node daemon\server.js`
+- All events: `daemon/journal.jsonl`
+- Chat history: `daemon/sessions.json`
+- Run the daemon yourself to watch the live console: stop the program first, then `node daemon\server.js`

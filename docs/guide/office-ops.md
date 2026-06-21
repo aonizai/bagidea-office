@@ -1,103 +1,103 @@
-# Office Ops — งานตั้งเวลา ปฏิทิน โน้ต ผังองค์กร
+# Office Ops — scheduled tasks, calendar, notes, org chart
 
-เปิดจากปุ่ม 🗂 ที่ header — มีแท็บ **PROJECTS · TASKS · CALENDAR · NOTES · ORG · STATS**
+Open it from the 🗂 button in the header — it has tabs **PROJECTS · TASKS · CALENDAR · NOTES · ORG · STATS**
 
-![ผังองค์กร (ORG)](../img/org.png)
+![Org chart (ORG)](../img/org.png)
 
-## 📋 TASKS — สั่งงานล่วงหน้า / งานประจำ
+## 📋 TASKS — schedule work ahead / recurring jobs
 
-เลือก agent + พิมพ์งาน (หรือกด 🎤 พูด) + เลือกเวลา:
+Pick an agent + type the task (or press 🎤 to speak it) + choose a time:
 
-| โหมด | พฤติกรรม |
+| Mode | Behavior |
 |---|---|
-| ทำทันที | เข้าคิวรันเลย (ขึ้นแถบ NOW WORKING) |
-| ตามเวลา | รันครั้งเดียวเมื่อถึงเวลา — ติ๊ก "ทุกวัน" ได้ |
-| ทุก N นาที | งานวนซ้ำ ขั้นต่ำ 5 นาที (เช่น เช็คข่าว/ราคาทุกชั่วโมง) |
+| Run now | Queued to run immediately (shows in the NOW WORKING bar) |
+| Scheduled | Runs once when the time comes — can tick "every day" |
+| Every N minutes | A recurring job, minimum 5 minutes (e.g. check news/prices every hour) |
 
-- คิวฉลาด: agent คนเดียวไม่รันชนกันเอง + จำกัดงานพร้อมกันทั้งระบบ
-  ไม่ให้เครื่องอืด
-- แต่ละงานมี thread ของตัวเอง — ประวัติการรันทุกครั้งดูย้อนได้ใน 🧵
-- ปิดชั่วคราว/ลบได้จากรายการ
+- Smart queue: a single agent never runs jobs that collide, plus a system-wide cap on concurrent jobs
+  keeps the machine from bogging down
+- Each job has its own thread — every run is reviewable in history 🧵
+- Pause temporarily / delete from the list
 
-## 📅 CALENDAR — ปฏิทิน + เตือนแบบมีหัวใจ
+## 📅 CALENDAR — calendar + reminders with heart
 
-เพิ่มนัด: ชื่อ + วันเวลา + เตือนก่อนกี่นาที
+Add an appointment: name + date/time + how many minutes before to remind
 
-ถึงเวลาเตือน **Director เดินมาหาคุณถึงโต๊ะ** บนวอลเปเปอร์ พร้อม 🔔
-และเขียนข้อความเตือนในแชท — ไม่ใช่ notification แห้งๆ
+When the reminder fires, **the Director walks over to your desk** on the wallpaper with a 🔔
+and writes the reminder in chat — not a dry notification
 
-## 📝 NOTES — กระดานโน้ตกลาง
+## 📝 NOTES — the central note board
 
-โน้ตอยู่สองที่พร้อมกันเสมอ:
+Notes live in two places at once, always:
 
-- ใน UI (เพิ่ม/ลบ/พูดใส่ไมค์ได้)
-- ในไฟล์ `workspace/notes.md` — **agents อ่านได้และเขียนเพิ่มได้เอง**
-  (เติมบรรทัด `- ข้อความ` เพื่อฝากเรื่องถึงคุณ — ระบบ sync สองทาง)
+- In the UI (add/delete/dictate with the mic)
+- In the file `workspace/notes.md` — **agents can read it and append to it themselves**
+  (adding a `- message` line to leave you a note — the system syncs both ways)
 
-ใช้เป็นความจำกลางของออฟฟิศ: กฎ, ลิงก์, สิ่งที่อยากให้ทีมรู้
+Use it as the office's shared memory: rules, links, things you want the team to know
 
-## 🏢 ORG — ผังองค์กร
+## 🏢 ORG — the org chart
 
-ต้นไม้องค์กรอัตโนมัติ: CEO → Director → tier 2 → tier 3
-(ตั้ง tier ของแต่ละคนในหน้าแก้ไข agent) — คลิกใครก็เปิดแชทคนนั้น
+The automatic org tree: CEO → Director → tier 2 → tier 3
+(set each person's tier in the agent edit screen) — click anyone to open their chat
 
-## ⚙ Settings — จังหวะชีวิตของออฟฟิศ (แท็บ AGENTS)
+## ⚙ Settings — the office's rhythm of life (AGENTS tab)
 
-ตั้งค่ากลางที่คุมว่าออฟฟิศ "มีชีวิต" แค่ไหน — ทั้งหมดอยู่ใน ⚙ → AGENTS:
+Central settings that control how "alive" the office feels — all under ⚙ → AGENTS:
 
-| ตั้งค่า | ทำอะไร | ค่าเริ่มต้น |
+| Setting | What it does | Default |
 |---|---|---|
-| 🔊 Sound effects | เสียงประกอบในโลก | เปิด |
-| 🗣 Agent voices | เปิด/ปิดเสียงพูด agents ทั้งออฟฟิศ (ต้องมี Gemini key) | เปิด |
-| 🪟 Start with Windows | เปิดออฟฟิศอัตโนมัติเมื่อเปิดเครื่อง | ปิด |
-| 💓 DIRECTOR HEARTBEAT | รอบที่ Director ตรวจภาพรวมแล้วทักเฉพาะที่ควรรู้ | ทุก 60 นาที |
-| ☕ SOCIAL | agents ว่างจับกลุ่มคุย/ระดมไอเดีย | ทุก 60 นาที |
-| 💡 PROPOSALS | เว้นระยะขั้นต่ำต่อ "ข้อเสนอโปรเจค" ที่ส่งถึงคุณ (กันเสนอถี่) | อย่างน้อยทุก 120 นาที |
-| 🎤 PUSH-TO-TALK HOTKEY | ปุ่มสั่งงานด้วยเสียง | F6 |
+| 🔊 Sound effects | Ambient sound in the world | On |
+| 🗣 Agent voices | Toggle agent speech across the whole office (needs a Gemini key) | On |
+| 🪟 Start with Windows | Open the office automatically at boot | Off |
+| 💓 DIRECTOR HEARTBEAT | How often the Director reviews the big picture and only flags what you should know | Every 60 min |
+| ☕ SOCIAL | Idle agents gather to chat / brainstorm | Every 60 min |
+| 💡 PROPOSALS | Minimum gap between "project proposals" sent to you (prevents proposal spam) | At least every 120 min |
+| 🎤 PUSH-TO-TALK HOTKEY | The key to give orders by voice | F6 |
 
 ## 💓 Director Heartbeat
 
-DIRECTOR HEARTBEAT: ทุก 15/30/60 นาที Director จะตรวจปฏิทิน + งานค้าง +
-กระดานโน้ตเงียบๆ — และ**ทักคุณเฉพาะเมื่อมีเรื่องควรรู้** (นัดใกล้ถึง งานสะดุด
-โน้ตสำคัญ) ทุกอย่างปกติ = ไม่กวน
+DIRECTOR HEARTBEAT: every 15/30/60 minutes the Director quietly checks the calendar + pending work +
+note board — and **pings you only when there's something you should know** (an appointment coming up, work stalled,
+an important note). Everything normal = no interruption
 
-## ☕ ออฟฟิศเข้าสังคม + ความถี่ข้อเสนอ (Social & Proposals)
+## ☕ Office socializing + proposal frequency (Social & Proposals)
 
-ออฟฟิศมี "ชีวิต" ของตัวเอง — เมื่อไม่มีงานค้าง agents จะเดินมาจับกลุ่มคุย
-ระดมไอเดีย และไอเดียที่ตกผลึกจะกลายเป็น **ข้อเสนอโปรเจค** ถึงคุณ
+The office has a "life" of its own — when there's no pending work, agents walk over to gather and chat,
+brainstorm, and ideas that crystallize turn into **project proposals** to you
 
-**อะไรทำให้เกิด:** scheduler รอบ 30 วินาทีจะลองจังหวะ SOCIAL ก็ต่อเมื่อ
-ออฟฟิศ **ว่างจริง** (ไม่มี agent กำลังรันงาน + ไม่มีวงคุยค้างอยู่) และมี
-staff อย่างน้อย 2 คน — ถ้ามีงานอยู่ ทุกอย่างเงียบหมด
+**What triggers it:** the 30-second scheduler only attempts a SOCIAL beat when the
+office is **genuinely idle** (no agent running a job + no discussion in progress) and there are
+at least 2 staff — if there's work going on, everything stays quiet
 
-- บางครั้งเป็น 2 คนหยอกล้อกันแบบ canned (ไม่กินโทเคนเลย)
-- บางครั้งเป็นวงจริง 3–4 คนระดมไอเดีย plugin/โปรเจค — วงพวกนี้แหละที่
-  มักจบด้วยการยื่น **ข้อเสนอ** ถึงคุณ
+- Sometimes it's 2 people bantering, canned (uses zero tokens)
+- Sometimes it's a real 3–4 person circle brainstorming plugins/projects — and these circles are
+  the ones that usually end with a **proposal** to you
 
-**สองค่าที่คุมจังหวะ** (อยู่ใน ⚙ → แท็บ **AGENTS**):
+**Two settings control the rhythm** (under ⚙ → **AGENTS** tab):
 
-| ตั้งค่า | ทำอะไร | ค่าเริ่มต้น |
+| Setting | What it does | Default |
 |---|---|---|
-| ☕ SOCIAL | เว้นระยะขั้นต่ำระหว่างจังหวะเข้าสังคมแต่ละครั้ง (`socialMin`) | 60 นาที — ตั้ง 0 = ปิด |
-| 💡 PROPOSALS | เว้นระยะขั้นต่ำต่อ "ข้อเสนอที่ส่งถึงคุณ" (`proposalMin`) กันเสนอถี่ | 120 นาที — ตั้ง 0 = ไม่จำกัด |
+| ☕ SOCIAL | Minimum gap between each social beat (`socialMin`) | 60 min — set 0 = off |
+| 💡 PROPOSALS | Minimum gap per "proposal sent to you" (`proposalMin`), to prevent spam | 120 min — set 0 = no limit |
 
-> agents ยังคุยและระดมไอเดียได้อิสระเสมอ — PROPOSALS แค่หรี่จำนวน
-> "ข้อเสนอที่โผล่มาถึงคุณ" ไม่ให้ท่วม
+> Agents can still chat and brainstorm freely at all times — PROPOSALS just dials down the number of
+> "proposals that reach you" so you aren't flooded
 
-**ตัดสินข้อเสนอ:** กด ✓ อนุมัติ (เกิดโปรเจคจริงในโฟลเดอร์ playground +
-Director จัดทีมให้) หรือ ✗ ปฏิเสธ — แนบโน้ตเหตุผลได้ทั้งสองทาง
+**Deciding on a proposal:** press ✓ to approve (a real project is created in the playground folder +
+the Director staffs a team) or ✗ to reject — you can attach a note explaining your reasoning either way
 
-> 💡 **ทิป:** โน้ตที่คุณแนบตอนอนุมัติ/ปฏิเสธจะถูก**ส่งกลับถึงทีม** —
-> เป็นวิธีบอกทีมว่าคุณชอบ/ไม่ชอบข้อเสนอแนวไหน ครั้งต่อไปเขาจะเสนอ
-> ได้ตรงใจขึ้น
+> 💡 **Tip:** the note you attach when approving/rejecting is **sent back to the team** —
+> it's how you tell them what kinds of proposals you do/don't like, so next time they'll
+> propose things more to your taste
 
-## ⏹ ยกเลิกงานที่กำลังรัน (Cancel a running task)
+## ⏹ Cancel a running task
 
-ทุกงานที่กำลังทำจะขึ้นในแถบ **🔵 NOW WORKING** ใต้ header — คลิก
-"▼ ดูทั้งหมด" เพื่อกางรายการ แต่ละแถวมีปุ่ม **⏹** ด้านขวา
+Every task in progress shows in the **🔵 NOW WORKING** bar under the header — click
+"▼ See all" to expand the list. Each row has a **⏹** button on the right
 
-กด ⏹ = หยุดงานนั้นกลางคันทันที (ระบบจะ kill โปรเซส claude ของงานนั้น
-แล้วเอาออกจากแถบ) — ใช้เมื่องานค้างนานเกินไปหรือสั่งผิด
+Pressing ⏹ = stop that task mid-run immediately (the system kills that task's claude process
+and removes it from the bar) — use it when a task hangs too long or you gave the wrong order
 
-> งานที่กำลังรันในหน้าต่าง **โปรเจค** เป็นคนละปุ่ม: เปิดโปรเจคนั้นแล้ว
-> กด "⏹ หยุด agent" (กดยืนยันอีกครั้ง) เพื่อหยุด agent แล้วเข้าไปทำต่อเอง
+> A task running in a **project** window is a different button: open that project and
+> press "⏹ Stop agent" (confirm again) to stop the agent and step in yourself

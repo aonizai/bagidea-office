@@ -1,79 +1,87 @@
-# เปิดเว็บ & กดทำงานแทน (Web automation)
+# Browse the web & click through tasks for you (Web automation)
 
-> ให้น้องๆ (agents) **ขับเบราว์เซอร์จริง** ได้ — เข้าเว็บ คลิกปุ่ม พิมพ์ กรอก/ส่งฟอร์ม
-> เลื่อนหน้า สกรีนช็อตมาดู และดึงข้อความ เหมือนมีผู้ช่วยนั่งกดเว็บแทนคุณ
+> Let your agents **drive a real browser** — visit sites, click buttons, type, fill
+> in/submit forms, scroll pages, take screenshots to look at, and pull text — like
+> having an assistant who sits and clicks through the web for you.
 
-ออฟฟิศฝัง **Playwright MCP** (มาตรฐานคุมเบราว์เซอร์ของ Claude Code) มาให้พร้อมใช้
-ในชื่อ server `web` — แค่ติ๊กให้ agent ก็ใช้ได้เลย
+The office ships with **Playwright MCP** (Claude Code's standard for controlling a
+browser) built in and ready to use, under the server name `web` — just tick it on for
+an agent and it works.
 
-## เปิดใช้งาน (ติ๊กเดียว)
+## Enabling it (one tick)
 
-**วิธีที่ง่ายที่สุด — ใส่ skill:**
+**The easiest way — add a skill:**
 
-1. **⚙ → AGENTS →** เลือกน้องที่อยากให้ใช้เว็บ (เช่น **Shino/Director**) → **แก้ไข**
-2. ในหัวข้อ **SKILLS** ติ๊ก **🌐 Web Automation** → **บันทึก**
-3. แค่นี้น้องก็ใช้เว็บได้เลย — skill นี้**แถม tool ให้อัตโนมัติ** (เปิดแบบเห็นหน้าจอ)
-   พร้อมคู่มือวิธีใช้ในตัว ทำให้น้องคล่องเร็วขึ้น ไม่ต้องลองผิดลองถูกนาน
+1. **⚙ → AGENTS →** pick the agent you want to give web access (e.g. **Shino/Director**) → **Edit**
+2. Under **SKILLS**, tick **🌐 Web Automation** → **Save**
+3. That's it — the agent can now use the web. This skill **bundles the tool in automatically**
+   (opens in a visible window) along with a built-in usage guide, so the agent gets up to
+   speed faster instead of spending ages on trial and error.
 
-สั่งงานได้เลย เช่น *"เข้า example.com หา pricing แล้วสรุปเป็นตาราง"*
+You can give it tasks right away, e.g. *"Go to example.com, find the pricing, and summarize it as a table."*
 
-### เลือก: เปิดให้ดู vs ทำเบื้องหลัง
+### Choose: show it on screen vs. run in the background
 
-ออฟฟิศตั้ง MCP server มาให้ **2 ตัว** (ใน **⚙ → 🔌 MCP SERVERS**, ไม่ต้องเพิ่มเอง):
+The office sets up **2** MCP servers for you (under **⚙ → 🔌 MCP SERVERS**, no need to add them yourself):
 
-| Tool | โหมด | ใช้เมื่อ |
+| Tool | Mode | Use when |
 |---|---|---|
-| **🔌 web** | 👀 เห็นหน้าจอ (headed) | อยากดูน้องคลิก/พิมพ์สดๆ — **ค่าเริ่มต้นของ skill** |
-| **🔌 web-bg** | 🤫 เบื้องหลัง (headless) | อยากให้ทำเงียบๆ ไม่เด้งหน้าต่าง |
+| **🔌 web** | 👀 On screen (headed) | You want to watch the agent click/type live — **the skill's default** |
+| **🔌 web-bg** | 🤫 Background (headless) | You want it done quietly, with no window popping up |
 
-- ใส่ **skill อย่างเดียว** → ได้โหมด **เห็นหน้าจอ** อัตโนมัติ
-- อยากให้ทำเบื้องหลัง → ที่หน้าแก้ไข agent ใน **TOOLS** ติ๊ก **🔌 web-bg** (skill จะเคารพตัวนี้แทน)
-- หรือบอกน้องตรงๆ ตอนสั่งงานก็ได้ ว่า *"ทำเบื้องหลังนะ"* / *"เปิดให้ดูด้วย"* (ถ้าน้องมีทั้งสอง tool)
+- Add **just the skill** → you get **on-screen** mode automatically
+- To run in the background → on the agent's edit page, under **TOOLS**, tick **🔌 web-bg** (the skill will respect this one instead)
+- Or just tell the agent directly when giving a task: *"Do it in the background"* / *"Show me on screen"* (if the agent has both tools)
 
-## ครั้งแรกจะช้านิดนึง
+## The first run is a bit slow
 
-ครั้งแรกที่น้องเรียกใช้ ระบบจะ **ดาวน์โหลดเบราว์เซอร์ (Chromium) ครั้งเดียว** —
-รอบแรกจึงช้าหน่อย หลังจากนั้นเร็วปกติ ต้องมี Node/`npx` (ตัวติดตั้งลงให้แล้ว)
+The first time an agent uses it, the system **downloads the browser (Chromium) once** —
+so the first round is a little slow, then it's normal speed after that. You need
+Node/`npx` (the installer set this up for you).
 
-## ดูน้องทำงานสดๆ
+## Watch the agent work live
 
-เปิดแบบ **headed** = มี **หน้าต่างเบราว์เซอร์โผล่ขึ้นมาจริง** ให้คุณเห็นน้องคลิก/พิมพ์
-ตามเวลาจริง ปิดหน้าต่างเองได้เมื่อจบ
+Opening in **headed** mode = an **actual browser window pops up** so you can watch the
+agent click/type in real time. You can close the window yourself when it's done.
 
-## ความปลอดภัย
+## Security
 
-- **โปรไฟล์แยก ไม่ล็อกอิน** (`--isolated`) — ทุกครั้งเริ่มจากสถานะสะอาด
-  **ไม่แตะคุกกี้/รหัสผ่าน/เซสชัน** ที่คุณล็อกอินไว้ในเบราว์เซอร์ปกติ
-- **ทุก action ผ่าน Security Center** (PreToolUse hook) — การเข้าเว็บ/คลิกครั้งแรก
-  จะเด้งการ์ดขออนุมัติ กด ✓ ครั้งเดียว หรือ **✓✓ ตลอดไป** เพื่อจำถาวร
-- ให้เฉพาะ agent ที่คุณติ๊กเท่านั้นที่ใช้เว็บได้ (least-privilege)
+- **Separate profile, not logged in** (`--isolated`) — every run starts from a clean
+  state and **doesn't touch the cookies/passwords/sessions** you're logged into in your
+  normal browser.
+- **Every action goes through the Security Center** (PreToolUse hook) — the first time it
+  visits a site/clicks, an approval card pops up; press ✓ once, or **✓✓ Always** to
+  remember it permanently.
+- Only agents you've ticked on can use the web (least-privilege).
 
-## ตัวอย่างสั่งงาน
+## Example tasks
 
 ```
-เข้า news.ycombinator.com แล้วสรุป 5 หัวข้อแรกมาให้
-เปิด GitHub trending วันนี้ แคปหน้าจอมาให้ดู
-เข้าเว็บร้าน X หาสินค้า "หูฟัง" ที่ถูกที่สุด 3 อันดับ พร้อมลิงก์
-กรอกฟอร์มติดต่อในหน้านี้ด้วยข้อมูลที่ผมให้ แล้วแคปหน้ายืนยันมา
+Go to news.ycombinator.com and summarize the first 5 topics for me
+Open GitHub trending for today and take a screenshot for me
+Go to shop X's website, find the 3 cheapest "headphones," with links
+Fill in the contact form on this page with the info I give you, then screenshot the confirmation page
 ```
 
-## ขั้นสูง: อยากให้ใช้ "ล็อกอินของฉัน"
+## Advanced: have it use "my login"
 
-ค่าเริ่มต้นจงใจ **ไม่ล็อกอิน** เพื่อความปลอดภัย ถ้าจำเป็นต้องให้น้องทำงานหลังล็อกอินจริง
-(เช่น หลังบ้านที่ต้องเข้าสู่ระบบ) ให้แก้ command ของ server `web` ใน **⚙ → 🔌 MCP SERVERS**
-เปลี่ยน `--isolated` เป็น `--user-data-dir "C:\path\to\profile"` เพื่อเก็บเซสชันไว้
-แล้วล็อกอินรอบแรกในหน้าต่างที่เด้งขึ้น
+The default deliberately **stays logged out** for safety. If you genuinely need the agent
+to work behind a real login (e.g. a back office that requires signing in), edit the
+command of the `web` server under **⚙ → 🔌 MCP SERVERS**: change `--isolated` to
+`--user-data-dir "C:\path\to\profile"` to persist the session, then log in once in the
+window that pops up.
 
-> ⚠️ ระวัง: โหมดนี้ = น้องเข้าถึงบัญชีที่ล็อกอินไว้ได้ทั้งหมด ใช้กับเว็บที่ไว้ใจ
-> และ agent ที่คุณคุมเท่านั้น
+> ⚠️ Caution: this mode = the agent can access everything in the logged-in account. Use
+> it only with sites you trust and agents you control.
 
-## ปิด/เอาออก
+## Turning it off / removing it
 
-- เอา **🔌 web** ออกจาก TOOLS ของ agent (เลิกให้ใช้เฉพาะตัวนั้น), หรือ
-- ลบ server **web** ใน **⚙ → 🔌 MCP SERVERS** (เลิกทั้งออฟฟิศ — ลบแล้วไม่กลับมาเอง)
+- Remove **🔌 web** from the agent's TOOLS (revoke access for just that agent), or
+- Delete the **web** server under **⚙ → 🔌 MCP SERVERS** (revoke it office-wide — once deleted it won't come back on its own)
 
 ---
 
-> **เกร็ด:** ไอเดียนี้ได้แรงบันดาลใจจาก [PixelRAG](https://github.com/StarTrail-org/PixelRAG)
-> ที่เน้น *"อ่านเว็บเป็นภาพ"* (สกรีนช็อต + vision model) — ตัวนี้ทำได้**ทั้งอ่าน**
-> (สกรีนช็อตให้ Claude ดูด้วยตา) **และลงมือกดจริง** (คลิก/พิมพ์/กรอกฟอร์ม)
+> **Tidbit:** this idea was inspired by [PixelRAG](https://github.com/StarTrail-org/PixelRAG),
+> which focuses on *"reading the web as images"* (screenshots + a vision model) — this one
+> does **both reading** (screenshots for Claude to see with its eyes) **and real clicking**
+> (clicking/typing/filling out forms).

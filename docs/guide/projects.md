@@ -1,87 +1,87 @@
-# Projects — agents ทำงานในโฟลเดอร์จริง
+# Projects — agents working in real folders
 
-โปรเจค = ชื่อ + โฟลเดอร์จริงบนเครื่อง agent ที่รับงานจะรัน claude session
-**ข้างใน**โฟลเดอร์นั้น — คุณกด ▶ เข้าไปดู/คุยต่อจาก session เดิมได้เสมอ
+A project = a name + a real folder on the machine. The agent that takes the work runs its claude session
+**inside** that folder — and you can always press ▶ to step in and continue from the existing session
 
-![แผง OFFICE OPS → PROJECTS](../img/projects.png)
+![The OFFICE OPS → PROJECTS panel](../img/projects.png)
 
-## PLACES — ชื่อย่อสถานที่
+## PLACES — short location names
 
-🗂 OFFICE OPS → PROJECTS ล่างสุด: ตั้งชื่อย่อ → โฟลเดอร์แม่ เช่น
-
-```
-"ห้องเรียน"  →  D:\Learning
-"งานบริษัท"  →  D:\Work
-```
-
-จากนั้นทั้งคุณและ AI ใช้ชื่อนี้ได้เลย: *"สร้างโปรเจค X ในห้องเรียน"*
-
-## สร้าง / ลงทะเบียนโปรเจค
-
-**ทางลัด (แนะนำ):** บอก Director ในแชท
+🗂 OFFICE OPS → PROJECTS, at the bottom: map a short name → a parent folder, e.g.
 
 ```
-สร้างโปรเจคชื่อ Calculator ในห้องเรียน แล้วให้ Flamingo สร้างเว็บเครื่องคิดเลข เสร็จแล้วบอกผม
+"classroom"  →  D:\Learning
+"company work"  →  D:\Work
 ```
 
-ระบบจะ: สร้าง+ลงทะเบียนโปรเจค → มอบงานแบบระบุโปรเจค → ลูกทีมเริ่ม session
-*ข้างใน* `D:\Learning\Calculator` ตั้งแต่ข้อความแรก → แถวโปรเจคขึ้น
-**🤖 กำลังทำงาน** → จบแล้วรายงานกลับเป็นทอดๆ จนถึงคุณ
+After that both you and the AI can use the name directly: *"Create project X in the classroom"*
 
-**ทาง UI:** พิมพ์ชื่อ + เลือก place (หรือ ⌨ กำหนด path เอง / 📁 เลือกของเดิม
-ด้วย folder picker ในตัว) → **สร้าง / ลงทะเบียน**
+## Create / register a project
 
-## ปุ่มในแถวโปรเจค
+**Shortcut (recommended):** tell the Director in chat
 
-แต่ละแถวบอกชัดว่าใครอยู่ในโปรเจค: 🖥 **คุณเปิดทำงานอยู่** (เขียว) · 🫥 ของคุณทำงานเบื้องหลัง ·
-🤖 **agent กำลังทำงาน** (ฟ้า + ขอบซ้ายเรืองแสง)
+```
+Create a project called Calculator in the classroom, then have Flamingo build a calculator web app, and tell me when it's done
+```
 
-| ปุ่ม | ทำอะไร |
+The system will: create + register the project → assign the work scoped to that project → the team member starts a session
+*inside* `D:\Learning\Calculator` from the very first message → the project row shows
+**🤖 Working** → and when it's done, the report flows back up the chain to you
+
+**Via the UI:** type a name + pick a place (or ⌨ set the path yourself / 📁 pick an existing folder
+with the built-in folder picker) → **Create / Register**
+
+## Buttons in a project row
+
+Each row makes it clear who's in the project: 🖥 **you're working in it** (green) · 🫥 yours running in the background ·
+🤖 **an agent is working** (blue + glowing left edge)
+
+| Button | What it does |
 |---|---|
-| ▶ | เปิด*หน้าต่างเดียว*ของโปรเจค — ถ้ามีอยู่แล้ว (แม้ซ่อน) จะเรียกตัวเดิมขึ้นมา ไม่เปิดซ้อน |
-| ⏹ หยุด agent | โผล่แทน ▶ เมื่อ**มี agent ทำงานอยู่** — กดครั้งแรกขึ้น "ยืนยันหยุด?" กดอีกครั้ง = หยุดงาน agent เพื่อให้คุณเข้าไปทำเอง |
-| 🫥 | ซ่อนหน้าต่าง — claude ทำงานต่อเบื้องหลัง (เหมือน tmux) |
-| ⏹ | จบการทำงานของหน้าต่างนั้นจริงๆ |
-| 🖥 | เทอร์มินัลเปล่าในโฟลเดอร์ (ไม่นับเป็น "เปิดโปรเจค") |
-| 📂 | เปิดโฟลเดอร์ใน Explorer |
-| ✕ | เอาออกจากรายการ (ไฟล์อยู่ครบ) — **ปิดหน้าต่างของโปรเจคให้ด้วย** |
-| 🗑 | ลบโฟลเดอร์จากเครื่องจริงๆ (เฉพาะโปรเจคที่แอปสร้างเอง) — ปิดหน้าต่าง/เซิร์ฟเวอร์ที่ค้างให้ก่อนลบ |
+| ▶ | Opens the project's *single window* — if one already exists (even hidden) it brings that one back, no duplicate |
+| ⏹ Stop agent | Appears in place of ▶ when **an agent is working** — first press shows "Confirm stop?", press again = stop the agent's work so you can take over |
+| 🫥 | Hide the window — claude keeps working in the background (like tmux) |
+| ⏹ | Actually end that window's work |
+| 🖥 | A blank terminal in the folder (doesn't count as "opening the project") |
+| 📂 | Open the folder in Explorer |
+| ✕ | Remove it from the list (files stay intact) — **also closes the project's window for you** |
+| 🗑 | Actually delete the folder from disk (only for projects the app created itself) — closes any lingering window/server first |
 
-## หนึ่งคนต่อโปรเจค (ล็อกกันชน)
+## One person per project (collision lock)
 
-โปรเจคหนึ่งมี "คนทำงาน" ได้ทีละฝ่าย เพื่อไม่ให้คุณกับ agent แก้ไฟล์ชนกัน:
+A project can have one "worker" at a time, so you and an agent don't edit files at cross purposes:
 
-- **agent กำลังทำงาน → คุณยังเปิดไม่ได้** ปุ่มจะเป็น **⏹ หยุด agent** กดยืนยันเพื่อหยุดงานเขาก่อน
-  แล้วค่อยกด ▶ เข้าไปทำต่อ (session เดิมของเขายังอยู่ครบ)
-- **คุณเปิดโปรเจคค้างไว้ → agent เข้าไม่ได้** ถ้า Director สั่งงานเข้าโปรเจคที่คุณเปิดอยู่
-  ระบบจะรายงานกลับให้เขารู้ว่า "เจ้าของกำลังเปิดอยู่" แล้ววางแผนใหม่ — ปิดหน้าต่างของคุณก่อนเขาถึงเข้าได้
+- **An agent is working → you can't open it yet.** The button becomes **⏹ Stop agent**; confirm to stop their work first,
+  then press ▶ to step in (their existing session stays fully intact)
+- **You have the project open → an agent can't enter.** If the Director assigns work into a project you have open,
+  the system reports back that "the owner has it open," and he re-plans — close your window first before he can get in
 
-## ▶ ฉลาดตามสถานการณ์
+## ▶ Smart by situation
 
-- **ไม่มีใครทำงาน** → เปิด Windows Terminal เข้า session ล่าสุดทันที
-  (`claude --resume <ล่าสุด>` — ฟอนต์ไทยสวยตาม default profile ของคุณ)
-- ปิดหน้าต่าง (X) = จบแค่หน้าต่าง — session อยู่ครบ กด ▶ ก็ต่อจากเดิม
-  สถานะในรายการอัปเดตเองภายใน ~5 วินาที
+- **Nobody's working** → opens Windows Terminal straight into the latest session
+  (`claude --resume <latest>` — Thai font renders nicely per your default profile)
+- Closing the window (X) = ends just the window — the session stays intact, press ▶ to pick up where you left off.
+  The status in the list updates itself within ~5 seconds
 
-## ความจำรายโปรเจค (MEMORY.md)
+## Per-project memory (MEMORY.md)
 
-หลัง agent ทำงานจริงในโปรเจคเสร็จ ออฟฟิศจะ**กลั่นข้อเท็จจริงสำคัญของโปรเจคนั้น
-อัตโนมัติ** (จากการสะท้อนงานหลังจบ) เก็บเป็นบรรทัด `- ...` สั้นๆ ลงไฟล์
+After an agent finishes real work in a project, the office **automatically distills the project's key facts**
+(from a post-work reflection) and saves them as short `- ...` lines to the file
 
 ```
-workspace/projects/<โปรเจค>/MEMORY.md
+workspace/projects/<project>/MEMORY.md
 ```
 
-- ไฟล์นี้เป็นของ**ออฟฟิศ ไม่ได้เขียนลงรีโปจริงของคุณ** — โฟลเดอร์โปรเจคบนเครื่อง
-  สะอาดอยู่เสมอ
-- session ถัดๆ มา เมื่อ context เกี่ยวกับโปรเจคนี้ ระบบจะ**ดึงเฉพาะความจำที่เกี่ยว
-  กับงานตรงหน้า**มาฉีดให้ agent (ไม่เทมาทั้งก้อน) — agent จึง "จำ" โปรเจคได้
-  โดยไม่เปลืองโทเคน
-- **แก้เองได้:** เปิดไฟล์นี้เพิ่ม/ลบ/แก้บรรทัดได้ตามต้องการ จะใช้ทันทีรอบถัดไป
+- This file belongs to the **office, not your real repo** — the project folder on disk
+  stays clean at all times
+- On later sessions, when the context concerns this project, the system **pulls only the memory relevant
+  to the task at hand** and injects it for the agent (not the whole blob) — so the agent "remembers" the project
+  without burning tokens
+- **Editable by hand:** open this file and add/remove/edit lines as you like; it takes effect on the next round
 
-## กฎที่ agents ถูกสอนไว้
+## Rules agents are taught
 
-- ทำงานของโปรเจค*ข้างใน*โปรเจคเท่านั้น (ระบบ route ให้อัตโนมัติ)
-- ห้ามลบ/ถอดโปรเจค (API removal เป็นสิทธิ์ของมนุษย์ผ่าน UI เท่านั้น)
-- ทดสอบแบบเบื้องหลังก่อนเสมอ (curl / headless) ไม่เด้งหน้าต่างใส่คุณ
-- **เปิด server ทดสอบแล้วต้องปิดก่อนรายงานงานเสร็จ** — ไม่ทิ้งโปรเซสค้าง
+- Do a project's work *inside* the project only (the system routes this automatically)
+- Never delete/remove a project (removal via the API is a human-only right through the UI)
+- Always test in the background first (curl / headless) — don't pop a window in your face
+- **A test server you started must be shut down before reporting the work done** — don't leave processes lingering

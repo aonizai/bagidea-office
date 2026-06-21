@@ -1,142 +1,142 @@
-# เริ่มต้นใช้งาน BagIdea Office
+# Getting Started with BagIdea Office
 
-> ออฟฟิศ AI มีชีวิตบนวอลเปเปอร์ของคุณ — พนักงานทุกตัวคือ Claude agent ของจริง
+> A living AI office on your wallpaper — every employee is a real Claude agent
 
-![โลกออฟฟิศบนเดสก์ท็อปจริง](../img/world.png)
+![The office world on a real desktop](../img/world.png)
 
-## 1. ติดตั้ง
+## 1. Install
 
-**Windows** — เปิด PowerShell แล้วรันบรรทัดเดียว:
+**Windows** — open PowerShell and run a single line:
 
 ```powershell
 irm https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install.ps1 | iex
 ```
 
-**macOS** (beta) — เปิด Terminal:
+**macOS** (beta) — open Terminal:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install-mac.sh | bash
 ```
 
-**Linux** (Ubuntu/Debian · 🧪 experimental) — เปิด Terminal:
+**Linux** (Ubuntu/Debian · 🧪 experimental) — open Terminal:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bagidea/bagidea-office/main/installer/install-linux.sh | bash
 ```
 
-> 🧪 Linux ยังเป็น **experimental** — บน **X11/Xorg** ออฟฟิศจะเป็น desktop wallpaper จริง,
-> บน **Wayland** จะเป็นหน้าต่างเต็มจออยู่ล่างสุด (fallback). ถ้าติดตั้ง/แสดงผลมีปัญหา
-> รบกวนแจ้ง [issue](https://github.com/bagidea/bagidea-office/issues) พร้อม distro,
-> desktop และผลของ `echo $XDG_SESSION_TYPE`
+> 🧪 Linux is still **experimental** — on **X11/Xorg** the office runs as a true desktop wallpaper,
+> while on **Wayland** it falls back to a fullscreen window pinned to the bottom. If you hit
+> install/display issues, please file an [issue](https://github.com/bagidea/bagidea-office/issues)
+> with your distro, desktop, and the output of `echo $XDG_SESSION_TYPE`
 
-ตัวติดตั้งจะจัดการให้ครบ **แม้บนเครื่องเปล่า** — ลงทุกอย่างที่ต้องใช้ให้เอง:
-Git, Node.js LTS, Rust, **Visual Studio C++ Build Tools** (ตัว linker ที่ Rust ต้องใช้
-และเป็นสาเหตุติดตั้งไม่ผ่านที่พบบ่อยที่สุด), Godot 4.6.3 และ Claude Code CLI →
-โคลนโปรแกรมไว้ที่ `%LOCALAPPDATA%\BagIdeaOffice` → คอมไพล์ → ตีตราไอคอนหน้าต่าง →
-ผูกคำสั่ง `bagidea` เข้า PATH และสร้าง Start Menu shortcut
+The installer handles everything **even on a bare machine** — it installs every dependency for you:
+Git, Node.js LTS, Rust, **Visual Studio C++ Build Tools** (the linker Rust needs,
+and the single most common cause of failed installs), Godot 4.6.3 and the Claude Code CLI →
+clones the program to `%LOCALAPPDATA%\BagIdeaOffice` → compiles it → stamps the window icon →
+wires the `bagidea` command into PATH and creates a Start Menu shortcut
 
-- **รันซ้ำได้ปลอดภัย** — ข้ามของที่มีแล้ว, รันซ้ำ = `git pull` (ข้อมูลของคุณไม่หาย)
-- ของที่ลงผ่าน winget จะถูกดึงเข้า PATH ของเทอร์มินัลปัจจุบันให้ทันที จึงทำงานต่อได้รวดเดียว
-- ถ้าเครื่องยังไม่มี C++ Build Tools ตัวติดตั้งจะดาวน์โหลดให้ (~2–4 GB ครั้งเดียว) — รอบแรกจึงนานหน่อย
+- **Safe to re-run** — it skips what's already installed; re-running = `git pull` (your data stays intact)
+- Anything installed via winget is pulled into the current terminal's PATH immediately, so it can keep going in one pass
+- If the machine doesn't have the C++ Build Tools yet, the installer downloads them (~2–4 GB, one time) — so the first run takes a little longer
 
-> ติดตั้งไม่ผ่าน? ดู **[แก้ปัญหาการติดตั้ง](troubleshooting.md#แก้ปัญหาการติดตั้ง)**
-> — ครอบทุกอาการ (winget หาย, build fail, PATH ไม่อัปเดต, SmartScreen บล็อก) พร้อมวิธีแก้ทีละขั้น
+> Install didn't go through? See **[Install troubleshooting](troubleshooting.md)**
+> — it covers every symptom (winget missing, build fail, PATH not updating, SmartScreen blocking) with step-by-step fixes
 
-**ครั้งแรกเท่านั้น:** เปิดเทอร์มินัล**ใหม่** (ให้ PATH โหลดคำสั่ง `bagidea`/`claude`)
-แล้วรัน `claude` หนึ่งครั้งเพื่อ login บัญชี Claude จากนั้น:
+**First time only:** open a **new** terminal (so PATH picks up the `bagidea`/`claude` commands),
+run `claude` once to log into your Claude account, then:
 
 ```powershell
 bagidea start
 ```
 
-### ถ้าอยากติดตั้งเอง (manual)
+### If you'd rather install it yourself (manual)
 
 ```powershell
-# 1) deps (ข้ามตัวที่มีแล้วได้)
+# 1) deps (skip ones you already have)
 winget install Git.Git OpenJS.NodeJS.LTS Rustlang.Rustup
 winget install Microsoft.VisualStudio.2022.BuildTools --override `
   "--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 npm install -g @anthropic-ai/claude-code
-# 2) เปิดเทอร์มินัลใหม่ แล้วโคลน + build
+# 2) open a new terminal, then clone + build
 git clone https://github.com/bagidea/bagidea-office.git "$env:LOCALAPPDATA\BagIdeaOffice\app"
 cd "$env:LOCALAPPDATA\BagIdeaOffice\app\shell"; cargo build --release
-# 3) ดาวน์โหลด Godot 4.6.3 (win64) วางไว้ แล้วตั้ง env BAGIDEA_GODOT ชี้ไปที่ exe
+# 3) download Godot 4.6.3 (win64), place it, then set the BAGIDEA_GODOT env var to point at the exe
 ```
 
-(ตัวติดตั้งบรรทัดเดียวด้านบนทำทั้งหมดนี้ให้อยู่แล้ว — manual ไว้สำหรับคนที่อยากคุมเอง)
+(The one-line installer above already does all of this — the manual route is for people who want full control)
 
-## 2. สิ่งที่จะเกิดขึ้นตอนเปิด
+## 2. What happens when you launch
 
-1. โลโก้กลมๆ เต้นอยู่กลางจอครู่หนึ่ง (โลกกำลังโหลด)
-2. วอลเปเปอร์ของคุณกลายเป็น **ตึกออฟฟิศ HD-2D** — อยู่*หลัง*ไอคอนเดสก์ท็อป
-3. **chat head** วงกลมลอยมุมจอ + ไอคอนใน system tray
+1. A round logo pulses in the center of the screen for a moment (the world is loading)
+2. Your wallpaper turns into an **HD-2D office building** — sitting *behind* your desktop icons
+3. A circular **chat head** floats in the corner + an icon in the system tray
 
-| การกระทำ | ผล |
+| Action | Result |
 |---|---|
-| คลิก chat head | เปิด/ปิดหน้าต่างแชท |
-| คลิกขวา chat head | สลับ 📡 feed mode (แถบสตรีมเหตุการณ์) |
-| คลิกขวาไอคอน tray | เมนู: Hide office / Start with Windows / Exit |
+| Click the chat head | Open/close the chat window |
+| Right-click the chat head | Toggle 📡 feed mode (a live event stream bar) |
+| Right-click the tray icon | Menu: Hide office / Start with Windows / Exit |
 
-แสง/ท้องฟ้าในออฟฟิศเดินตามเวลาจริงของเครื่องคุณ — ตี 4 ก็มืดจริง โคมไฟสวนเปิดจริง
+The office's lighting/sky follows your machine's real clock — at 4 AM it's genuinely dark, and the garden lamps actually come on
 
-## 3. แชทแรก
+## 3. Your first chat
 
-เปิดโปรแกรมมา หน้าต่างแชทจะ**โฟกัสที่ที่นั่ง CEO 👑 (ตัวคุณ)** ทันที — สั่งงานในนาม
-CEO ได้เลย (ดูข้อ 4). ออฟฟิศใหม่มาพร้อม 2 คน: **คุณ (CEO)** กับ **Shino** —
-มือขวาของคุณในตำแหน่ง **Director** (ผู้จัดการออฟฟิศ) บุคลิกหนุ่มขี้เล่นแต่จริงจังกับงาน
-ถนัดสั่งงาน/บริหารทีมเป็นหลัก. อยากคุยกับ Shino ตรงๆ ให้คลิกที่นั่งของเขา
-(⭐ ถัดจาก CEO) แล้วพิมพ์:
-
-```
-สวัสดี! แนะนำตัวหน่อย แล้วออฟฟิศนี้ทำอะไรได้บ้าง?
-```
-
-ลองสั่งงานจริง:
+When the program opens, the chat window **focuses on the CEO 👑 seat (you)** right away — you can give orders as the
+CEO immediately (see section 4). A fresh office ships with 2 people: **you (CEO)** and **Shino** —
+your right hand in the **Director** role (office manager), a playful young guy who's serious about work,
+focused mainly on delegating and managing the team. To talk to Shino directly, click his seat
+(⭐ next to the CEO) and type:
 
 ```
-ช่วยค้นคว้าข้อดีข้อเสียของ static site generators 3 ตัวดัง แล้วสรุปเป็นตาราง
+Hi! Introduce yourself, and tell me what this office can do.
 ```
 
-ถ้างานแยกส่วนได้ จะเห็นเขา **แตกร่าง** เป็นโคลนโปร่งแสงลอยขึ้นไปทำงานขนานกันบน
-Ghost Deck แล้วรวมร่างสรุปผล — ทั้งหมดเป็น session จริง ดูย้อนได้ใน 🧵
+Try giving a real task:
 
-## 4. สั่งงานผ่าน CEO (ตัวคุณ)
+```
+Research the pros and cons of 3 popular static site generators, then summarize them in a table.
+```
 
-ที่นั่งสีทอง 👑 คือคุณเอง — พิมพ์ใส่ช่องนั้น Director จะ**เดินมารับคำสั่งถึงโต๊ะ**
-วางแผน มอบหมายลูกทีม (เห็นการเดินส่งงานบนวอลเปเปอร์) และเมื่องานจบ
-เขาจะเดินกลับมารายงานสรุปให้คุณถึงที่
+If the task can be split, you'll see him **fork into ghosts** — translucent clones that float up and
+work in parallel on the Ghost Deck, then merge back to summarize the result — all real sessions, reviewable in 🧵
 
-## 5. เกร็ดการใช้งาน
+## 4. Giving orders through the CEO (you)
 
-เครื่องมือเสริมอยู่ในเมนู **⋯ (เพิ่มเติม)** บนหัวหน้าต่างแชท — เปิดดูได้ทั้งหมดที่นั่น
+The gold 👑 seat is you — type into that box and the Director will **walk over to your desk to take the order**,
+plan it, delegate to the team (you'll see the handoffs walking across the wallpaper), and when the work is done
+he'll walk back to deliver a summary report right to you
 
-### 🌐 เปลี่ยนภาษา (14 ภาษา)
+## 5. Usage tips
 
-กด **⋯ → 🌐 ภาษา / Language** จะมีรายการภาษาให้เลือก สลับได้ทันทีทั้งโปรแกรม
-(เป็นค่ากลางของออฟฟิศ จำไว้รายเครื่อง) — มาพร้อมคำแปลครบในตัว จึงเปลี่ยนได้ทันที
-แม้ไม่มี key ของ Gemini
+Extra tools live in the **⋯ (More)** menu on the chat window header — open it to see everything
 
-รองรับ 14 ภาษา: English, ไทย, 中文 (จีน), Español (สเปน), हिन्दी (ฮินดี),
-العربية (อาหรับ), Português (โปรตุเกส), Русский (รัสเซีย), 日本語 (ญี่ปุ่น),
-Deutsch (เยอรมัน), Français (ฝรั่งเศส), 한국어 (เกาหลี), Indonesia, Tiếng Việt (เวียดนาม)
+### 🌐 Change language (14 languages)
 
-### 🗺 แผนที่ออฟฟิศ (live map)
+Press **⋯ → 🌐 Language** for a list of languages; switching applies instantly across the whole program
+(it's an office-wide setting, remembered per machine) — full translations ship built in, so you can switch right away
+even without a Gemini key
 
-กด **⋯ → 🗺 แผนที่** เปิดผังออฟฟิศมุมบน เห็นพนักงานทุกตัวเป็นไอคอน (หน้า, ชื่อ
-และวงสีบอกสถานะ) ขยับตามตำแหน่งจริงบนวอลเปเปอร์ — **คลิกที่ตัวพนักงานเพื่อคุยกับเขา**
-(แผนที่จะปิดและหน้าต่างแชทโฟกัสที่คนนั้นให้) ส่วนโคลนโปร่งแสง 👻 จะลอยอยู่บนแผนที่ด้วย
-แต่ดูได้อย่างเดียว
+Supports 14 languages: English, ไทย (Thai), 中文 (Chinese), Español (Spanish), हिन्दी (Hindi),
+العربية (Arabic), Português (Portuguese), Русский (Russian), 日本語 (Japanese),
+Deutsch (German), Français (French), 한국어 (Korean), Indonesia, Tiếng Việt (Vietnamese)
 
-### 🖥 หลายจอ (multi-monitor)
+### 🗺 Office map (live map)
 
-ใช้หลายจอ? กด **⋯ → 🖥 จอแสดงผล** เลือกได้ว่าจะให้ออฟฟิศไปขึ้นที่จอไหน
-(จอหลัก / จอที่ 2 / จอที่ 3…) รายการจะแสดงตามจำนวนจอที่ตรวจพบจริง
-เมื่อเลือกจอใหม่ ออฟฟิศจะ**รีสตาร์ทเองสักครู่** เพื่อย้ายไปจอนั้น
+Press **⋯ → 🗺 Map** to open the office floor plan overlay. You'll see every employee as an icon (face, name,
+and a colored ring for status) moving with their real position on the wallpaper — **click an employee to talk to them**
+(the map closes and the chat window focuses on that person). Translucent ghost clones 👻 also appear on the map,
+but are view-only
 
-## 6. ขั้นต่อไป
+### 🖥 Multi-monitor
 
-- [จ้างพนักงานเพิ่ม + ตั้ง persona](agents.md)
-- [สร้างโปรเจคให้ agents ทำงานจริงในโฟลเดอร์](projects.md)
-- [ให้ agents เปิดเว็บ & กดทำงานแทน (web automation)](web-automation.md)
-- [สั่งงานด้วยเสียง + feed mode](voice-feed.md)
-- [ต่อ Telegram ไว้สั่งงานจากมือถือ](channels.md)
+Using multiple monitors? Press **⋯ → 🖥 Display** to choose which monitor the office appears on
+(primary / 2nd / 3rd…); the list shows however many monitors are actually detected.
+When you pick a new monitor, the office **restarts itself briefly** to move to it
+
+## 6. Next steps
+
+- [Hire more employees + set up personas](agents.md)
+- [Create projects for agents to work in real folders](projects.md)
+- [Let agents open the web & click through tasks for you (web automation)](web-automation.md)
+- [Give orders by voice + feed mode](voice-feed.md)
+- [Connect Telegram to give orders from your phone](channels.md)

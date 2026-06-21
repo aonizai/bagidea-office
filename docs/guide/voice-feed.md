@@ -1,99 +1,99 @@
-# เสียง & Feed Mode
+# Voice & Feed Mode
 
-## 🎤 สั่งงานด้วยเสียง
+## 🎤 Voice commands
 
-มีสองทางที่แยกขาดจากกัน:
+There are two completely separate paths:
 
-**1. ปุ่ม 🎤 ในแอป (พูดลงช่องข้อความ)**
-- คลิก = เปิดไมค์ — ปุ่ม**แดงค้าง**ตลอดที่ฟังอยู่ · คลิกอีกครั้ง = ปิด
-- คำพูดพิมพ์ลงช่องข้อความที่อยู่ข้างปุ่ม ให้คุณตรวจ/แก้ก่อนส่งเอง
-- มีทั้งข้างช่องแชท ฟอร์มสั่งงาน และกระดานโน้ต
+**1. The 🎤 button in the app (speak into the text field)**
+- Click = mic on — the button **stays red** the whole time it's listening · click again = off
+- Your speech is typed into the text field next to the button, so you can review/edit before sending yourself
+- Available next to the chat box, on the command form, and on the notes board
 
-**2. คีย์ลัด F6 (สายตรงถึง Director — ใช้ได้ทุกโหมด)**
-- **กด F6 = เปิดไมค์** → pill แดงเต้นโชว์ทุกคำที่ได้ยินแบบสด
-- **กด F6 อีกครั้ง = ปิดไมค์ + ส่งข้อความหา Director ทันที**
-- ไม่ยุ่งกับช่องพิมพ์ใดๆ — ใช้ได้เหมือนกันทั้งโหมดปกติ / ย่อ / 📡 feed
-- โหมดปกติจะเห็น chip "🎤 สั่งงาน Director: …" ยืนยันสิ่งที่ส่งไป
-- เปลี่ยนปุ่มได้ใน ⚙ → AGENTS (F6/F7/F8/F9/Ctrl+Space)
+**2. The F6 hotkey (direct line to the Director — works in every mode)**
+- **Press F6 = mic on** → a red pulsing pill shows every word it hears live
+- **Press F6 again = mic off + message sent to the Director immediately**
+- Doesn't touch any input field — works the same in normal / minimized / 📡 feed mode
+- In normal mode you'll see a chip "🎤 Command to Director: …" confirming what was sent
+- Rebind the key at ⚙ → AGENTS (F6/F7/F8/F9/Ctrl+Space)
 
-> **เครื่องยนต์เสียง**: โปรแกรมอัดเสียงเอง (มี VU meter ใน pill ให้เห็นว่ากำลังฟัง)
-> แล้วถอดด้วย **OpenAI Whisper** หรือ **Gemini** จาก API key ใน ⚙ CONNECT —
-> ภาษาไทยแม่นมาก ไม่ใช้แผงไมค์ของ Windows อีกต่อไป · **ครั้งแรก** WebView จะขอ
-> อนุญาตใช้ไมโครโฟน กด Allow หนึ่งครั้งจบ (จำถาวร) · จำกัดคลิปละ 60 วินาที
+> **Voice engine**: the program records audio itself (with a VU meter in the pill so you can see it's listening),
+> then transcribes with **OpenAI Whisper** or **Gemini** using the API key from ⚙ CONNECT —
+> very accurate for Thai, no longer relying on the Windows mic panel · **the first time**, the WebView asks
+> for microphone permission, click Allow once and you're done (remembered permanently) · limited to 60 seconds per clip
 
-## 🎙 เลือกไมโครโฟน / ลำโพง
+## 🎙 Choosing a microphone / speaker
 
-เลือกอุปกรณ์เสียงได้ที่ **⚙ → AGENTS** (อยู่ใต้ช่องเลือก HOTKEY สั่งงานด้วยเสียง):
+Pick your audio devices at **⚙ → AGENTS** (below the voice-command HOTKEY selector):
 
-- **🎙 ไมโครโฟน (input)** — อุปกรณ์ที่ใช้รับเสียงพูดของคุณ (ทั้งปุ่ม 🎤, คีย์ลัด และคุยเสียงสด 📞)
-- **🔊 ลำโพง (output)** — เสียงพูดของ agents และเสียงประกอบจะออกทางนี้
-- ทั้งคู่ตั้งต้นเป็น **"ค่าเริ่มต้นของระบบ"** — เลือกแล้วจำให้อัตโนมัติ ไม่ต้องกด save
+- **🎙 Microphone (input)** — the device used to capture your speech (for the 🎤 button, the hotkey, and live voice chat 📞)
+- **🔊 Speaker (output)** — agent voices and sound effects come out of this
+- Both default to **"system default"** — your selection is remembered automatically, no save needed
 
-**ทดสอบ**: พอเลือกลำโพงใหม่จะมีเสียง blip ยืนยันดังออกอุปกรณ์ที่เพิ่งเลือกทันที ·
-ส่วนไมค์ลองกด 🎤 แล้วดู VU meter ใน pill ว่าขยับตามเสียงไหม
+**Testing**: when you pick a new speaker, a confirmation blip plays out of the device you just selected immediately ·
+for the mic, press 🎤 and watch the VU meter in the pill to see if it moves with your voice
 
-**ถ้าเสียงเข้าไม่ติด / ไม่เห็นรายชื่ออุปกรณ์**:
-- รายชื่ออุปกรณ์จะโชว์ก็ต่อเมื่อ**อนุญาตไมโครโฟนแล้ว** — เปิดแผงนี้ครั้งแรกอาจเด้งขออนุญาต กด Allow ก่อน
-  (ถ้าขึ้น "อ่านรายชื่ออุปกรณ์เสียงไม่ได้ — ลองอนุญาตไมโครโฟนก่อน" ให้อนุญาตแล้วเปิดแผงใหม่)
-- บางระบบยังเลือก**ลำโพง**ในแอปไม่ได้ — ช่องจะถูกปิดพร้อมหมายเหตุ ให้ไปเปลี่ยนที่การตั้งค่าเสียงของ Windows/macOS แทน
+**If audio isn't coming through / you don't see the device list**:
+- The device list only appears once **microphone permission is granted** — opening this panel the first time may prompt for permission, click Allow first
+  (if you see "Couldn't read the audio device list — try granting microphone permission first", grant it and reopen the panel)
+- Some systems can't select the **speaker** in the app — the field will be disabled with a note; change it in your Windows/macOS sound settings instead
 
-## 🗣 เสียงพูดของ agents (TTS)
+## 🗣 Agent voices (TTS)
 
-ตั้งเสียงให้ agent แต่ละตัวได้ใน **หน้าแก้ไข agent → 🔊 เสียง** มีให้เลือก **16 เสียง**
-แยกเพศชัดเจน (♀ 8 · ♂ 8) แต่ละเสียงมีคาแรกเตอร์ของตัวเอง
+Set a voice for each agent on the **agent edit page → 🔊 Voice** — there are **16 voices** to choose from,
+clearly split by gender (♀ 8 · ♂ 8), each with its own character.
 
-- **ฟังตัวอย่าง ▶** — พูดประโยคแนะนำตัวที่**ตรงเพศและภาษาของออฟฟิศ** (เสียงชายแนะนำตัว
-  แบบชาย เสียงหญิงแบบหญิง · ภาษาตามที่ตั้งไว้ใน ⚙) ไม่ใช่ "สวัสดีค่ะ" รวมทุกเสียงอีกต่อไป
-- **พูดเองบ้างเป็นสีสัน** — agent ที่ตั้งเสียงไว้จะ "พูดสั้นๆ" ออกมาจริงเป็นครั้งคราว
-  (ทักทาย, ยืนยันงาน, สรุปหนึ่งประโยค) ผ่านโปรโตคอล `SPEAK:` ในคำตอบของเขาเอง
-- **อ่านยาวเฉพาะเมื่อสั่ง** — จะให้อ่าน/รายงานด้วยเสียงเต็มๆ ก็บอกเขาตรงๆ
-- ปิด/เปิดเสียงพูดทั้งออฟฟิศได้ที่ ⚙ → AGENTS → สวิตช์ **🗣 Agent voices**
-- คุยเสียงสด (📞) กับ main agent ใช้เสียงเดียวกับที่ตั้งไว้
+- **▶ Preview** — speaks a self-introduction that **matches the voice's gender and the office's language** (male voices introduce
+  themselves as male, female as female · in the language set in ⚙); no more a single "Hello" for every voice.
+- **A bit of spontaneous speech for flavor** — an agent with a voice set will occasionally "say something short" for real
+  (a greeting, a task confirmation, a one-sentence summary) via the `SPEAK:` protocol in its own reply.
+- **Long reading only on request** — if you want it to read/report aloud in full, just tell it directly.
+- Turn agent voices on/off office-wide at ⚙ → AGENTS → the **🗣 Agent voices** switch.
+- Live voice chat (📞) with the main agent uses the same voice you set.
 
-> ต้องมี **GEMINI_API_KEY** (⚙ CONNECT) — ถ้ายังไม่ได้ใส่ ปุ่มและฟีเจอร์เสียงพูดจะปิดไว้
-> และเปิดให้อัตโนมัติทันทีที่ใส่ key
+> Requires **GEMINI_API_KEY** (⚙ CONNECT) — if it's not set, voice buttons and features are disabled,
+> and they enable automatically the moment you add the key.
 
-## 💬 เสียงพึมพำตามอารมณ์ (ambient mood)
+## 💬 Ambient mood murmurs
 
-ตอนออฟฟิศว่างๆ agent คนใดคนหนึ่งจะ**โพล่งประโยคอารมณ์สั้นๆ** ออกมาเป็นสีสัน เช่น
-"วันนี้อยากทำงานจัง 💪", "ขอกาแฟแก้วนึงงง ☕", "เงียบดีนะวันนี้ 🌿" — ขึ้นเป็น
-speech bubble ให้ทุกตัว และ**ถ้า agent คนนั้นตั้งเสียงไว้** ก็จะ "พูดออกมาจริง" บางครั้ง
+When the office is idle, one of the agents will **blurt out a short mood phrase** for flavor, e.g.
+"Really feel like working today 💪", "Could use a coffee ☕", "Nice and quiet today 🌿" — it appears as a
+speech bubble for any of them, and **if that agent has a voice set**, it will sometimes "say it out loud" for real.
 
-- **บ่อยแค่ไหน**: เกิดได้อย่างมาก **~ทุก 55 วินาที** และแต่ละจังหวะมีโอกาสราว **45%**
-  เท่านั้น (จริงๆ จึงเฉลี่ยห่างกว่านั้นมาก) · จะ**เงียบสนิทเมื่อมีงานรันอยู่หรือ agents กำลังคุยกัน**
-- **ออกเสียงเมื่อไร**: เฉพาะ agent ที่มีเสียง + เปิดฟีเจอร์ TTS อยู่ และยังต้องสุ่มผ่าน
-  (~60% ของครั้งที่พึมพำ) จึงจะได้ยินเสียงจริง — นอกนั้นเป็นแค่ bubble เงียบๆ
-- **ปิด/เปิด**: ไม่มีสวิตช์แยกของ ambient โดยเฉพาะ — มันใช้สวิตช์เดียวกับเสียงพูดทั้งออฟฟิศ
-  คือ **⚙ → AGENTS → 🗣 Agent voices** · ปิดสวิตช์นี้ = ไม่มีเสียงพึมพำ (เหลือแต่ bubble ข้อความ)
-- อยากให้ออฟฟิศเงียบลงโดยรวม ลดความถี่ที่ agents จับกลุ่มคุยได้ที่ **⚙ → AGENTS → ☕ SOCIAL**
+- **How often**: at most **~every 55 seconds**, and each beat only has about a **45%** chance
+  (so in practice they're spaced much further apart) · it **goes completely silent when a task is running or agents are talking to each other**
+- **When it's spoken aloud**: only for an agent that has a voice + TTS enabled, and it still has to pass a random roll
+  (~60% of murmurs) before you hear it for real — otherwise it's just a silent bubble
+- **On/off**: there's no dedicated switch for ambient specifically — it uses the same switch as all office voices,
+  i.e. **⚙ → AGENTS → 🗣 Agent voices** · turning this off = no murmurs (just the text bubbles remain)
+- To make the office quieter overall, reduce how often agents gather to chat at **⚙ → AGENTS → ☕ SOCIAL**
 
-## 📡 Feed Mode — แถบสตรีมเหตุการณ์
+## 📡 Feed Mode — the event stream bar
 
-**คลิกขวาที่ chat head** → หน้าต่างแชทกลายเป็นแถบโปร่งแสงมุมขวาล่าง
-สตรีมทุกความเคลื่อนไหวของออฟฟิศ: ใครพูดอะไร ใช้เครื่องมืออะไร งานเสร็จ/ล้ม
-ghost แตกร่าง การมอบงาน ข้อความจาก channels ฯลฯ
+**Right-click the chat head** → the chat window turns into a translucent bar in the bottom-right corner
+streaming every movement in the office: who said what, which tool was used, tasks done/failed,
+ghosts splitting off, delegations, messages from channels, and so on.
 
-| ความสามารถ | วิธีใช้ |
+| Capability | How to use |
 |---|---|
-| อ่านย้อนหลัง | scroll ขึ้นได้เลย — ข้อความใหม่ไม่ดึงคุณลงถ้ากำลังอ่านอยู่ |
-| อ่านชัดๆ | เอาเมาส์วาง → พื้นหลังทึบขึ้นอัตโนมัติ |
-| ล้างรายการ | ปุ่ม 🧹 ที่หัวแถบ (เก็บสูงสุด 60 รายการ) |
-| คำขอ permission | เด้งเป็นการ์ดมีปุ่ม ✓ อนุญาต / ✓✓ ตลอดไป / ✗ ไม่ — กดได้ในแถบเลย |
-| สั่งงานด้วยเสียง | กด F6 ค้างแล้วพูด — ส่งหา Director อัตโนมัติ |
+| Read back | just scroll up — new messages won't drag you down while you're reading |
+| Read clearly | hover the mouse → the background turns opaque automatically |
+| Clear the list | the 🧹 button at the top of the bar (keeps up to 60 items) |
+| Permission requests | pop up as cards with ✓ Allow / ✓✓ Always / ✗ No buttons — answer right in the bar |
+| Voice command | hold F6 and speak — sent to the Director automatically |
 
-สลับกลับ: คลิกขวา chat head อีกครั้ง — หน้าต่าง/แท็บที่เปิดค้างไว้จะกลับมาตามเดิม
-และถ้าคำขอ permission ถูกตอบครบจาก feed แล้ว Security Center จะพับให้เอง
+Switch back: right-click the chat head again — any windows/tabs you'd left open come back as they were,
+and if all permission requests were answered from the feed, the Security Center folds itself away.
 
-## 🔵 NOW WORKING — เห็นทุกงานที่กำลังรัน
+## 🔵 NOW WORKING — see every running task
 
-สั่งงานปุ๊บ แถบสรุปโผล่ทันที (ใต้ header ในโหมดปกติ / ใต้หัว OFFICE FEED ใน feed mode):
+The moment you give a command, a summary bar appears (under the header in normal mode / under the OFFICE FEED head in feed mode):
 
 ```
-● กำลังทำ 3 งาน   Flamingo: สร้างเว็บเครื่องคิดเลข…          ▼ ดูทั้งหมด
+● 3 tasks running   Flamingo: building a calculator website…          ▼ Show all
 ```
 
-- บรรทัดเดียวเสมอ ไม่บังจอ ต่อให้รันสิบงาน — กด **▼ ดูทั้งหมด** เพื่อกางรายการเต็ม
-  (เลื่อนดูได้ มีหน้า+ชื่อ+หัวข้องานครบ)
-- คลิกงานในรายการ → เปิดแชทของ agent คนนั้น
-- งานเสร็จหายเอง · รีสตาร์ทโปรแกรมแล้วรายการกลับมาเอง
-- งานตั้งเวลา (jobs) ดูได้ที่ 🗂 → TASKS เหมือนเดิม
+- Always a single line, never blocking the screen, even with ten tasks running — press **▼ Show all** to expand the full list
+  (scrollable, with page + name + task title for each)
+- Click a task in the list → opens that agent's chat
+- Tasks disappear on their own when done · restart the program and the list comes back by itself
+- Scheduled tasks (jobs) are still viewed at 🗂 → TASKS as before

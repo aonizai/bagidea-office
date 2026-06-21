@@ -1,86 +1,86 @@
-# AI Features — main keys, เสียง, รูปภาพ, ความจำ, realtime
+# AI Features — main keys, voice, images, memory, realtime
 
-ฟีเจอร์ AI ของโปรแกรมขับเคลื่อนด้วย **Main API Keys** — ตั้งครั้งเดียวที่
-⚙ → 🔗 CONNECT แล้วปลดล็อกทุกอย่าง
+The program's AI features are powered by **Main API Keys** — set them once at
+⚙ → 🔗 CONNECT and everything unlocks.
 
 ## 🔑 Main API Keys
 
-| Key | ปลดล็อก |
+| Key | Unlocks |
 |---|---|
-| **OPENAI_API_KEY** | 🎤 ถอดเสียง (Whisper) · 🖼 สร้างภาพ |
-| **GEMINI_API_KEY** | 🎤 ถอดเสียง · 🗣 เสียงพูด agents · 📞 realtime · 🖼 สร้างภาพ |
+| **OPENAI_API_KEY** | 🎤 Speech-to-text (Whisper) · 🖼 Image generation |
+| **GEMINI_API_KEY** | 🎤 Speech-to-text · 🗣 Agent voices · 📞 Realtime · 🖼 Image generation |
 
-- ถ้ายังไม่ตั้ง ปุ่มที่เกี่ยวข้องจะ**จางและกดไม่ได้** พร้อมคำอธิบายว่าต้องใส่ key อะไร
-- การ์ดในหน้า CONNECT บอกชัดว่าแต่ละ key ปลดอะไร + ลิงก์ไปขอ key
-- **ดูได้ว่าฟีเจอร์ไหนพร้อม**: ⚙ → TOOLS → SYSTEM TOOLS (✅/🔒)
+- If a key isn't set, the related buttons appear **dimmed and disabled**, with a note explaining which key is required.
+- The cards on the CONNECT page clearly state what each key unlocks, plus a link to obtain the key.
+- **See which features are ready**: ⚙ → TOOLS → SYSTEM TOOLS (✅/🔒)
 
-ส่วน **API Keys เพิ่มเติม** (เช่น `GEMINI2`) เก็บแยกไว้ให้ agents ใช้ในงานของมันเอง
-— ฉีดเข้า env ของทุก session อัตโนมัติ
+**Additional API Keys** (e.g. `GEMINI2`) are stored separately for agents to use in their own work
+— injected into every session's env automatically.
 
-## 🎤 ถอดเสียงเป็นข้อความ
+## 🎤 Speech-to-text
 
-- **ปุ่ม 🎤** ข้างช่องแชท: คลิกอัด พูด คลิกอีกครั้ง → ข้อความลงช่องพิมพ์
-- **F6**: กดเริ่มอัด กดอีกครั้ง → ส่งเป็นคำสั่งในนาม CEO ทันที (ทุกโหมด)
-- มี VU meter สด ในกล่องสีแดง ให้รู้ว่าไมค์ได้ยินอยู่
-- ครั้งแรก WebView ขออนุญาตไมค์ — กด Allow ครั้งเดียว
+- **🎤 button** next to the chat box: click to record, speak, click again → text drops into the input field.
+- **F6**: press to start recording, press again → sent as a command on behalf of the CEO immediately (works in every mode).
+- A live VU meter appears in the red box so you know the mic is picking you up.
+- The first time, the WebView asks for mic permission — click Allow once.
 
-## 🗣 เสียงพูดของ agents (TTS)
+## 🗣 Agent voices (TTS)
 
-ตั้งเสียงให้ agent ในหน้าแก้ไข (⚙ → AGENTS → แก้ไข → 🗣 เสียงพูด) — มี **16 พรีเซต
-แยกหญิง ♀ / ชาย ♂ ชัดเจน (อย่างละ 8)** แต่ละเสียงมีอารมณ์/สไตล์เฉพาะตัว
-(สดใส, นิ่งเท่, ทุ้มอบอุ่น, นักเล่าเรื่อง ฯลฯ) กด **▶ ฟังตัวอย่าง**ก่อนเลือกได้
-(`bagidea voices` ดูรายการทั้งหมด)
+Set a voice for an agent on the edit page (⚙ → AGENTS → edit → 🗣 Voice) — there are **16 presets,
+clearly split female ♀ / male ♂ (8 each)**, each with its own mood/style
+(bright, calm and cool, warm and deep, storyteller, etc.). Press **▶ Preview**
+to listen before choosing (`bagidea voices` lists them all).
 
-- agents พูด**เฉพาะตอนควรประกาศ**จริงๆ (งานสำคัญเสร็จ / เจ้าของขอให้อ่านให้ฟัง) —
-  ไม่ใช่อ่านทุกข้อความ เป็นแค่สีสัน
-- เปิด/ปิดรวมได้ที่ ⚙ → AGENTS → 🗣 Agent voices
-- ต้องมี GEMINI_API_KEY
+- Agents speak **only when something is genuinely worth announcing** (an important task done / the owner asks them to read it aloud) —
+  they don't read every message; it's just flavor.
+- Toggle all on/off at ⚙ → AGENTS → 🗣 Agent voices
+- Requires GEMINI_API_KEY
 
 ## 📞 Realtime voice chat
 
-กดปุ่ม **📞** ข้างช่องแชท → คุยด้วยเสียงสดกับ **main agent** ผ่าน Gemini Live
-(ปุ่ม 📞 จะโชว์เฉพาะตอนเลือก main — เป็นตัวแทนพูดของออฟฟิศ). น้องรู้ข้อมูลออฟฟิศ
-(OFFICE.md + ทีม) และใช้**เสียงที่คุณตั้งให้ main** ถ้าไม่ได้ตั้งก็ใช้พรีเซต default ·
-กด 📞 อีกครั้งวางสาย · ต้องมี GEMINI_API_KEY
+Press the **📞** button next to the chat box → talk live by voice with the **main agent** via Gemini Live.
+(The 📞 button only shows when main is selected — it's the office's spokesperson.) It knows the office's info
+(OFFICE.md + the team) and uses **the voice you set for main**; if none is set, it uses the default preset ·
+press 📞 again to hang up · requires GEMINI_API_KEY
 
-> **หมายเหตุ — สายคุยตรงถึง main เท่านั้น:** การโทรสดจะถึง **main agent** เสมอ
-> (ค่าเริ่มต้นคือ Director — น้อง SHINO ตัวแทนพูดของออฟฟิศ) ไม่ใช่ agent คนอื่น
-> ปุ่ม 📞 จึงโผล่เฉพาะตอนเลือก main (หรือที่นั่ง CEO ซึ่งสายก็วิ่งไปหา main อยู่ดี).
-> **ไม่มีปุ่ม "ตั้งเป็น main"** ที่เลื่อนพนักงานคนอื่นขึ้นเป็นหัวหน้า — ช่อง main
-> เป็นตำแหน่ง Director ตายตัว ถ้าอยากเปลี่ยนว่า main เป็นใคร/บุคลิก/เสียงแบบไหน
-> ให้ไป **⚙ → AGENTS → แก้ไขแถว Director (main)** แล้วปรับชื่อ/persona/🗣 เสียง
-> ของแถวนั้นได้เลย
+> **Note — calls go straight to main only:** A live call always reaches the **main agent**
+> (the default is the Director — SHINO, the office's spokesperson), never another agent.
+> That's why the 📞 button only appears when main is selected (or at the CEO seat, where the call routes to main anyway).
+> **There is no "set as main" button** that promotes another employee to lead — the main slot
+> is a fixed Director position. If you want to change who main is / its persona / its voice,
+> go to **⚙ → AGENTS → edit the Director (main) row** and adjust the name / persona / 🗣 voice
+> of that row directly.
 
-## 🖼 สร้างภาพ AI
+## 🖼 AI image generation
 
-- คุณ: `bagidea image "a cute robot mascot"` → ได้ไฟล์ภาพ
-- agents เรียกเองได้ (ผ่าน /gen/image) — ภาพที่สร้างจะ**โชว์ในแชทอัตโนมัติ**
-- ใช้ OpenAI gpt-image-1 หรือ Gemini (fallback)
+- You: `bagidea image "a cute robot mascot"` → get an image file
+- Agents can call it themselves (via /gen/image) — generated images **show up in chat automatically**
+- Uses OpenAI gpt-image-1 or Gemini (fallback)
 
-## 📎 แนบไฟล์ & สื่อในแชท
+## 📎 Attachments & media in chat
 
-- กดปุ่ม **📎** หรือ**ลากไฟล์มาวาง**บนหน้าต่าง — อัปโหลดแล้วแนบไปกับข้อความ
-- แชทแสดง **รูป / วิดีโอ / เสียง** ในตัว · agents เปิดอ่านไฟล์ที่แนบได้ด้วย Read
-- ไฟล์ที่ agent สร้างแล้วเอ่ยถึง path ก็โชว์พรีวิวให้เลย
+- Press the **📎** button or **drag and drop a file** onto the window — it uploads and attaches to your message.
+- Chat displays **images / video / audio** inline · agents can also open attached files with Read.
+- When an agent creates a file and mentions its path, a preview is shown right away.
 
-## 🧠 ความจำ (Hermes-style)
+## 🧠 Memory (Hermes-style)
 
-โตไปพร้อมคุณ แต่ประหยัด token:
+It grows with you while staying token-efficient:
 
-- **OFFICE.md** (🗂 → NOTES ล่างสุด): ข้อมูลกลางที่ agents ทุกตัวรู้จัก — เปิดอ่าน
-  เฉพาะเมื่อเกี่ยวกับงาน ไม่ได้โหลดทุกครั้ง
-- **สมุดความจำรายตัว** `workspace/memory/<agent>.md`: agents จดข้อเท็จจริงสำคัญ
-  เกี่ยวกับคุณ/งาน เองอัตโนมัติหลังทำงานจริง (`bagidea memory <agent>` อ่านได้)
-- session ใหม่เห็นแค่**ตัวชี้ + ความจำล่าสุดไม่กี่บรรทัด** — ที่เหลือไปดึงเองเมื่อต้องใช้
+- **OFFICE.md** (🗂 → NOTES, at the bottom): shared info every agent knows — read
+  only when relevant to the work, not loaded every time.
+- **Per-agent memory notebooks** `workspace/memory/<agent>.md`: agents jot down important facts
+  about you / the work themselves, automatically, after real work (`bagidea memory <agent>` to read).
+- A new session sees only **a pointer + the last few lines of memory** — the rest is fetched on demand.
 
-## ☕ ออฟฟิศมีชีวิต + ข้อเสนอโปรเจค
+## ☕ A living office + project proposals
 
-- ⚙ → AGENTS → ☕ SOCIAL: ตั้งให้ agents ว่างๆ เดินมาเจอกัน — บางทีคุยกันสองคน
-  บางที**จับกลุ่ม 3–4 คน** คุยเล่น/หยอกล้อ/ระดมไอเดีย (ส่วนใหญ่เป็นบทสนทนาสำเร็จรูป
-  ฟรี ไม่กิน token บางครั้งคุยกันจริงด้วย Claude)
-- คุยกันแล้วตกผลึกเป็นไอเดีย → เขียน**ข้อเสนอโปรเจค**มาขออนุมัติใน 🗂 → TASKS.
-  ข้อเสนอจะถูกชี้นำให้เป็นงานสร้างสรรค์อิสระ หรือ **plugin ของออฟฟิศ** (ไม่ยุ่งกับ
-  ระบบหลักของโปรแกรมโดยตรง เพราะจะทำให้พัง)
-- กด **✅ อนุมัติ / ✕ ไม่อนุมัติ** ได้พร้อม**พิมพ์ข้อความถึงทีม** (ไม่บังคับ ใช้ได้ทั้งสองกรณี).
-  อนุมัติแล้วงานจะถูกสร้างในโฟลเดอร์ **`projects/`** (ค่าเริ่มต้น) แล้ว Director จัดทีมให้ทำ
-  — อ่านรายละเอียดเต็มก่อนตัดสินใจได้ด้วย `bagidea proposal show <id>`
+- ⚙ → AGENTS → ☕ SOCIAL: let idle agents wander over to meet up — sometimes two chat,
+  sometimes **groups of 3–4** chat / banter / brainstorm (mostly canned dialogue,
+  free, no token cost; occasionally a real conversation via Claude).
+- When a chat crystallizes into an idea → they write a **project proposal** for approval in 🗂 → TASKS.
+  The proposal is steered toward being an independent creative work, or a **plugin for the office** (it won't
+  touch the program's core systems directly, since that would break things).
+- Press **✅ Approve / ✕ Reject** along with **typing a message to the team** (optional, works either way).
+  Once approved, the task is created in the **`projects/`** folder (default) and the Director assembles a team for it
+  — read the full details before deciding with `bagidea proposal show <id>`
