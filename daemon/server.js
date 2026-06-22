@@ -2445,12 +2445,20 @@ function pcmToWav(pcm, rate) {
   return Buffer.concat([hdr, pcm]);
 }
 
-function ttsSpeak(presetId, text) {
+function ttsSpeak(presetId, text, _try = 0) {
   return new Promise((resolve, reject) => {
     const gm = (reg.apiKeys || {}).GEMINI_API_KEY;
     if (!gm) return reject(new Error("ต้องมี GEMINI_API_KEY (⚙ CONNECT) สำหรับเสียงพูด"));
     const p = VOICE_PRESETS[presetId];
     if (!p) return reject(new Error("ไม่รู้จักเสียง: " + presetId));
+    // The preview TTS model 500s / overloads now and then — retry a transient hiccup
+    // up to twice before giving up (most recover). Config errors above are NOT retried.
+    const retryable = (m) => /internal|overload|unavailable|temporar|try again|timeout|\b50\d\b|\b429\b|ECONN|socket|network/i.test(String(m || ""));
+    const fail = (e) => {
+      if (_try < 2 && retryable(e && e.message)) {
+        setTimeout(() => ttsSpeak(presetId, text, _try + 1).then(resolve, reject), 600 * (_try + 1));
+      } else reject(e);
+    };
     const body = JSON.stringify({
       // Global delivery direction on top of each preset's style — pushes the
       // voices toward a lively, expressive anime feel with natural intonation
@@ -2477,15 +2485,15 @@ function ttsSpeak(presetId, text) {
           const j = JSON.parse(o);
           const part = j.candidates && j.candidates[0] &&
             j.candidates[0].content.parts.find((x) => x.inlineData);
-          if (!part) return reject(new Error((j.error && j.error.message) || "tts: no audio"));
+          if (!part) return fail(new Error((j.error && j.error.message) || "tts: no audio"));
           auxCost("gemini", (text || "").length * COST_RATES.gemini_tts_per_char);
           // inlineData = raw 16-bit PCM @24kHz — wrap as WAV for the browser.
           resolve(pcmToWav(Buffer.from(part.inlineData.data, "base64"), 24000));
-        } catch (e) { reject(e); }
+        } catch (e) { fail(e); }
       });
     });
     rq.setTimeout(45000, () => rq.destroy(new Error("tts timeout")));
-    rq.on("error", reject);
+    rq.on("error", fail);
     rq.write(body);
     rq.end();
   });

@@ -1846,10 +1846,14 @@
       audio.onerror = () => speakNext();
       audio.play().catch(() => speakNext());
     } catch (e) {
-      // Surface the failure instead of swallowing it — a missing/revoked
-      // GEMINI_API_KEY or a Gemini outage otherwise makes the office go
-      // silent with no clue why. Keep draining the queue afterwards.
-      addChip("🗣✗ " + String((e && e.message) || e).slice(0, 80));
+      // Only surface ACTIONABLE failures (missing/revoked key, unknown voice,
+      // auth/quota) — those explain why the office is silent and the owner can fix
+      // them. Transient Gemini TTS hiccups (5xx "internal error", overload, timeout)
+      // are retried server-side and otherwise skipped QUIETLY — a line that just
+      // didn't get spoken shouldn't spam an alarming chip. Keep draining the queue.
+      const msg = String((e && e.message) || e);
+      if (/GEMINI_API_KEY|ต้องมี|ไม่รู้จักเสียง|api[_ ]?key|unauthor|forbidden|quota|invalid|permission/i.test(msg))
+        addChip("🗣✗ " + msg.slice(0, 80));
       speakNext();
     }
   }
