@@ -23,6 +23,20 @@ early macOS support, when the project was Windows-only:
 > for plugins, or fix anything in the repo. Every merged contribution is credited here
 > and on GitHub's Contributors graph.
 
+## Plugin authors
+
+Submitting a plugin to the [Plugins Hub](https://bagidea.github.io/bagidea-office/plugins.html)
+means opening a PR that adds your plugin to `web/plugins.json`. When we merge it
+(preserving your authorship), you're credited in **three** places:
+
+1. **GitHub Contributors graph** — your catalog PR is a commit authored by you.
+2. **The Plugins page** — your plugin card shows `@your-handle` (the `author` field).
+3. **This file** — we add you below.
+
+Your plugin's own code lives in your own repo, where you're of course the author.
+
+_(No community plugins in the catalog yet — yours could be the first!)_
+
 ## Built with Claude Code
 
 Much of the implementation was pair-built with **Claude** (Anthropic) via Claude Code.
