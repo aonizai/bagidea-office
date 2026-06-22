@@ -18,8 +18,10 @@ early macOS support, when the project was Windows-only:
   macOS occlusion FPS throttle — 30→2 fps when the wallpaper is hidden
   ([#11](https://github.com/bagidea/bagidea-office/pull/11)).
 - **[@misternay](https://github.com/misternay)** (Ritthikiat Jindajak) — fixed the
-  CLI shell-binary finder on macOS/Linux, with cross-platform tests
-  ([#9](https://github.com/bagidea/bagidea-office/pull/9)).
+  CLI shell-binary finder on macOS/Linux with cross-platform tests
+  ([#9](https://github.com/bagidea/bagidea-office/pull/9)), then rounded out **full
+  macOS support** — installer/update robustness on a wired install, CLI uninstall,
+  and a custom-provider save fix ([#12](https://github.com/bagidea/bagidea-office/pull/12)).
 
 > Want to be on this list? Open a PR — see [docs/guide/plugin-hub.md](docs/guide/plugin-hub.md)
 > for plugins, or fix anything in the repo. Every merged contribution is credited here
