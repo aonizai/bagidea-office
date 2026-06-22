@@ -1,27 +1,7 @@
 {
   "_comment": "BagIdea Office — community plugin catalog (source of truth for the Plugins Hub). To add a plugin: publish it as a public GitHub repo with a plugin.json, then open a PR adding an entry below. The owner reviews every PR (plugins run real code on a user's machine). 'id' MUST match the plugin's manifest id so the office can tell what's installed. See docs/guide/plugin-hub.md.",
-  "updated": "2026-06-15",
+  "updated": "2026-06-22",
   "plugins": [
-    {
-      "id": "hello",
-      "name": "👋 Hello Office",
-      "author": "bagidea",
-      "repo": "https://github.com/bagidea/bagidea-office-template",
-      "tags": ["template", "official"],
-      "official": true,
-      "th": { "desc": "เทมเพลตทางการสำหรับเขียน plugin — อ่านข้อมูลออฟฟิศสดๆ มี panel, route และ command ครบ เริ่มจากตัวนี้แล้วดัดแปลงเป็น plugin ของคุณเอง" },
-      "en": { "desc": "The official starter template — reads live office data with a panel, a route and a command wired up. Fork this and shape it into your own plugin." }
-    },
-    {
-      "id": "calculator",
-      "name": "🧮 Calculator",
-      "author": "bagidea",
-      "repo": "https://github.com/bagidea/bagidea-office-calculator-plugin",
-      "tags": ["tool", "official"],
-      "official": true,
-      "th": { "desc": "เครื่องคิดเลขในออฟฟิศ — เลขคณิตพื้นฐานและคณิตขั้นสูง (ตรีโกณ, ลอการิทึม ฯลฯ) agents สั่งคำนวณได้" },
-      "en": { "desc": "An in-office calculator — basic arithmetic and advanced math (trig, logs, and more). Agents can run calculations through it too." }
-    },
     {
       "id": "music",
       "name": "🎵 Music Player",
@@ -31,6 +11,16 @@
       "official": true,
       "th": { "desc": "เครื่องเล่นเพลงในออฟฟิศ — เปิด/หยุด/เปลี่ยนเพลง/วนเพลย์ลิสต์ ให้บรรยากาศทำงานเพลินขึ้น agents สั่งเปิดเพลงได้" },
       "en": { "desc": "An in-office music player — play / pause / skip / loop a playlist for a nicer working vibe. Agents can start a track too." }
+    },
+    {
+      "id": "web-view",
+      "name": "👁 Web View",
+      "author": "bagidea",
+      "repo": "https://github.com/bagidea/bagidea-office-web-view-plugin",
+      "tags": ["tools", "official"],
+      "official": true,
+      "th": { "desc": "ดู agent เปิดเว็บสดในออฟฟิศ — สตรีม viewport ของ agent-browser (tool web-fast) เข้ามาในแผงแบบ pair-browsing เห็นน้องคลิก/พิมพ์เรียลไทม์ (ต้องลง agent-browser)" },
+      "en": { "desc": "Watch an agent browse the web live inside the office — streams agent-browser's viewport into a panel (pair-browsing), so you see it click and type in real time. Requires agent-browser (the web-fast tool)." }
     }
   ]
 }
