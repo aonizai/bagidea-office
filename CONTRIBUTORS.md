@@ -23,7 +23,9 @@ early macOS support, when the project was Windows-only:
   macOS support** — installer/update robustness on a wired install, CLI uninstall,
   and a custom-provider save fix ([#12](https://github.com/bagidea/bagidea-office/pull/12)),
   and hardened TTS — surfaced failures, fixed a double-play race, escaped the speak
-  JSON ([#14](https://github.com/bagidea/bagidea-office/pull/14)).
+  JSON ([#14](https://github.com/bagidea/bagidea-office/pull/14)), and added run-lifecycle
+  safety — run timeouts, graceful shutdown, and a cross-platform process-tree kill
+  ([#16](https://github.com/bagidea/bagidea-office/pull/16), fixing [#15](https://github.com/bagidea/bagidea-office/issues/15)).
 
 > Want to be on this list? Open a PR — see [docs/guide/plugin-hub.md](docs/guide/plugin-hub.md)
 > for plugins, or fix anything in the repo. Every merged contribution is credited here
