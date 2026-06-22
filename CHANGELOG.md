@@ -4,6 +4,29 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.9.19] — Prebuilt binaries (no more Build Tools!), faster installs, fixes
+
+**Added — the big one: prebuilt shell binaries**
+- Installs and updates now **download a prebuilt shell** instead of compiling it. On
+  Windows that means **no more ~2-4 GB Visual Studio C++ Build Tools and no Rust** for a
+  normal install (the #1 cause of failed installs); macOS/Linux skip the multi-minute
+  cargo build. A new CI workflow builds the shell for **Windows x64, macOS universal
+  (arm64+x64), and Linux x64** on each release and attaches them (with sha256 checksums).
+  Any miss (offline, old version, unsupported distro) **falls back to a source build**.
+  Binaries are unsigned for now (a one-time SmartScreen/Gatekeeper prompt).
+- The Windows installer now also **ensures the Edge WebView2 runtime** the shell needs.
+
+**Fixed**
+- **Windows update no longer hangs** on `Unlink of file '…pack-*.idx' failed (y/n)` — git
+  auto-gc is disabled on the deployed checkout so a repack can't fight a locked pack file.
+- **Linux builds link correctly** — `libxdo-dev` is now installed (the shell links `-lxdo`),
+  which had been silently breaking from-source Linux builds.
+- The header window buttons (◱ / ⛶ / ⋯ / —) are **centered** again.
+
+**Web & npm** (already live)
+- **`npx bagidea-office`** — the office is now on npm with a one-line installer.
+- A **Contributors** section (README + site) and **Discord / YouTube** links on the site.
+
 ## [0.9.18] — Mini/restore button shows the right icon; full macOS support; Calculator in the Hub
 
 **Fixed** (reported on Discord 🙏)
