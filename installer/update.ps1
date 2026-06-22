@@ -30,6 +30,16 @@ if (-not (Test-Path (Join-Path $root ".git"))) {
   exit 0
 }
 
+# 1b) Harden git on this deployed checkout (idempotent — also fixes installs made
+#     before this became the default). Auto-gc repacking mid-pull races antivirus /
+#     a still-open pack handle and can't delete the old pack, looping forever on
+#     "Unlink of file '.git/objects/pack/pack-*.idx' failed. Should I try again?
+#     (y/n)" — which hangs the update. Turning gc.auto off stops that.
+git config gc.auto 0           2>$null
+git config gc.autoDetach false 2>$null
+git config core.fscache true   2>$null
+git config core.longpaths true 2>$null
+
 # 2) Pull the latest code.
 #    The two settings.json are tracked but get rewritten per-machine (hook paths),
 #    so discard those local edits first or --ff-only would abort when upstream
@@ -37,7 +47,7 @@ if (-not (Test-Path (Join-Path $root ".git"))) {
 Write-Host "  [2/4] Pulling latest code..." -ForegroundColor DarkCyan
 git checkout -- .claude/settings.json workspace/.claude/settings.json 2>$null
 $before = git rev-parse HEAD
-git pull --ff-only
+git -c gc.auto=0 pull --ff-only
 $after = git rev-parse HEAD
 if ($before -eq $after) { Write-Host "  - Already up to date" -ForegroundColor DarkGray }
 

@@ -204,7 +204,7 @@ if (-not (Have "git")) { Warn "git not on PATH yet - reopen a terminal and re-ru
 New-Item -ItemType Directory -Force $APPDIR | Out-Null
 if (Test-Path (Join-Path $APP ".git")) {
   Push-Location $APP
-  git fetch --depth 1 origin $Branch 2>$null
+  git -c gc.auto=0 fetch --depth 1 origin $Branch 2>$null
   git reset --hard "origin/$Branch" 2>$null
   Pop-Location
   Ok "updated existing clone (git pull) - your data is untouched"
@@ -225,6 +225,18 @@ if (Test-Path (Join-Path $APP ".git")) {
 } else {
   git clone --depth 1 --branch $Branch $Repo $APP
   Ok "cloned to $APP"
+}
+
+# Harden git for a DEPLOYED checkout on Windows. Never auto-gc: a repack kicked off
+# mid-pull races antivirus / a still-open pack handle and fails to delete the old
+# pack -> "Unlink of file '.git/objects/pack/pack-*.idx' failed. Should I try again?
+# (y/n)" loops forever and the update hangs (reported in the field). fscache + long
+# paths are the usual Windows git hardening on top.
+if (Test-Path (Join-Path $APP ".git")) {
+  git -C $APP config gc.auto 0          2>$null
+  git -C $APP config gc.autoDetach false 2>$null
+  git -C $APP config core.fscache true   2>$null
+  git -C $APP config core.longpaths true 2>$null
 }
 
 # ---- optional art pack (licensed packs are NOT in the public repo) -----------
