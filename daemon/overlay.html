@@ -625,6 +625,9 @@
   .brainag .top { display: flex; align-items: center; gap: 5px; }
   .brainag .tag { color: #7fd0ff; font-size: 10px; margin-left: auto; }
   .brainag .role { color: var(--dim); font-size: 9.5px; }
+  .braininfo { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line);
+    font-size: 10px; color: var(--dim); line-height: 1.55; }
+  .braininfo a { color: var(--accent); white-space: nowrap; }
   .ctxbar { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.08); margin-top: 3px; overflow: hidden; }
   .ctxbar > i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg,#3aa0ff,#5ec8ff); }
   .ctxbar.warn > i { background: linear-gradient(90deg,#ffb054,#ff7a45); }
@@ -1482,6 +1485,14 @@
         brainsEl.appendChild(d);
       }
       if (!(r.agents || []).length) brainsEl.innerHTML += `<div class="ctxnum">${tr("ยังไม่มี agent")}</div>`;
+      // Explain the bar so "20% then it compacts?!" makes sense: the bar is vs the
+      // model's FULL window, but the office summarizes older history much earlier on
+      // purpose (cheaper per turn + sharper focus). Not a limit — files stay re-readable.
+      const info = document.createElement("div");
+      info.className = "braininfo";
+      info.innerHTML = tr("ℹ️ แถบคือ context เทียบ window เต็มของโมเดล. พอ thread ยาวขึ้น ออฟฟิศจะสรุปย่อประวัติเก่าราว ~200k tokens แล้วทำงานต่อ เพื่อให้ agent เร็ว ประหยัด และโฟกัส (window อัดแน่น = แพงทุก turn + ความแม่นตก). ไม่ใช่การจำกัดความสามารถ — ไฟล์โค้ดยังอยู่บนเครื่อง agent อ่านซ้ำได้เสมอ และปรับเพดานได้.") +
+        ` <a href="https://github.com/bagidea/bagidea-office/blob/main/docs/guide/cost-and-vision.md" target="_blank" rel="noopener" onclick="event.stopPropagation()">${tr("ทำไมถึงดี? →")}</a>`;
+      brainsEl.appendChild(info);
     } catch { brainsEl.innerHTML = `<div class="ctxnum">${tr("โหลดสถานะไม่ได้")}</div>`; }
   }
   function refreshBrainsSoon() {

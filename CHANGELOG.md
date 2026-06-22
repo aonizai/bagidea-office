@@ -4,6 +4,16 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.9.23] — Clearer context: why the office compacts at ~200k
+
+**Added**
+- The **🧠 BRAINS** panel now explains its context bar in plain language. The bar fills
+  toward the model's *full* window (e.g. 1M), but the office summarizes older history much
+  earlier — around **~200k tokens** — on purpose: it's cheaper every turn and keeps the
+  agent focused (a stuffed window is expensive and less accurate). It's **not** a limit —
+  your files stay on disk and re-readable, and the cap is tunable. A matching FAQ was added
+  to the **[Cost & vision](docs/guide/cost-and-vision.md)** guide.
+
 ## [0.9.22] — Quieter, smarter voice (TTS)
 
 **Fixed**
