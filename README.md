@@ -8,6 +8,16 @@
 
 > 🌐 **[Website](https://bagidea.github.io/bagidea-office/)** · 🎤 **[Pitch deck](https://bagidea.github.io/bagidea-office/pitch/)** · 📖 **[Docs](docs/guide/getting-started.md)**
 
+[![npm](https://img.shields.io/npm/v/bagidea-office?color=cb3837&logo=npm)](https://www.npmjs.com/package/bagidea-office)
+[![npm downloads](https://img.shields.io/npm/dm/bagidea-office?color=cb3837&logo=npm)](https://www.npmjs.com/package/bagidea-office)
+[![GitHub stars](https://img.shields.io/github/stars/bagidea/bagidea-office?style=flat&logo=github)](https://github.com/bagidea/bagidea-office/stargazers)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/WpgGTzApw5)
+[![YouTube](https://img.shields.io/badge/YouTube-bagidea-FF0000?logo=youtube&logoColor=white)](https://www.youtube.com/bagidea)
+[![Built with Claude Code](https://img.shields.io/badge/built%20with-Claude%20Code-d97757)](https://claude.com/claude-code)
+
+**Install in one line** — `npx bagidea-office` (or [from source](#install)). Windows · macOS/Linux (beta).
+
 Not a dashboard. Not a chat window. A **world** that renders the true state of
 your Claude agents — Claude Code sessions, headless runs, custom scripts — as
 living pixel-art employees behind your desktop icons, and gives them a **society**.
@@ -344,6 +354,17 @@ Three independent processes: the **daemon** keeps agents running even if renderi
 | GPU | Anything Vulkan-capable; verified on GTX 1060 6GB |
 
 ## Installation
+
+### Quickest — via npm
+
+```sh
+npx bagidea-office
+```
+
+A tiny launcher ([`bagidea-office`](https://www.npmjs.com/package/bagidea-office) on
+npm) that runs the right platform installer for you — or install it globally with
+`npm i -g bagidea-office`. Either way you'll still need
+[Claude Code](https://claude.com/claude-code).
 
 ### One-shot installer (recommended)
 

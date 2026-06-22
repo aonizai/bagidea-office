@@ -1,0 +1,42 @@
+{
+  "name": "bagidea-office",
+  "version": "0.9.18",
+  "description": "Your desktop wallpaper goes to work — a living HD-2D office where every AI agent is a real Claude Code session. This installs the full app for your platform (Windows / macOS / Linux).",
+  "bin": {
+    "bagidea-office": "cli.js"
+  },
+  "files": [
+    "cli.js",
+    "README.md"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "ai-agents",
+    "ai-agent",
+    "agents",
+    "wallpaper",
+    "desktop",
+    "ai",
+    "llm",
+    "automation",
+    "autonomous-agents",
+    "mcp",
+    "godot",
+    "anthropic"
+  ],
+  "homepage": "https://bagidea.github.io/bagidea-office/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bagidea/bagidea-office.git",
+    "directory": "npm"
+  },
+  "bugs": {
+    "url": "https://github.com/bagidea/bagidea-office/issues"
+  },
+  "author": "BagIdea Innovation Co., Ltd.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}
