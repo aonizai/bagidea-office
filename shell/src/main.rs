@@ -1071,6 +1071,171 @@ mod platform {
     pub fn spawn_hotkey_thread(_proxy: tao::event_loop::EventLoopProxy<UserEvent>) {}
     pub fn rebind_hotkey(_s: &str) {}
 
+    /// Background monitor: writes /tmp/bagidea_occ when the wallpaper is
+    /// invisible so Godot throttles to 2 fps and stops wasting GPU.
+    ///
+    /// Two conditions signal invisibility:
+    ///   1. Display asleep (lid closed / display off) — CGDisplayIsAsleep.
+    ///   2. A window at a layer ABOVE the wallpaper level (–2147483622) covers
+    ///      ≥ 95 % of the main screen — e.g. a fullscreen app, a screensaver, or
+    ///      any maximised window filling the screen.
+    ///
+    /// Uses CGWindowListCopyWindowInfo via toll-free-bridged NSArray/NSDictionary
+    /// so we can use msg_send! without adding extra crates.
+    pub fn spawn_occlusion_monitor() {
+        use std::ffi::c_void;
+
+        #[repr(C)] struct OccPoint  { x: f64, y: f64 }
+        #[repr(C)] struct OccSize   { w: f64, h: f64 }
+        #[repr(C)] struct OccRect   { origin: OccPoint, size: OccSize }
+
+        #[link(name = "CoreGraphics", kind = "framework")]
+        extern "C" {
+            fn CGMainDisplayID() -> u32;
+            fn CGDisplayIsAsleep(d: u32) -> u32;
+            fn CGDisplayBounds(d: u32) -> OccRect;
+            fn CGWindowListCopyWindowInfo(opt: u32, rel: u32) -> *mut AnyObject;
+        }
+        #[link(name = "CoreFoundation", kind = "framework")]
+        extern "C" { fn CFRelease(cf: *const c_void); }
+
+        const OCC_FLAG: &str = "/private/tmp/bagidea_occ";
+        const ON_SCREEN_ONLY: u32 = 1;
+        const NULL_WINDOW:    u32 = 0;
+
+        std::thread::spawn(move || {
+            // Require 2 consecutive "covered" readings before writing the flag.
+            // This debounces 1-poll transients (notification banners, system HUDs,
+            // brief Window Server overlays) that appear for <2 s and aren't real
+            // occlusion. Display-sleep is exempt: it triggers on the first reading.
+            let mut streak: u32 = 0;
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(1000));
+
+                // Background threads don't get an autorelease pool from the runtime.
+                // Drain once per loop so autoreleased NSString/CFType objects are
+                // freed every second instead of accumulating for the life of the process.
+                let pool: *mut AnyObject = unsafe { msg_send![class!(NSAutoreleasePool), new] };
+
+                let covered_now = unsafe {
+                    let display = CGMainDisplayID();
+                    if CGDisplayIsAsleep(display) != 0 {
+                        true
+                    } else {
+                        let screen: OccRect = CGDisplayBounds(display);
+
+                        let list: *mut AnyObject =
+                            CGWindowListCopyWindowInfo(ON_SCREEN_ONLY, NULL_WINDOW);
+                        if list.is_null() {
+                            false
+                        } else {
+                            let count: usize = msg_send![list, count];
+                            let mut found = false;
+
+                            // Hoist dictionary keys outside the per-window loop so they
+                            // are created once per poll, not once per window.
+                            let lk: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: b"kCGWindowLayer\0".as_ptr()];
+                            let ak: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: b"kCGWindowAlpha\0".as_ptr()];
+                            let ok: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: b"kCGWindowOwnerName\0".as_ptr()];
+                            let bk: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: b"kCGWindowBounds\0".as_ptr()];
+                            let xk: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: b"X\0".as_ptr()];
+                            let yk: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: b"Y\0".as_ptr()];
+                            let wk: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: b"Width\0".as_ptr()];
+                            let hk: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: b"Height\0".as_ptr()];
+
+                            for i in 0..count {
+                                let dict: *mut AnyObject = msg_send![list, objectAtIndex: i];
+                                if dict.is_null() { continue; }
+
+                                // Layer check: only count NORMAL app windows (layer >= 0).
+                                // This excludes Finder's desktop-icon layer (–2147483603),
+                                // which is always full-screen but doesn't hide the wallpaper
+                                // from the user's perspective.
+                                let ln: *mut AnyObject = msg_send![dict, objectForKey: lk];
+                                if ln.is_null() { continue; }
+                                let layer: i64 = msg_send![ln, longLongValue];
+                                if layer < 0 { continue; } // skip desktop / icon / system layers
+
+                                // Alpha check: skip transparent/invisible windows.
+                                // macOS Notification Center posts a full-screen transparent
+                                // overlay (alpha ≈ 0) alongside the visible banner; without
+                                // this filter it triggers the 90% coverage check even though
+                                // the wallpaper is still visible underneath.
+                                let an: *mut AnyObject = msg_send![dict, objectForKey: ak];
+                                if !an.is_null() {
+                                    let alpha: f64 = msg_send![an, doubleValue];
+                                    if alpha < 0.1 { continue; }
+                                }
+
+                                // Owner check: skip known system chrome that covers the screen
+                                // but doesn't hide content — the Dock creates a full-screen
+                                // opaque event-capture window (layer 20, alpha 1.0, cov 100%)
+                                // during auto-hide reveal; this is not a real occlusion.
+                                let on: *mut AnyObject = msg_send![dict, objectForKey: ok];
+                                if !on.is_null() {
+                                    let owner_ptr: *const i8 = msg_send![on, UTF8String];
+                                    if !owner_ptr.is_null() {
+                                        let owner = std::ffi::CStr::from_ptr(owner_ptr).to_string_lossy();
+                                        if owner == "Dock" { continue; }
+                                    }
+                                }
+
+                                // Bounds check — does this window cover the primary screen?
+                                let bd: *mut AnyObject = msg_send![dict, objectForKey: bk];
+                                if bd.is_null() { continue; }
+
+                                let xn: *mut AnyObject = msg_send![bd, objectForKey: xk];
+                                let yn: *mut AnyObject = msg_send![bd, objectForKey: yk];
+                                let wn: *mut AnyObject = msg_send![bd, objectForKey: wk];
+                                let hn: *mut AnyObject = msg_send![bd, objectForKey: hk];
+                                if wn.is_null() || hn.is_null() { continue; }
+                                let x: f64 = if xn.is_null() { 0.0 } else { msg_send![xn, doubleValue] };
+                                let y: f64 = if yn.is_null() { 0.0 } else { msg_send![yn, doubleValue] };
+                                let w: f64 = msg_send![wn, doubleValue];
+                                let h: f64 = msg_send![hn, doubleValue];
+
+                                // 2-D intersection with the primary screen — correctly handles
+                                // monitors on left (x<0), right (x≥screen.w), above, below, or
+                                // any mix in 3-monitor setups. Coverage = intersection area /
+                                // primary-screen area; threshold 90% ≈ the old 95%×95% check.
+                                let px0 = screen.origin.x; let px1 = px0 + screen.size.w;
+                                let py0 = screen.origin.y; let py1 = py0 + screen.size.h;
+                                let ix = (px1.min(x + w) - px0.max(x)).max(0.0);
+                                let iy = (py1.min(y + h) - py0.max(y)).max(0.0);
+                                let coverage = (ix * iy) / (screen.size.w * screen.size.h);
+                                if coverage >= 0.90 {
+                                    found = true;
+                                    break;
+                                }
+                            }
+
+                            // CFArrayRef from CGWindowListCopyWindowInfo has +1 retain
+                            // (Create-rule): must release when done.
+                            CFRelease(list as *const c_void);
+                            found
+                        }
+                    }
+                };
+
+                if covered_now {
+                    streak = streak.saturating_add(1);
+                } else {
+                    streak = 0;
+                    let _ = std::fs::remove_file(OCC_FLAG);
+                }
+                // Write flag only after 2 consecutive covered readings (~2 s).
+                // Display-sleep is detected immediately (CGDisplayIsAsleep returns true
+                // in the very first poll where it fires), so it also gets streak≥2 fast
+                // if the user keeps the lid closed; transient 1-poll blips don't.
+                if streak >= 2 {
+                    let _ = std::fs::write(OCC_FLAG, b"1");
+                }
+
+                unsafe { let () = msg_send![pool, drain]; }
+            } // end loop
+        }); // end thread
+    }
+
     // The shim handles the desktop-level embed; here we just wait for the world
     // to report ready (or a timeout) and lift the splash.
     pub fn attach_wallpaper_when_ready(_pid: u32, _root: PathBuf, proxy: tao::event_loop::EventLoopProxy<UserEvent>) {
@@ -1615,6 +1780,13 @@ fn main() {
     let exit_id = exit_item.id().clone();
 
     platform::spawn_hotkey_thread(event_loop.create_proxy());
+
+    // macOS only: poll CGWindowList for full-screen windows / display sleep
+    // and write /tmp/bagidea_occ so Godot throttles to 2 fps when invisible.
+    #[cfg(target_os = "macos")]
+    if office_child.is_some() {
+        platform::spawn_occlusion_monitor();
+    }
 
     let office_pid = office_child.as_ref().map(|c| c.id()).unwrap_or(0);
 

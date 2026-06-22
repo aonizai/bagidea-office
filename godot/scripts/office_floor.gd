@@ -27,7 +27,13 @@ var _day_timer := 0.0
 var _hour_override := -1.0
 var _cli_pinned := false  # --hour=N beats replayed ui.daylight events
 
+var _wallpaper_mode := false
+var _occ_check_timer := 0.0
+var _occluded := false
+var _fps_log_timer := 0.0
+
 func _ready() -> void:
+	_wallpaper_mode = "--wallpaper" in OS.get_cmdline_user_args()
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--hour="):
 			_hour_override = float(arg.split("=")[1])
@@ -182,6 +188,25 @@ func _process(delta: float) -> void:
 	if _day_timer <= 0.0:
 		_day_timer = 60.0  # re-evaluate once a minute
 		_apply_daylight()
+
+	if _wallpaper_mode:
+		# Occlusion throttle: shim writes /tmp/bagidea_occ when the window is
+		# fully hidden — drop to 2 fps so we consume near-zero GPU while invisible.
+		_occ_check_timer -= delta
+		if _occ_check_timer <= 0.0:
+			_occ_check_timer = 0.5
+			var now_occ := FileAccess.open("/private/tmp/bagidea_occ", FileAccess.READ) != null
+			if now_occ != _occluded:
+				_occluded = now_occ
+				Engine.max_fps = 2 if _occluded else 30
+
+		# FPS telemetry for perf testing: write actual fps to /tmp/bagidea_fps once/sec.
+		_fps_log_timer += delta
+		if _fps_log_timer >= 1.0:
+			_fps_log_timer -= 1.0
+			var f := FileAccess.open("/private/tmp/bagidea_fps", FileAccess.WRITE)
+			if f:
+				f.store_line(str(Engine.get_frames_per_second()))
 
 ## Sun, sky and god-ray cards follow the machine's real local time (doc 3.4:
 ## lighting itself is a status display — glance at the office, read the day).
