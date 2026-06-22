@@ -82,8 +82,8 @@ function help() {
   row("status", "System overview · agents · projects");
   row("stats", "7-day activity + cost report");
   row("update", "Update to the latest version + restart");
-  row("startup [on|off]", "Launch the office automatically with Windows");
-  row("uninstall [--keep-data]", "Remove the app (PATH, shortcut, autostart, files)");
+  row("startup [on|off]", process.platform === "win32" ? "Launch the office automatically with Windows" : "Launch the office automatically at login");
+  row("uninstall [--keep-data]", process.platform === "win32" ? "Remove the app (PATH, shortcut, autostart, files)" : "Remove the app (PATH, login item, files)");
 
   head("Talk to the office");
   row('ask "<msg>"', "Order as the CEO and wait for the answer");
@@ -168,17 +168,18 @@ async function main() {
   }
 
   if (cmd === "startup") {
-    // Launch-with-Windows toggle (same HKCU Run key the tray uses).
+    // Autostart toggle (HKCU Run key on Windows, LaunchAgent on macOS).
     if (!(await daemonUp())) return NOT_RUNNING();
     const arg = (rest[0] || "").toLowerCase();
     if (!arg) {
       const s = await req("GET", "/startup");
-      return info(`Start with Windows is ${s && s.on ? c.ok + "ON" : c.gray + "OFF"}${c.reset}` +
+      const label = process.platform === "win32" ? "Start with Windows" : "Start at login";
+      return info(`${label} is ${s && s.on ? c.ok + "ON" : c.gray + "OFF"}${c.reset}` +
         ` ${c.gray}— bagidea startup on|off${c.reset}`);
     }
     if (!["on", "off"].includes(arg)) return bad("usage: bagidea startup on|off");
     const r = await req("POST", "/startup", { on: arg === "on" });
-    return r && r.on ? ok("The office will launch with Windows")
+    return r && r.on ? ok(process.platform === "win32" ? "The office will launch with Windows" : "The office will launch at login")
       : ok("Auto-start disabled");
   }
 
