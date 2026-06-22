@@ -23,7 +23,7 @@ pkill -f "node.*server\.js" 2>/dev/null || true
 # Kill the Godot shell / wallpaper
 pkill -f "bagidea-office-shell" 2>/dev/null || true
 pkill -f "BagIdeaOffice" 2>/dev/null || true
-pkill -f "Godot" 2>/dev/null || true
+pkill -f "BagIdeaOffice" 2>/dev/null || true
 sleep 2
 
 # No git checkout: hand off to the installer (it clones + preserves data).

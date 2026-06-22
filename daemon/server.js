@@ -1102,7 +1102,7 @@ function createProject(name, place, pathArg) {
     if (process.platform === "win32") {
       return String(s).replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
     }
-    return String(s).replace(/\/+$/, "");
+    return String(s).replace(/\/+$/, "").toLowerCase();
   };
   if (projects.some((x) => norm(x.dir) === norm(dir)))
     throw new Error("โปรเจคนี้อยู่ในรายการแล้ว (path ซ้ำ)");
@@ -3547,12 +3547,19 @@ const server = http.createServer((req, res) => {
             if (process.platform === "win32") {
               winproj("killdir", dir, cb);
             } else {
-              // macOS/Linux: kill processes whose cwd or args reference this dir
-              const { execSync } = require("child_process");
+              // macOS/Linux: kill processes whose cwd or args reference this dir.
+              // Use execFileSync (NOT execSync) to prevent shell injection via
+              // project paths containing special characters.
+              const { execFileSync } = require("child_process");
               try {
-                // lsof +cwd finds processes with working dir inside the project
-                const out = execSync(`lsof +D "${dir}" 2>/dev/null | awk 'NR>1{print $2}' | sort -u`, { timeout: 5000 }).toString().trim();
-                if (out) out.split("\n").forEach(p => {
+                const out = execFileSync("lsof", ["+D", dir],
+                  { timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).toString();
+                const pids = new Set();
+                for (const line of out.split("\n").slice(1)) {
+                  const cols = line.trim().split(/\s+/);
+                  if (cols[1]) pids.add(cols[1]);
+                }
+                pids.forEach(p => {
                   try { process.kill(parseInt(p), "SIGTERM"); } catch {}
                 });
               } catch {}
@@ -3610,7 +3617,7 @@ const server = http.createServer((req, res) => {
             // psCmd on Windows is `-Command "..."` — extract the inner command for macOS
             const innerCmd = cmd.match(/-Command\s+"(.+)"/)?.[1] || "";
             const shellCmd = innerCmd || "exec bash";
-            const script = `tell application "Terminal" to do script "cd '${dir}' && ${shellCmd}"`;
+            const script = `tell application "Terminal" to do script "cd '${dir.replace(/'/g, "'\\''")}' && ${shellCmd}"`;
             spawn("osascript", ["-e", script], { detached: true });
           } else {
             // Linux: open a terminal at `dir` running the command. The Windows psCmd is
