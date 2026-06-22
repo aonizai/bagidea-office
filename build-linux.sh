@@ -24,11 +24,11 @@ sudo apt-get update -y
 # WebKitGTK is 4.1 on newer Ubuntu, 4.0 on older — install whichever is available.
 sudo apt-get install -y curl git build-essential pkg-config \
   libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev \
-  x11-utils wmctrl xdotool libxdo3 \
+  x11-utils wmctrl xdotool libxdo3 libxdo-dev \
   pulseaudio-utils alsa-utils unzip \
   || sudo apt-get install -y curl git build-essential pkg-config \
        libgtk-3-dev libwebkit2gtk-4.0-dev libsoup2.4-dev \
-       x11-utils wmctrl xdotool libxdo3 pulseaudio-utils alsa-utils unzip
+       x11-utils wmctrl xdotool libxdo3 libxdo-dev pulseaudio-utils alsa-utils unzip
 
 # Node.js >= 18 (the daemon uses global fetch / AbortSignal.timeout). Ubuntu's apt node
 # is often too old, so fall back to NodeSource 20 when needed.
