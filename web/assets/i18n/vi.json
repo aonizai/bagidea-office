@@ -59,6 +59,8 @@
   "inst_plat": "Hỗ trợ Windows 11 (ổn định), macOS 13+ (beta) và Linux (thử nghiệm). Trên X11, văn phòng được gắn làm hình nền desktop; trên Wayland, nó chuyển sang cửa sổ toàn màn hình được ghim bên dưới.",
   "inst_s1_h": "Chạy trình cài đặt một lệnh",
   "inst_s1_p": "Mở PowerShell và dán lệnh này. Nó cài đặt Git, Node LTS, Rust, Godot 4.6.3 và Claude Code CLI, sao chép ứng dụng, xây dựng shell, đặt thương hiệu cho biểu tượng và thêm lệnh bagidea vào PATH của bạn.",
+  "inst_npx_h": "Nhanh nhất — một dòng, mọi hệ điều hành",
+  "inst_npx_p": "Khi đã cài Node, lệnh này thiết lập office cho nền tảng của bạn — nó tải về ứng dụng dựng sẵn, nên không cần Visual Studio Build Tools hay Rust để biên dịch.",
   "inst_s2_h": "Đăng nhập vào Claude (chỉ lần đầu tiên)",
   "inst_s2_p": "Mở terminal mới và chạy claude một lần để đăng nhập bằng tài khoản hoặc gói đăng ký Claude hiện có của bạn — đó là bộ não của mỗi agent.",
   "inst_s3_h": "Khởi động văn phòng",

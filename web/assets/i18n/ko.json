@@ -59,6 +59,8 @@
   "inst_plat": "Windows 11(안정), macOS 13+(beta), Linux(실험적)를 지원합니다. X11에서는 오피스가 데스크톱 배경화면으로 통합되며, Wayland에서는 맨 아래에 고정된 전체 화면 창으로 대체됩니다.",
   "inst_s1_h": "원샷 설치 프로그램 실행",
   "inst_s1_p": "PowerShell을 열고 이것을 붙여넣으세요. Git, Node LTS, Rust, Godot 4.6.3 및 Claude Code CLI를 설치하고, 앱을 복제하고, 셸을 빌드하고, 아이콘에 브랜드를 적용하고, bagidea 명령을 PATH에 추가합니다.",
+  "inst_npx_h": "가장 빠름 — 한 줄, 모든 OS",
+  "inst_npx_p": "Node가 설치되어 있으면 이 명령이 사용 중인 플랫폼에 맞게 오피스를 설정합니다 — 미리 빌드된 앱을 내려받으므로 Visual Studio Build Tools나 Rust를 컴파일할 필요가 없습니다.",
   "inst_s2_h": "Claude에 로그인 (최초 1회)",
   "inst_s2_p": "새 터미널을 열고 claude를 한 번 실행하여 기존 Claude 계정 또는 구독으로 로그인하세요 — 그것이 모든 에이전트의 두뇌입니다.",
   "inst_s3_h": "사무실 시작",

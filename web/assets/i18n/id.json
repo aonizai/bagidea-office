@@ -59,6 +59,8 @@
   "inst_plat": "Windows 11 (stabil), macOS 13+ (beta), dan Linux (eksperimental) didukung. Di X11, office menyatu sebagai wallpaper desktop; di Wayland, ia beralih ke jendela layar penuh yang disematkan di paling bawah.",
   "inst_s1_h": "Jalankan installer satu langkah",
   "inst_s1_p": "Buka PowerShell dan tempel ini. Ini menginstal Git, Node LTS, Rust, Godot 4.6.3, dan CLI Claude Code, mengkloning aplikasi, membangun shell, memberi merek ikon, dan menambahkan perintah bagidea ke PATH-mu.",
+  "inst_npx_h": "Tercepat — satu baris, OS apa pun",
+  "inst_npx_p": "Dengan Node terpasang, ini menyiapkan office untuk platformmu — ia mengunduh aplikasi siap pakai, jadi tidak ada Visual Studio Build Tools atau Rust yang perlu dikompilasi.",
   "inst_s2_h": "Masuk ke Claude (hanya pertama kali)",
   "inst_s2_p": "Buka terminal baru dan jalankan claude sekali untuk masuk dengan akun atau langganan Claude yang sudah kamu miliki — itulah otak setiap agen.",
   "inst_s3_h": "Mulai kantor",

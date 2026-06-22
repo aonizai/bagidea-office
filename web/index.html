@@ -139,6 +139,11 @@
     <div class="note" data-i18n="inst_plat">Windows 11 (stable), macOS 13+ (beta), and Linux (experimental) are supported. On X11 the office attaches as the desktop wallpaper; on Wayland it falls back to a fullscreen window pinned below.</div>
     <div class="steps">
       <div class="step">
+        <h4 data-i18n="inst_npx_h">Quickest — one line, any OS</h4>
+        <p data-i18n="inst_npx_p">With Node installed, this sets up the office for your platform — it downloads a prebuilt app, so there's no Visual Studio Build Tools or Rust to compile.</p>
+        <pre><code>npx bagidea-office</code></pre>
+      </div>
+      <div class="step">
         <h4 data-i18n="inst_s1_h">Run the one-shot installer</h4>
         <p data-i18n="inst_s1_p">On a fresh machine it installs Git, Node LTS, Rust, Godot 4.6.3 and the Claude Code CLI, clones the app, builds the shell, brands the icon, and adds the bagidea command to your PATH — in one pass.</p>
         <p style="margin:10px 0 4px"><b>🪟 Windows</b> — <span data-i18n="inst_s1_win">PowerShell</span></p>

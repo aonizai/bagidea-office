@@ -6,6 +6,16 @@
 
 ## 1. Install
 
+**Quickest — any OS** (needs [Node](https://nodejs.org)):
+
+```sh
+npx bagidea-office
+```
+
+This runs the right platform installer for you and **downloads a prebuilt app**, so a
+normal install no longer needs the Visual Studio C++ Build Tools or Rust. Prefer to run
+the platform installer directly? Use one of these:
+
 **Windows** — open PowerShell and run a single line:
 
 ```powershell
@@ -29,15 +39,16 @@ curl -fsSL https://raw.githubusercontent.com/bagidea/bagidea-office/main/install
 > install/display issues, please file an [issue](https://github.com/bagidea/bagidea-office/issues)
 > with your distro, desktop, and the output of `echo $XDG_SESSION_TYPE`
 
-The installer handles everything **even on a bare machine** — it installs every dependency for you:
-Git, Node.js LTS, Rust, **Visual Studio C++ Build Tools** (the linker Rust needs,
-and the single most common cause of failed installs), Godot 4.6.3 and the Claude Code CLI →
-clones the program to `%LOCALAPPDATA%\BagIdeaOffice` → compiles it → stamps the window icon →
-wires the `bagidea` command into PATH and creates a Start Menu shortcut
+The installer handles everything **even on a bare machine**. It now **downloads a prebuilt
+desktop app** for your platform, so a normal install needs **no Visual Studio C++ Build Tools
+and no Rust** — it installs Git, Node.js LTS, Godot 4.6.3 and the Claude Code CLI, fetches the
+prebuilt shell, ensures the Edge WebView2 runtime (Windows), clones the program to
+`%LOCALAPPDATA%\BagIdeaOffice`, stamps the window icon, wires the `bagidea` command into PATH
+and creates a Start Menu shortcut.
 
 - **Safe to re-run** — it skips what's already installed; re-running = `git pull` (your data stays intact)
 - Anything installed via winget is pulled into the current terminal's PATH immediately, so it can keep going in one pass
-- If the machine doesn't have the C++ Build Tools yet, the installer downloads them (~2–4 GB, one time) — so the first run takes a little longer
+- **Source-build fallback** — if no prebuilt matches (offline, an older Linux distro, an unusual arch), it installs Rust + the C++ Build Tools (~2–4 GB, one time) and compiles from source, so the first run takes longer. Force it with `BAGIDEA_NO_PREBUILT=1`.
 
 > Install didn't go through? See **[Install troubleshooting](troubleshooting.md)**
 > — it covers every symptom (winget missing, build fail, PATH not updating, SmartScreen blocking) with step-by-step fixes

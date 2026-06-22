@@ -59,6 +59,8 @@
   "inst_plat": "支持 Windows 11（稳定版）、macOS 13+（beta）以及 Linux（实验性）。在 X11 上，办公室会作为桌面壁纸嵌入；在 Wayland 上，则回退为固定在最底层的全屏窗口。",
   "inst_s1_h": "运行一键安装程序",
   "inst_s1_p": "打开 PowerShell 并粘贴以下内容。它将安装 Git、Node LTS、Rust、Godot 4.6.3 和 Claude Code CLI，克隆应用、构建 shell、设置图标品牌，并将 bagidea 命令添加到你的 PATH。",
+  "inst_npx_h": "最快 —— 一行命令，任意操作系统",
+  "inst_npx_p": "只要装好 Node，这条命令就会为你的平台配置好这个 office —— 它会下载预构建的应用，因此无需编译 Visual Studio Build Tools 或 Rust。",
   "inst_s2_h": "登录 Claude（仅首次需要）",
   "inst_s2_p": "打开一个新终端，运行 claude 一次，使用你现有的 Claude 账号或订阅登录——这是每个智能体的大脑。",
   "inst_s3_h": "启动办公室",

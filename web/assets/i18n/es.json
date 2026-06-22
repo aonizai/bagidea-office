@@ -59,6 +59,8 @@
   "inst_plat": "Se admiten Windows 11 (estable), macOS 13+ (beta) y Linux (experimental). En X11, la oficina se integra como fondo de pantalla del escritorio; en Wayland, recurre a una ventana de pantalla completa fijada por debajo.",
   "inst_s1_h": "Ejecuta el instalador de un solo comando",
   "inst_s1_p": "Abre PowerShell y pega esto. Instala Git, Node LTS, Rust, Godot 4.6.3 y la CLI de Claude Code, clona la app, compila el shell, personaliza el icono y añade el comando bagidea a tu PATH.",
+  "inst_npx_h": "Lo más rápido — una línea, cualquier SO",
+  "inst_npx_p": "Con Node instalado, esto configura la oficina para tu plataforma — descarga una app precompilada, así que no hay Visual Studio Build Tools ni Rust que compilar.",
   "inst_s2_h": "Inicia sesión en Claude (solo la primera vez)",
   "inst_s2_p": "Abre un terminal nuevo y ejecuta claude una vez para iniciar sesión con tu cuenta o suscripción de Claude existente — ese es el cerebro de cada agente.",
   "inst_s3_h": "Inicia la oficina",

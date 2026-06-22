@@ -59,6 +59,8 @@
   "inst_plat": "São compatíveis Windows 11 (estável), macOS 13+ (beta) e Linux (experimental). No X11, o escritório se integra como papel de parede da área de trabalho; no Wayland, recorre a uma janela em tela cheia fixada por baixo.",
   "inst_s1_h": "Execute o instalador em um comando",
   "inst_s1_p": "Abra o PowerShell e cole isto. Ele instala Git, Node LTS, Rust, Godot 4.6.3 e o CLI Claude Code, clona o aplicativo, compila o shell, aplica a marca no ícone e adiciona o comando bagidea ao seu PATH.",
+  "inst_npx_h": "O mais rápido — uma linha, qualquer SO",
+  "inst_npx_p": "Com o Node instalado, isto configura o office para a sua plataforma — ele baixa um app pré-compilado, então não há Visual Studio Build Tools nem Rust para compilar.",
   "inst_s2_h": "Faça login no Claude (apenas na primeira vez)",
   "inst_s2_p": "Abra um novo terminal e execute claude uma vez para entrar com sua conta ou assinatura Claude existente — esse é o cérebro de cada agente.",
   "inst_s3_h": "Inicie o escritório",

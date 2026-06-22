@@ -59,6 +59,8 @@
   "inst_plat": "Windows 11 (stable), macOS 13+ (beta) et Linux (expérimental) sont pris en charge. Sous X11, le bureau s'intègre comme fond d'écran ; sous Wayland, il se rabat sur une fenêtre plein écran épinglée en dessous.",
   "inst_s1_h": "Exécuter l'installeur en une commande",
   "inst_s1_p": "Ouvrez PowerShell et collez ceci. Cela installe Git, Node LTS, Rust, Godot 4.6.3 et la CLI Claude Code, clone l'application, compile le shell, personnalise l'icône et ajoute la commande bagidea à votre PATH.",
+  "inst_npx_h": "Le plus rapide — une ligne, tout OS",
+  "inst_npx_p": "Avec Node installé, ceci configure l'office pour votre plateforme — il télécharge une application précompilée, donc pas de Visual Studio Build Tools ni de Rust à compiler.",
   "inst_s2_h": "Se connecter à Claude (première fois seulement)",
   "inst_s2_p": "Ouvrez un nouveau terminal et exécutez claude une fois pour vous connecter avec votre compte ou abonnement Claude existant — c'est le cerveau de chaque agent.",
   "inst_s3_h": "Démarrer le bureau",
