@@ -5443,14 +5443,18 @@
     document.getElementById("hideBtn").onclick = () => shellPost("hide");
     // ◱ toggles mini ↔ full in the shell, but users got stuck because the button
     // never changed — they couldn't find how to restore. Reflect the state: show a
-    // clear ⛶ "Restore" while shrunk (the mini window is ~430px tall).
+    // clear ⛶ "Restore" while shrunk. Use the SAME media query the mini-mode CSS
+    // uses (NOT window.innerHeight — that can read 0 before first paint on a window
+    // that's born full and never fires a resize, leaving the button stuck on ⛶).
     const syncMiniBtn = () => {
-      const small = window.innerHeight <= 470;
+      const small = _miniMQ.matches;   // mini window is ≤480px wide / ≤460px tall
       miniBtn.textContent = small ? "⛶" : "◱";
       miniBtn.title = small ? "Restore window size" : "Mini window";
     };
     syncMiniBtn();
+    requestAnimationFrame(syncMiniBtn);          // re-read once layout settles
     window.addEventListener("resize", syncMiniBtn);
+    _miniMQ.addEventListener("change", syncMiniBtn);   // fires exactly on mini⇄full
   } else {
     // plain browser: the OS window has its own chrome
     document.getElementById("miniBtn").style.display = "none";
