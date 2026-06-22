@@ -300,5 +300,21 @@
   "d_sponsors_1": "<b>ティアを選んでスポンサーする。</b>サイト上の「💖 Sponsor on GitHub」ボタン（または github.com/sponsors/bagidea）を使い、月額ティアを選んで確認します — キャンセルするまで GitHub が毎月課金します。",
   "d_sponsors_2": "<b>ロゴとリンクはあなたの GitHub プロフィールから — 自動で。</b>あなたのアバター、表示名、リンクは GitHub アカウントから直接取得されます。こちらに送るものはありません。リンクを管理するには、GitHub プロフィールの <b>Website</b> 欄を設定してください（Settings → Public profile）。GitHub Organization としてスポンサーすると、会社のロゴとサイトが表示されます。",
   "d_sponsors_3": "<b>約 6 時間で表示されます。</b>チェックアウト時に「Make my sponsorship public」を選んでいる限り、自動ワークフローがライブリストを取得し、金額で各スポンサーをティアに振り分け、ウェブサイトのサポーターウォールと README を更新します — ティア順で、金額は表示されません。非公開のスポンサーは尊重され、掲載されません。",
-  "d_sponsors_note": "みな GitHub Sponsors を通じて参加します。唯一の例外は手動で追加される特別パートナーです（例：WARRIX、先頭に固定）。Reuannamphung は GitHub Sponsors に移行するまで好意で表示しています。"
+  "d_sponsors_note": "みな GitHub Sponsors を通じて参加します。唯一の例外は手動で追加される特別パートナーです（例：WARRIX、先頭に固定）。Reuannamphung は GitHub Sponsors に移行するまで好意で表示しています。",
+  "nav_showcase": "ショーケース",
+  "foot_contributors": "コントリビューター",
+  "sc_title": "BagIdea Office で作られた作品",
+  "sc_sub": "みんながカスタマイズしたオフィス、AIエージェントが仕上げたプロジェクト、プラグイン、アート——コミュニティのリアルな成果です。プルリクエストであなたの作品も共有しましょう。",
+  "sc_loading": "読み込み中…",
+  "sc_submit_eyebrow": "作品を見せよう",
+  "sc_submit_title": "ここで紹介されよう",
+  "sc_submit_lead": "BagIdea Office で何か作りましたか？ぜひ送ってください——作品を見せる絶好の機会で、コントリビューターとしてクレジットされます。",
+  "sc_s1_h": "1 · カバー画像を用意する",
+  "sc_s1_p": "作品のワイド（約16:9）なスクリーンショットや画像を用意し、リポジトリの web/img/showcase/ に追加します。",
+  "sc_s2_h": "2 · エントリーを追加する",
+  "sc_s2_p": "web/showcase.json にエントリーを追加します——タイトル、あなたの GitHub ハンドル、画像のパス、リンク、そして短い説明を。",
+  "sc_s3_h": "3 · PR を開く",
+  "sc_s3_p": "あなたの著作者情報を保ったままレビューしてマージするので、Contributors グラフに載り、あなたのカードがここに表示されます。",
+  "sc_submit_cta": "投稿ガイドを読む →",
+  "sc_edit_cta": "showcase.json を編集 →"
 }

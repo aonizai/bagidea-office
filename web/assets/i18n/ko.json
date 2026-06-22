@@ -300,5 +300,21 @@
   "d_sponsors_1": "<b>등급을 선택하고 후원하세요.</b> 사이트의 “💖 Sponsor on GitHub” 버튼 (또는 github.com/sponsors/bagidea)을 사용해 월간 등급을 고르고 확인하세요 — 취소할 때까지 GitHub가 매월 청구합니다.",
   "d_sponsors_2": "<b>로고와 링크는 당신의 GitHub 프로필에서 — 자동으로.</b> 당신의 아바타, 표시 이름, 링크는 GitHub 계정에서 곧바로 가져옵니다; 우리에게 보낼 것은 없습니다. 링크를 제어하려면 GitHub 프로필의 <b>Website</b> 필드를 설정하세요 (Settings → Public profile). GitHub Organization으로 후원하면 회사 로고와 사이트가 표시됩니다.",
   "d_sponsors_3": "<b>약 6시간 내에 표시됩니다.</b> 결제 시 “Make my sponsorship public”을 선택하기만 하면, 자동 워크플로가 실시간 목록을 가져와 금액으로 각 후원자를 등급에 매핑하고, 웹사이트의 서포터 월과 README를 업데이트합니다 — 등급순으로, 금액은 표시되지 않습니다. 비공개 후원자는 존중되어 목록에 오르지 않습니다.",
-  "d_sponsors_note": "모두 GitHub Sponsors를 통해 참여합니다. 유일한 예외는 손으로 추가하는 특별 파트너입니다 (예: WARRIX, 맨 앞에 고정); Reuannamphung은 GitHub Sponsors로 옮길 때까지 호의로 표시됩니다."
+  "d_sponsors_note": "모두 GitHub Sponsors를 통해 참여합니다. 유일한 예외는 손으로 추가하는 특별 파트너입니다 (예: WARRIX, 맨 앞에 고정); Reuannamphung은 GitHub Sponsors로 옮길 때까지 호의로 표시됩니다.",
+  "nav_showcase": "쇼케이스",
+  "foot_contributors": "기여자",
+  "sc_title": "BagIdea Office로 만들었습니다",
+  "sc_sub": "사람들이 직접 꾸민 오피스, AI 에이전트가 완성한 프로젝트, 플러그인, 아트 — 커뮤니티의 진짜 작업물입니다. 풀 리퀘스트로 당신의 작업도 공유하세요.",
+  "sc_loading": "불러오는 중…",
+  "sc_submit_eyebrow": "당신의 작업을 보여주세요",
+  "sc_submit_title": "여기에 소개되세요",
+  "sc_submit_lead": "BagIdea Office로 무언가 만들었나요? 보내주세요 — 작업을 보여줄 좋은 기회이고, 기여자로 크레딧을 받게 됩니다.",
+  "sc_s1_h": "1 · 커버 이미지를 준비하세요",
+  "sc_s1_p": "작업물의 와이드(~16:9) 스크린샷이나 이미지를 찍어 저장소의 web/img/showcase/ 에 추가하세요.",
+  "sc_s2_h": "2 · 항목을 추가하세요",
+  "sc_s2_p": "web/showcase.json 에 항목을 추가하세요 — 제목, 당신의 GitHub 핸들, 이미지 경로, 링크, 그리고 짧은 설명을요.",
+  "sc_s3_h": "3 · PR을 여세요",
+  "sc_s3_p": "당신의 저작자 정보를 유지한 채 검토하고 머지하므로, Contributors 그래프에 오르고 당신의 카드가 여기에 표시됩니다.",
+  "sc_submit_cta": "제출 가이드 읽기 →",
+  "sc_edit_cta": "showcase.json 편집 →"
 }

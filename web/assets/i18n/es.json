@@ -300,5 +300,21 @@
   "d_sponsors_1": "<b>Elige un nivel y patrocina.</b> Usa el botón “💖 Sponsor on GitHub” del sitio (o github.com/sponsors/bagidea), elige un nivel mensual y confirma — GitHub te cobra cada mes hasta que canceles.",
   "d_sponsors_2": "<b>Tu logo y enlace provienen de tu perfil de GitHub — automáticamente.</b> Tu avatar, nombre visible y enlace se obtienen directamente de tu cuenta de GitHub; no tienes que enviarnos nada. Para controlar el enlace, configura el campo <b>Website</b> en tu perfil de GitHub (Settings → Public profile). Patrocinar como Organización de GitHub muestra el logo y el sitio de tu empresa.",
   "d_sponsors_3": "<b>Apareces en ~6 horas.</b> Siempre que elijas “Make my sponsorship public” al pagar, un flujo automatizado obtiene la lista en vivo, asigna a cada patrocinador un nivel según el importe, y actualiza el muro de colaboradores en el sitio web y el README — ordenado por nivel, los importes nunca se muestran. Los patrocinadores privados se respetan y no se listan.",
-  "d_sponsors_note": "Todos se unen a través de GitHub Sponsors. Las únicas excepciones son socios destacados añadidos a mano (p. ej. WARRIX, fijado primero); Reuannamphung se muestra como cortesía hasta que migre a GitHub Sponsors."
+  "d_sponsors_note": "Todos se unen a través de GitHub Sponsors. Las únicas excepciones son socios destacados añadidos a mano (p. ej. WARRIX, fijado primero); Reuannamphung se muestra como cortesía hasta que migre a GitHub Sponsors.",
+  "nav_showcase": "Showcase",
+  "foot_contributors": "Colaboradores",
+  "sc_title": "Hecho con BagIdea Office",
+  "sc_sub": "Oficinas que la gente personalizó, proyectos que entregaron sus agentes de IA, plugins, arte — trabajo real de la comunidad. Comparte el tuyo con un pull request.",
+  "sc_loading": "Cargando…",
+  "sc_submit_eyebrow": "Muestra tu trabajo",
+  "sc_submit_title": "Aparece destacado aquí",
+  "sc_submit_lead": "¿Has hecho algo con BagIdea Office? Envíalo — es una gran forma de mostrar tu trabajo, y se te acredita como colaborador.",
+  "sc_s1_h": "1 · Consigue una portada",
+  "sc_s1_p": "Toma una captura o imagen panorámica (~16:9) de tu trabajo y añádela a web/img/showcase/ en el repositorio.",
+  "sc_s2_h": "2 · Añade tu entrada",
+  "sc_s2_p": "Añade una entrada a web/showcase.json — título, tu usuario de GitHub, la ruta de la imagen, un enlace y una breve descripción.",
+  "sc_s3_h": "3 · Abre un PR",
+  "sc_s3_p": "Lo revisamos y lo fusionamos conservando tu autoría, así apareces en el grafo de Contributors y tu tarjeta se muestra aquí.",
+  "sc_submit_cta": "Lee la guía de envío →",
+  "sc_edit_cta": "Editar showcase.json →"
 }

@@ -300,5 +300,21 @@
   "d_sponsors_1": "<b>Choisissez un palier &amp; sponsorisez.</b> Utilisez le bouton « 💖 Sponsor on GitHub » du site (ou github.com/sponsors/bagidea), choisissez un palier mensuel et confirmez — GitHub vous prélève chaque mois jusqu'à votre annulation.",
   "d_sponsors_2": "<b>Votre logo &amp; votre lien proviennent de votre profil GitHub — automatiquement.</b> Votre avatar, votre nom affiché et votre lien sont récupérés directement depuis votre compte GitHub ; vous n'avez rien à nous envoyer. Pour contrôler le lien, renseignez le champ <b>Website</b> dans votre profil GitHub (Settings → Public profile). Sponsoriser en tant qu'Organisation GitHub affiche le logo et le site de votre entreprise.",
   "d_sponsors_3": "<b>Vous apparaissez sous ~6 heures.</b> Tant que vous choisissez « Make my sponsorship public » au paiement, un flux automatisé récupère la liste en direct, associe chaque sponsor à un palier selon le montant, et met à jour le mur des soutiens sur le site web et le README — trié par palier, les montants ne sont jamais affichés. Les sponsors privés sont respectés et non listés.",
-  "d_sponsors_note": "Tout le monde rejoint via GitHub Sponsors. Les seules exceptions sont les partenaires mis en avant ajoutés à la main (p. ex. WARRIX, épinglé en premier) ; Reuannamphung est affiché à titre de courtoisie jusqu'à son passage à GitHub Sponsors."
+  "d_sponsors_note": "Tout le monde rejoint via GitHub Sponsors. Les seules exceptions sont les partenaires mis en avant ajoutés à la main (p. ex. WARRIX, épinglé en premier) ; Reuannamphung est affiché à titre de courtoisie jusqu'à son passage à GitHub Sponsors.",
+  "nav_showcase": "Vitrine",
+  "foot_contributors": "Contributeurs",
+  "sc_title": "Réalisé avec BagIdea Office",
+  "sc_sub": "Des bureaux que les gens ont personnalisés, des projets livrés par leurs agents IA, des plugins, de l’art — du vrai travail de la communauté. Partagez le vôtre via une pull request.",
+  "sc_loading": "Chargement…",
+  "sc_submit_eyebrow": "Montrez votre travail",
+  "sc_submit_title": "Soyez mis en avant ici",
+  "sc_submit_lead": "Vous avez créé quelque chose avec BagIdea Office ? Envoyez-le — c’est une excellente façon de montrer votre travail, et vous êtes crédité comme contributeur.",
+  "sc_s1_h": "1 · Préparez une couverture",
+  "sc_s1_p": "Faites une capture d’écran ou une image large (~16:9) de votre travail et ajoutez-la à web/img/showcase/ dans le dépôt.",
+  "sc_s2_h": "2 · Ajoutez votre entrée",
+  "sc_s2_p": "Ajoutez une entrée à web/showcase.json — le titre, votre identifiant GitHub, le chemin de l’image, un lien et une courte description.",
+  "sc_s3_h": "3 · Ouvrez une PR",
+  "sc_s3_p": "Nous la relisons et la fusionnons en préservant votre paternité, vous apparaissez donc sur le graphe Contributors et votre carte s’affiche ici.",
+  "sc_submit_cta": "Lire le guide de soumission →",
+  "sc_edit_cta": "Modifier showcase.json →"
 }

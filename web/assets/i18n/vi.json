@@ -300,5 +300,21 @@
   "d_sponsors_1": "<b>Chọn một hạng &amp; tài trợ.</b> Dùng nút “💖 Sponsor on GitHub” trên trang web (hoặc github.com/sponsors/bagidea), chọn một hạng hàng tháng, và xác nhận — GitHub tính phí bạn mỗi tháng cho đến khi bạn hủy.",
   "d_sponsors_2": "<b>Logo &amp; liên kết của bạn đến từ hồ sơ GitHub của bạn — một cách tự động.</b> Ảnh đại diện, tên hiển thị và liên kết của bạn được lấy thẳng từ tài khoản GitHub của bạn; không có gì để gửi cho chúng tôi. Để kiểm soát liên kết, đặt trường <b>Website</b> trong hồ sơ GitHub của bạn (Settings → Public profile). Tài trợ với tư cách một GitHub Organization sẽ hiển thị logo và trang web công ty của bạn.",
   "d_sponsors_3": "<b>Bạn xuất hiện trong vòng ~6 giờ.</b> Miễn là bạn chọn “Make my sponsorship public” khi thanh toán, một quy trình tự động kéo danh sách trực tiếp, ánh xạ mỗi nhà tài trợ vào một hạng theo số tiền, và cập nhật bức tường người ủng hộ trên trang web và README — sắp xếp theo hạng, số tiền không bao giờ được hiển thị. Các nhà tài trợ riêng tư được tôn trọng và không được liệt kê.",
-  "d_sponsors_note": "Mọi người tham gia thông qua GitHub Sponsors. Ngoại lệ duy nhất là các đối tác nổi bật được thêm thủ công (vd. WARRIX, được ghim đầu tiên); Reuannamphung được hiển thị như một sự ưu ái cho đến khi họ chuyển sang GitHub Sponsors."
+  "d_sponsors_note": "Mọi người tham gia thông qua GitHub Sponsors. Ngoại lệ duy nhất là các đối tác nổi bật được thêm thủ công (vd. WARRIX, được ghim đầu tiên); Reuannamphung được hiển thị như một sự ưu ái cho đến khi họ chuyển sang GitHub Sponsors.",
+  "nav_showcase": "Trưng bày",
+  "foot_contributors": "Người đóng góp",
+  "sc_title": "Được tạo bằng BagIdea Office",
+  "sc_sub": "Những văn phòng mọi người tùy biến, các dự án do agent AI của họ hoàn thành, plugin, tác phẩm nghệ thuật — công việc thực từ cộng đồng. Chia sẻ của bạn bằng một pull request.",
+  "sc_loading": "Đang tải…",
+  "sc_submit_eyebrow": "Khoe tác phẩm của bạn",
+  "sc_submit_title": "Được giới thiệu tại đây",
+  "sc_submit_lead": "Đã làm điều gì đó với BagIdea Office? Gửi nó cho chúng tôi — đây là cách tuyệt vời để khoe tác phẩm của bạn, và bạn được ghi danh là người đóng góp.",
+  "sc_s1_h": "1 · Chuẩn bị ảnh bìa",
+  "sc_s1_p": "Chụp một ảnh chụp màn hình hoặc hình ảnh rộng (~16:9) về tác phẩm của bạn và thêm nó vào web/img/showcase/ trong repo.",
+  "sc_s2_h": "2 · Thêm mục của bạn",
+  "sc_s2_p": "Thêm một mục vào web/showcase.json — tiêu đề, tên GitHub của bạn, đường dẫn ảnh, một liên kết, và một mô tả ngắn.",
+  "sc_s3_h": "3 · Mở một PR",
+  "sc_s3_p": "Chúng tôi xem xét và hợp nhất nó trong khi giữ nguyên quyền tác giả của bạn, nên bạn xuất hiện trên đồ thị Contributors và thẻ của bạn hiện ở đây.",
+  "sc_submit_cta": "Đọc hướng dẫn gửi bài →",
+  "sc_edit_cta": "Chỉnh sửa showcase.json →"
 }

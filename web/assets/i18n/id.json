@@ -300,5 +300,21 @@
   "d_sponsors_1": "<b>Pilih tier &amp; jadi sponsor.</b> Gunakan tombol “💖 Sponsor on GitHub” di situs (atau github.com/sponsors/bagidea), pilih tier bulanan, dan konfirmasi — GitHub menagihmu setiap bulan sampai kamu membatalkan.",
   "d_sponsors_2": "<b>Logo &amp; tautanmu berasal dari profil GitHub-mu — secara otomatis.</b> Avatar, nama tampilan, dan tautanmu diambil langsung dari akun GitHub-mu; tidak ada yang perlu dikirim kepada kami. Untuk mengatur tautan, isi kolom <b>Website</b> di profil GitHub-mu (Settings → Public profile). Menjadi sponsor sebagai GitHub Organization menampilkan logo dan situs perusahaanmu.",
   "d_sponsors_3": "<b>Kamu muncul dalam ~6 jam.</b> Selama kamu memilih “Make my sponsorship public” saat checkout, alur kerja otomatis menarik daftar langsung, memetakan setiap sponsor ke tier berdasarkan jumlah, dan memperbarui dinding pendukung di situs web dan README — diurutkan berdasarkan tier, jumlah tidak pernah ditampilkan. Sponsor pribadi dihormati dan tidak dicantumkan.",
-  "d_sponsors_note": "Semua orang bergabung melalui GitHub Sponsors. Satu-satunya pengecualian adalah mitra unggulan yang ditambahkan secara manual (mis. WARRIX, disematkan pertama); Reuannamphung ditampilkan sebagai penghormatan hingga mereka pindah ke GitHub Sponsors."
+  "d_sponsors_note": "Semua orang bergabung melalui GitHub Sponsors. Satu-satunya pengecualian adalah mitra unggulan yang ditambahkan secara manual (mis. WARRIX, disematkan pertama); Reuannamphung ditampilkan sebagai penghormatan hingga mereka pindah ke GitHub Sponsors.",
+  "nav_showcase": "Galeri Karya",
+  "foot_contributors": "Kontributor",
+  "sc_title": "Dibuat dengan BagIdea Office",
+  "sc_sub": "Kantor yang dikustomisasi orang, proyek yang dirampungkan agen AI mereka, plugin, karya seni — karya nyata dari komunitas. Bagikan milikmu lewat pull request.",
+  "sc_loading": "Memuat…",
+  "sc_submit_eyebrow": "Tunjukkan karyamu",
+  "sc_submit_title": "Tampil di sini",
+  "sc_submit_lead": "Membuat sesuatu dengan BagIdea Office? Kirimkan — ini cara bagus untuk menunjukkan karyamu, dan kamu dikreditkan sebagai kontributor.",
+  "sc_s1_h": "1 · Siapkan sampul",
+  "sc_s1_p": "Ambil tangkapan layar atau gambar lebar (~16:9) dari karyamu dan tambahkan ke web/img/showcase/ di repositori.",
+  "sc_s2_h": "2 · Tambahkan entrimu",
+  "sc_s2_p": "Tambahkan satu entri ke web/showcase.json — judul, handle GitHub-mu, path gambar, sebuah tautan, dan deskripsi singkat.",
+  "sc_s3_h": "3 · Buka PR",
+  "sc_s3_p": "Kami meninjau dan menggabungkannya dengan tetap menjaga kepengarangan kamu, sehingga kamu masuk ke grafik Contributors dan kartumu muncul di sini.",
+  "sc_submit_cta": "Baca panduan pengiriman →",
+  "sc_edit_cta": "Edit showcase.json →"
 }

@@ -1,0 +1,22 @@
+{
+  "_comment": "BagIdea Office — community Showcase. Show off ANYTHING you built with or inside the office: a custom office, a project your agents shipped, a plugin in action, art, a video. To submit: open a PR that (1) adds your cover image to web/img/showcase/<slug>.(png|jpg|webp) — keep it ~16:9, store it in the repo (don't hotlink a CDN, it expires), and (2) adds an entry below. We merge it preserving your authorship, so you're credited on the Contributors graph + here. See docs/guide/showcase.md.",
+  "updated": "2026-06-21",
+  "items": [
+    {
+      "title": "The living office",
+      "author": "bagidea",
+      "image": "img/world.png",
+      "url": "https://github.com/bagidea/bagidea-office",
+      "tag": "office",
+      "desc": "The HD-2D AI office running as a live desktop wallpaper at 2am — agents at their desks, neon glow, real day/night. The project itself."
+    },
+    {
+      "title": "One office, 18 minds",
+      "author": "bagidea",
+      "image": "img/swappable-brains.png",
+      "url": "https://bagidea.github.io/bagidea-office/tools.html",
+      "tag": "setup",
+      "desc": "Each agent wired to a different model provider — Claude, GPT, Gemini, DeepSeek, local Ollama — picked per task and budget."
+    }
+  ]
+}

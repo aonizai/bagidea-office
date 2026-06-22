@@ -300,5 +300,21 @@
   "d_sponsors_1": "<b>选择一个等级并赞助。</b>使用网站上的“💖 Sponsor on GitHub”按钮（或 github.com/sponsors/bagidea），挑选一个月度等级并确认——GitHub 会每月向你收费，直到你取消。",
   "d_sponsors_2": "<b>你的标志和链接取自你的 GitHub 资料——自动完成。</b>你的头像、显示名和链接会直接从你的 GitHub 账号拉取；无需向我们发送任何东西。要控制链接，请在 GitHub 资料中设置 <b>Website</b> 字段（Settings → Public profile）。以 GitHub Organization 身份赞助会展示你的公司标志和网站。",
   "d_sponsors_3": "<b>你会在约 6 小时内出现。</b>只要你在结账时选择“Make my sponsorship public”，一个自动化流程就会拉取实时列表，按金额把每位赞助者映射到对应等级，并更新网站上的支持者墙和 README——按等级排序，金额从不展示。我们尊重私密赞助者，不会将其列出。",
-  "d_sponsors_note": "所有人都通过 GitHub Sponsors 加入。唯一的例外是手动添加的特邀合作伙伴（例如 WARRIX，置顶第一）；Reuannamphung 作为礼遇展示，直到他们转用 GitHub Sponsors。"
+  "d_sponsors_note": "所有人都通过 GitHub Sponsors 加入。唯一的例外是手动添加的特邀合作伙伴（例如 WARRIX，置顶第一）；Reuannamphung 作为礼遇展示，直到他们转用 GitHub Sponsors。",
+  "nav_showcase": "案例展示",
+  "foot_contributors": "贡献者",
+  "sc_title": "用 BagIdea Office 打造",
+  "sc_sub": "人们定制的办公室、AI 智能体交付的项目、插件、艺术作品——来自社区的真实成果。用一个拉取请求分享你的作品。",
+  "sc_loading": "加载中…",
+  "sc_submit_eyebrow": "展示你的作品",
+  "sc_submit_title": "让你的作品登上这里",
+  "sc_submit_lead": "用 BagIdea Office 做出了什么？发给我们吧——这是展示你作品的好方式，而且你会被记入贡献者名单。",
+  "sc_s1_h": "1 · 准备一张封面",
+  "sc_s1_p": "为你的作品截取一张宽幅（约 16:9）的截图或图片，并将其添加到仓库的 web/img/showcase/ 中。",
+  "sc_s2_h": "2 · 添加你的条目",
+  "sc_s2_p": "向 web/showcase.json 追加一条条目——标题、你的 GitHub 用户名、图片路径、一个链接和一段简短描述。",
+  "sc_s3_h": "3 · 发起一个 PR",
+  "sc_s3_p": "我们会在保留你署名的前提下审核并合并它，因此你会出现在 Contributors 图谱上，你的卡片也会显示在这里。",
+  "sc_submit_cta": "阅读提交指南 →",
+  "sc_edit_cta": "编辑 showcase.json →"
 }
