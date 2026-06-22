@@ -1094,9 +1094,16 @@ function createProject(name, place, pathArg) {
   let dir = String(pathArg || "").trim();
   if (!dir && place && reg.places[place]) dir = path.join(reg.places[place], name);
   if (!dir) throw new Error("need place or path");
-  dir = dir.replace(/\//g, "\\");
+  if (process.platform === "win32") {
+    dir = dir.replace(/\//g, "\\");
+  }
   // Separator-proof normalization for every duplicate check.
-  const norm = (s) => String(s).replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
+  const norm = (s) => {
+    if (process.platform === "win32") {
+      return String(s).replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
+    }
+    return String(s).replace(/\/+$/, "").toLowerCase();
+  };
   if (projects.some((x) => norm(x.dir) === norm(dir)))
     throw new Error("โปรเจคนี้อยู่ในรายการแล้ว (path ซ้ำ)");
   if (projects.some((x) => x.name.toLowerCase() === name.toLowerCase()))
@@ -3390,7 +3397,9 @@ const server = http.createServer((req, res) => {
           skills: Array.isArray(p.skills) ? p.skills : cur.skills || [],
           tools: Array.isArray(p.tools) ? p.tools : cur.tools || [],
           // 🧠 swappable brain: which backend/model this agent runs on (default Claude).
-          provider: providers.PROVIDERS[p.provider] ? p.provider : (cur.provider || "claude"),
+          // Accept both built-in PROVIDERS and custom ones from providerConfig.
+          provider: (providers.PROVIDERS[p.provider] || (reg.providerConfig && reg.providerConfig[p.provider]))
+            ? p.provider : (cur.provider || "claude"),
           model: String(p.model !== undefined ? p.model : (cur.model || "")).slice(0, 60),
         };
         saveReg();
@@ -3530,13 +3539,36 @@ const server = http.createServer((req, res) => {
           const proj = projects.find((x) => x.id === p.removeDisk);
           if (!proj) { res.writeHead(404); return res.end("unknown project"); }
           if (!proj.created) { res.writeHead(403); return res.end("not created by this app"); }
-          // Folders die hard on Windows: a dev server an agent left running
+          // Folders die hard: a dev server an agent left running
           // (next dev, vite, …) or the project's own terminal keeps files
           // locked and rmSync silently half-deletes. Order of battle:
           // close our project window → kill processes anchored in the dir →
           // delete with retries → readable error if something still holds on.
           const pid = p.removeDisk;
-          winproj("stop", pid, () => winproj("killdir", proj.dir, () => {
+          const killProjectProcesses = (dir, cb) => {
+            if (process.platform === "win32") {
+              winproj("killdir", dir, cb);
+            } else {
+              // macOS/Linux: kill processes whose cwd or args reference this dir.
+              // Use execFileSync (NOT execSync) to prevent shell injection via
+              // project paths containing special characters.
+              const { execFileSync } = require("child_process");
+              try {
+                const out = execFileSync("lsof", ["+D", dir],
+                  { timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).toString();
+                const pids = new Set();
+                for (const line of out.split("\n").slice(1)) {
+                  const cols = line.trim().split(/\s+/);
+                  if (cols[1]) pids.add(cols[1]);
+                }
+                pids.forEach(p => {
+                  try { process.kill(parseInt(p), "SIGTERM"); } catch {}
+                });
+              } catch {}
+              setTimeout(cb, 500);
+            }
+          };
+          winproj("stop", pid, () => killProjectProcesses(proj.dir, () => {
             setTimeout(() => {
               try {
                 fs.rmSync(proj.dir, { recursive: true, force: true,
@@ -3582,9 +3614,12 @@ const server = http.createServer((req, res) => {
             spawn("cmd.exe", [line],
               { windowsVerbatimArguments: true, windowsHide: true, detached: true });
           } else if (process.platform === "darwin") {
-            // macOS: Open a new terminal window in the project directory
-            // We use AppleScript to ensure it opens a fresh window at the right path
-            const script = `tell application "Terminal" to do script "cd '${dir}'"`;
+            // macOS: Open a new terminal window, cd to project dir, run claude
+            const cmd = psCmd || "";
+            // psCmd on Windows is `-Command "..."` — extract the inner command for macOS
+            const innerCmd = cmd.match(/-Command\s+"(.+)"/)?.[1] || "";
+            const shellCmd = innerCmd || "exec bash";
+            const script = `tell application "Terminal" to do script "cd '${dir.replace(/'/g, "'\\''")}' && ${shellCmd}"`;
             spawn("osascript", ["-e", script], { detached: true });
           } else {
             // Linux: open a terminal at `dir` running the command. The Windows psCmd is
@@ -3715,11 +3750,19 @@ const server = http.createServer((req, res) => {
       const q = new URL(req.url, "http://x").searchParams;
       let dir = q.get("dir") || "";
       const drives = [];
-      for (let c = 65; c <= 90; c++) {
-        const d = String.fromCharCode(c) + ":\\";
-        try { if (fs.existsSync(d)) drives.push(d); } catch {}
+      if (process.platform === "win32") {
+        for (let c = 65; c <= 90; c++) {
+          const d = String.fromCharCode(c) + ":\\";
+          try { if (fs.existsSync(d)) drives.push(d); } catch {}
+        }
       }
-      if (!dir) dir = drives.includes("D:\\") ? "D:\\" : drives[0] || "C:\\";
+      if (!dir) {
+        if (process.platform === "win32") {
+          dir = drives.includes("D:\\") ? "D:\\" : drives[0] || "C:\\";
+        } else {
+          dir = require("os").homedir();
+        }
+      }
       let dirs = [];
       try {
         dirs = fs.readdirSync(dir, { withFileTypes: true })
@@ -3930,7 +3973,16 @@ const server = http.createServer((req, res) => {
         } else {
           const c = reg.providerConfig[provider] || {};
           if (token !== undefined) { c.token = String(token).slice(0, 400); c.connected = false; }
-          if (baseUrl !== undefined) c.baseUrl = String(baseUrl).slice(0, 300);
+          if (baseUrl !== undefined) {
+            let b = String(baseUrl).slice(0, 300).trim();
+            // Claude CLI appends /v1/messages itself — a user-supplied …/v1 doubles it → 405.
+            // Strip for anthropic-kind; leave openai-kind alone (proxy handles its own pathing).
+            const effectiveKind = kind || c.kind || "anthropic";
+            if (effectiveKind !== "openai") {
+              b = b.replace(/\/+$/, "").replace(/\/v1$/, "");
+            }
+            c.baseUrl = b;
+          }
           if (model !== undefined) c.model = String(model).slice(0, 60);
           if (kind !== undefined) c.kind = kind === "openai" ? "openai" : "anthropic";
           if (label !== undefined) c.label = String(label).slice(0, 40);
@@ -3992,21 +4044,23 @@ const server = http.createServer((req, res) => {
             authorization: "Bearer " + pc.token, "anthropic-version": "2023-06-01" },
           body: JSON.stringify({ model, max_tokens: 1, messages: [{ role: "user", content: "hi" }] }),
         });
-        const authBad = r.status === 401 || r.status === 403;  // other codes = key authenticated
+        const authBad = r.status === 401 || r.status === 403;  // bad key
+        const pathBad = r.status === 404 || r.status === 405;   // doubled /v1 or wrong endpoint
         // Best-effort: pull the provider's LIVE model list from its OpenAI-compatible
         // /models endpoint so the picker is always current (GLM/DeepSeek/Qwen/Moonshot…).
         // A failure here never blocks the connection — static hints + the free-type field
         // still work.
         let models = null;
         const murl = pc.modelsUrl || (spec && spec.modelsUrl);
-        if (!authBad && murl) {
+        if (!authBad && !pathBad && murl) {
           try {
             const msig = AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined;
             const mr = await fetch(murl, { headers: { authorization: "Bearer " + pc.token }, signal: msig });
             if (mr.ok) { const j = await mr.json(); captureModelCtx(provider, j.data); models = proxy.cleanModels((j.data || []).map((m) => m.id)).sort().slice(0, 120); }
           } catch {}
         }
-        setConn(!authBad, models && models.length ? models : null);
+        setConn(!authBad && !pathBad, models && models.length ? models : null);
+        if (pathBad) return done(false, "endpoint ไม่ถูก (HTTP " + r.status + ") — ถ้า baseUrl ลงท้ายด้วย /v1 ให้ตัดออก");
         return done(!authBad, authBad ? "key ไม่ผ่าน (HTTP " + r.status + ")" : "เชื่อมต่อแล้ว ✓", models);
       } catch (e) { return done(false, String((e && e.message) || e)); }
     });
@@ -5145,13 +5199,25 @@ const server = http.createServer((req, res) => {
   } else if (req.method === "POST" && req.url === "/update") {
     // Human-triggered only (in-app 🔄 button or the CLI).
     if (!req.headers["x-bagidea-ui"]) { res.writeHead(403); return res.end("human UI only"); }
-    const ps = path.join(__dirname, "..", "installer", "update.ps1");
-    // Launch in a REAL, visible console window via `cmd start` so the user can
-    // watch git pull + the rebuild — a silent detached process looked hung. It
-    // also outlives this daemon (the updater kills + relaunches the whole suite).
-    spawn("cmd.exe", ["/c", "start", "BagIdea Update", "powershell",
-      "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps],
-      { detached: true, stdio: "ignore", windowsHide: false }).unref();
+    if (process.platform === "win32") {
+      const ps = path.join(__dirname, "..", "installer", "update.ps1");
+      // Launch in a REAL, visible console window via `cmd start` so the user can
+      // watch git pull + the rebuild — a silent detached process looked hung. It
+      // also outlives this daemon (the updater kills + relaunches the whole suite).
+      spawn("cmd.exe", ["/c", "start", "BagIdea Update", "powershell",
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps],
+        { detached: true, stdio: "ignore", windowsHide: false }).unref();
+    } else if (process.platform === "darwin") {
+      // macOS: git pull + rebuild in a visible Terminal window
+      const root = path.join(__dirname, "..");
+      const script = `tell application "Terminal" to do script "cd '${root}' && git pull && ./build-mac.sh"`;
+      spawn("osascript", ["-e", script], { detached: true, stdio: "ignore" }).unref();
+    } else {
+      // Linux: same idea, x-terminal-emulator
+      const root = path.join(__dirname, "..");
+      spawn("x-terminal-emulator", ["-e", `cd '${root}' && git pull && bash build-mac.sh`],
+        { detached: true, stdio: "ignore" }).unref();
+    }
     res.writeHead(200); res.end("ok");
 
   } else if (req.url === "/health") {

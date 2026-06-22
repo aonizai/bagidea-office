@@ -82,8 +82,8 @@ function help() {
   row("status", "System overview · agents · projects");
   row("stats", "7-day activity + cost report");
   row("update", "Update to the latest version + restart");
-  row("startup [on|off]", "Launch the office automatically at login");
-  row("uninstall [--keep-data]", "Remove the app (PATH, shortcut, autostart, files)");
+  row("startup [on|off]", process.platform === "win32" ? "Launch the office automatically with Windows" : "Launch the office automatically at login");
+  row("uninstall [--keep-data]", process.platform === "win32" ? "Remove the app (PATH, shortcut, autostart, files)" : "Remove the app (PATH, login item, files)");
 
   head("Talk to the office");
   row('ask "<msg>"', "Order as the CEO and wait for the answer");
@@ -124,18 +124,10 @@ function help() {
   console.log("");
 }
 
+const { findShellExe: _findShell } = require("./find-shell");
+
 function findShellExe() {
-  const isWin = process.platform === "win32";
-  const name = isWin ? "bagidea-office-shell.exe" : "bagidea-office-shell";
-  // Try release first, then debug if release isn't there
-  const paths = [
-    path.join(ROOT, "shell", "target", "release", name),
-    path.join(ROOT, "shell", "target", "debug", name)
-  ];
-  for (const p of paths) {
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
+  return _findShell(ROOT);
 }
 
 const NOT_RUNNING = () => bad(`The office isn't running — run ${c.accent}bagidea start${c.reset} first`);
@@ -168,17 +160,18 @@ async function main() {
   }
 
   if (cmd === "startup") {
-    // Launch-with-Windows toggle (same HKCU Run key the tray uses).
+    // Autostart toggle (HKCU Run key on Windows, LaunchAgent on macOS).
     if (!(await daemonUp())) return NOT_RUNNING();
     const arg = (rest[0] || "").toLowerCase();
     if (!arg) {
       const s = await req("GET", "/startup");
-      return info(`Start with Windows is ${s && s.on ? c.ok + "ON" : c.gray + "OFF"}${c.reset}` +
+      const label = process.platform === "win32" ? "Start with Windows" : "Start at login";
+      return info(`${label} is ${s && s.on ? c.ok + "ON" : c.gray + "OFF"}${c.reset}` +
         ` ${c.gray}— bagidea startup on|off${c.reset}`);
     }
     if (!["on", "off"].includes(arg)) return bad("usage: bagidea startup on|off");
     const r = await req("POST", "/startup", { on: arg === "on" });
-    return r && r.on ? ok("The office will launch with Windows")
+    return r && r.on ? ok(process.platform === "win32" ? "The office will launch with Windows" : "The office will launch at login")
       : ok("Auto-start disabled");
   }
 
@@ -193,7 +186,7 @@ async function main() {
       const script = `
         pkill -f "node.*server\\.js" || true
         killall bagidea-office-shell || true
-        pkill -f "Godot" || true
+        pkill -f "BagIdeaOffice" || true
       `;
       spawn("sh", ["-c", script], { stdio: "ignore" }).on("close", res);
     }
@@ -251,44 +244,68 @@ async function main() {
       ok("Voice-typing panel reset (Windows reopens it on its own)"));
     return;
   }
-if (cmd === "update") {
-  if (process.platform === "darwin") return info(`On macOS, run ${c.accent}git checkout -- .claude/settings.json workspace/.claude/settings.json && git pull && ./build-mac.sh${c.reset} to update (the checkout drops the per-machine hook paths so the pull is clean; build-mac.sh re-wires them).`);
-  if (process.platform !== "win32") {
-    // Linux: a helper script does git pull + rebuild-if-changed + restart.
-    const sh = path.join(ROOT, "installer", "update-linux.sh");
-    if (fs.existsSync(sh)) {
+  if (cmd === "update") {
+    if (process.platform === "darwin") {
+      const sh = path.join(ROOT, "installer", "update-mac.sh");
+      if (!fs.existsSync(sh)) return bad("installer/update-mac.sh not found");
       info("Updating… (the app will restart itself)");
       spawn("bash", [sh], { cwd: ROOT, detached: true, stdio: "inherit" });
       return;
     }
-    return info(`Run ${c.accent}git pull${c.reset}, then ${c.accent}cargo build --release${c.reset} in ${c.accent}shell/${c.reset} if it changed, then ${c.accent}bagidea restart${c.reset}.`);
-  }
-  const ps = path.join(ROOT, "installer", "update.ps1");
-  if (!fs.existsSync(ps)) return bad("installer/update.ps1 not found");
-  info("Updating… (the app will restart itself)");
-  spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps],
-    { cwd: ROOT, detached: true, stdio: "inherit" });
-  return;
-}
-
-if (cmd === "uninstall") {
-  if (process.platform === "darwin") return info("On macOS, simply delete the folder and remove the PATH entry from your .zshrc");
-  if (process.platform !== "win32") {
-    // Linux: remove the autostart entry, then guide the rest (safe — no auto-delete).
-    const desk = path.join(require("os").homedir(), ".config", "autostart", "bagidea-office.desktop");
-    try { if (fs.existsSync(desk)) fs.unlinkSync(desk); } catch {}
-    info(`Removed autostart. To finish: ${c.accent}bagidea stop${c.reset}, delete this folder (${ROOT}), and remove the PATH/symlink to ${c.accent}cli/bagidea${c.reset} from your shell profile (~/.bashrc or ~/.profile).`);
+    if (process.platform !== "win32") {
+      // Linux: a helper script does git pull + rebuild-if-changed + restart.
+      const sh = path.join(ROOT, "installer", "update-linux.sh");
+      if (fs.existsSync(sh)) {
+        info("Updating… (the app will restart itself)");
+        spawn("bash", [sh], { cwd: ROOT, detached: true, stdio: "inherit" });
+        return;
+      }
+      return info(`Run ${c.accent}git pull${c.reset}, then ${c.accent}cargo build --release${c.reset} in ${c.accent}shell/${c.reset} if it changed, then ${c.accent}bagidea restart${c.reset}.`);
+    }
+    const ps = path.join(ROOT, "installer", "update.ps1");
+    if (!fs.existsSync(ps)) return bad("installer/update.ps1 not found");
+    info("Updating… (the app will restart itself)");
+    spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps],
+      { cwd: ROOT, detached: true, stdio: "inherit" });
     return;
   }
-  const ps = path.join(ROOT, "installer", "uninstall.ps1");
-  if (!fs.existsSync(ps)) return bad("installer/uninstall.ps1 not found");
-  const keepData = rest.includes("--keep-data");
-  const psArgs = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps];
+
+  if (cmd === "uninstall") {
+    if (process.platform === "darwin") {
+      const sh = path.join(ROOT, "installer", "uninstall-mac.sh");
+      if (!fs.existsSync(sh)) return bad("installer/uninstall-mac.sh not found");
+      const keepData = rest.includes("--keep-data");
+      const shArgs = [sh];
+      if (keepData) shArgs.push("--keep-data");
+      const go = () => {
+        info("Uninstalling… a new Terminal window finishes up.");
+        const escapedArgs = shArgs.map(a => a.replace(/'/g, "'\\''"));
+        spawn("osascript", ["-e",
+          `tell application "Terminal" to do script "bash '${escapedArgs.join("' '")}'"`,
+        ], { detached: true, stdio: "ignore" }).unref();
+        process.exit(0);
+      };
+      if (rest.includes("-y") || rest.includes("--yes")) return go();
+      warn(`This removes BagIdea Office — app files, PATH entry, LaunchAgent (autostart).`);
+      process.stdout.write("  Continue? (y/N) ");
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.once("line", (a) => { rl.close(); if (/^y/i.test(a.trim())) go(); else info("Cancelled."); });
+      return;
+    }
+    if (process.platform !== "win32") {
+      // Linux: remove the autostart entry, then guide the rest (safe — no auto-delete).
+      const desk = path.join(require("os").homedir(), ".config", "autostart", "bagidea-office.desktop");
+      try { if (fs.existsSync(desk)) fs.unlinkSync(desk); } catch {}
+      info(`Removed autostart. To finish: ${c.accent}bagidea stop${c.reset}, delete this folder (${ROOT}), and remove the PATH/symlink to ${c.accent}cli/bagidea${c.reset} from your shell profile (~/.bashrc or ~/.profile).`);
+      return;
+    }
+    const ps = path.join(ROOT, "installer", "uninstall.ps1");
+    if (!fs.existsSync(ps)) return bad("installer/uninstall.ps1 not found");
+    const keepData = rest.includes("--keep-data");
+    const psArgs = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps];
     if (keepData) psArgs.push("-KeepData");
     const go = () => {
       info("Uninstalling… a new window finishes up (this terminal can close).");
-      // Detached + cwd outside the app folder so the script can delete it once
-      // we exit. We pass through OUR exit; the .ps1 waits a beat then removes.
       spawn("powershell", psArgs,
         { cwd: require("os").homedir(), detached: true, stdio: "ignore", windowsHide: false }).unref();
       process.exit(0);

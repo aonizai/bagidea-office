@@ -82,3 +82,10 @@ daemon/proposals.json
 # daemon stdout/stderr log (runtime)
 daemon/daemon.log
 daemon/proxy.log
+
+# macOS build/runtime artifacts
+bin/
+.serena/
+godot/bagidea_editor_ready
+godot/bagidea_world_ready
+daemon/registry.json.bak*

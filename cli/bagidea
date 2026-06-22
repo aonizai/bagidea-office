@@ -82,8 +82,8 @@ function help() {
   row("status", "System overview · agents · projects");
   row("stats", "7-day activity + cost report");
   row("update", "Update to the latest version + restart");
-  row("startup [on|off]", "Launch the office automatically with Windows");
-  row("uninstall [--keep-data]", "Remove the app (PATH, shortcut, autostart, files)");
+  row("startup [on|off]", process.platform === "win32" ? "Launch the office automatically with Windows" : "Launch the office automatically at login");
+  row("uninstall [--keep-data]", process.platform === "win32" ? "Remove the app (PATH, shortcut, autostart, files)" : "Remove the app (PATH, login item, files)");
 
   head("Talk to the office");
   row('ask "<msg>"', "Order as the CEO and wait for the answer");
@@ -93,6 +93,7 @@ function help() {
 
   head("Team & work");
   row("agents", "Roster — roles · voices · tools");
+  row("brains", "Per-agent model + provider connect status");
   row("projects", "Projects + who is working on them");
   row('open "<project>"', "Open a project window");
   row("editor", "Open the 3D Office Editor");
@@ -123,10 +124,18 @@ function help() {
   console.log("");
 }
 
-const { findShellExe: _findShell } = require("./find-shell");
-
 function findShellExe() {
-  return _findShell(ROOT);
+  const isWin = process.platform === "win32";
+  const name = isWin ? "bagidea-office-shell.exe" : "bagidea-office-shell";
+  // Try release first, then debug if release isn't there
+  const paths = [
+    path.join(ROOT, "shell", "target", "release", name),
+    path.join(ROOT, "shell", "target", "debug", name)
+  ];
+  for (const p of paths) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
 }
 
 const NOT_RUNNING = () => bad(`The office isn't running — run ${c.accent}bagidea start${c.reset} first`);
@@ -159,36 +168,49 @@ async function main() {
   }
 
   if (cmd === "startup") {
-    // Launch-with-Windows toggle (same HKCU Run key the tray uses).
+    // Autostart toggle (HKCU Run key on Windows, LaunchAgent on macOS).
     if (!(await daemonUp())) return NOT_RUNNING();
     const arg = (rest[0] || "").toLowerCase();
     if (!arg) {
       const s = await req("GET", "/startup");
-      return info(`Start with Windows is ${s && s.on ? c.ok + "ON" : c.gray + "OFF"}${c.reset}` +
+      const label = process.platform === "win32" ? "Start with Windows" : "Start at login";
+      return info(`${label} is ${s && s.on ? c.ok + "ON" : c.gray + "OFF"}${c.reset}` +
         ` ${c.gray}— bagidea startup on|off${c.reset}`);
     }
     if (!["on", "off"].includes(arg)) return bad("usage: bagidea startup on|off");
     const r = await req("POST", "/startup", { on: arg === "on" });
-    return r && r.on ? ok("The office will launch with Windows")
+    return r && r.on ? ok(process.platform === "win32" ? "The office will launch with Windows" : "The office will launch at login")
       : ok("Auto-start disabled");
   }
 
   // --- process control shared by start / stop / restart -----------------------
-  const KILL_PS = "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'node.exe' -and $_.CommandLine -match 'server\\.js') -or $_.Name -eq 'bagidea-office-shell.exe' -or $_.Name -like 'Godot*' -or $_.Name -eq 'BagIdeaOffice.exe' } | ForEach-Object { taskkill /PID $_.ProcessId /T /F } | Out-Null";
-  const killAll = () => new Promise((res) =>
-    spawn("powershell", ["-NoProfile", "-Command", KILL_PS], { stdio: "ignore" }).on("close", res));
+  const killAll = () => new Promise((res) => {
+    if (process.platform === "win32") {
+      const KILL_PS = "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'node.exe' -and $_.CommandLine -match 'server\\.js') -or $_.Name -eq 'bagidea-office-shell.exe' -or $_.Name -like 'Godot*' -or $_.Name -eq 'BagIdeaOffice.exe' } | ForEach-Object { taskkill /PID $_.ProcessId /T /F } | Out-Null";
+      spawn("powershell", ["-NoProfile", "-Command", KILL_PS], { stdio: "ignore" }).on("close", res);
+    } else {
+      // macOS/Linux: pkill for name patterns, killall for exact names
+      // We don't want to kill ALL 'node' processes, just the ones with 'server.js'
+      const script = `
+        pkill -f "node.*server\\.js" || true
+        killall bagidea-office-shell || true
+        pkill -f "BagIdeaOffice" || true
+      `;
+      spawn("sh", ["-c", script], { stdio: "ignore" }).on("close", res);
+    }
+  });
   const startOffice = async (verb) => {
     const exe = findShellExe();
     if (!exe) { bad(`shell exe not found — run ${c.accent}cargo build --release${c.reset} in shell/`); return false; }
     spawn(exe, [], { cwd: path.dirname(exe), detached: true, stdio: "ignore" }).unref();
     process.stdout.write(`  ${c.gray}${verb}${c.reset}`);
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       await new Promise((r) => setTimeout(r, 1000));
       process.stdout.write(`${c.gray}.${c.reset}`);
       if (await daemonUp()) { console.log(""); return true; }
     }
     console.log("");
-    warn("Started, but the daemon isn't answering yet — check the screen");
+    warn("Still booting — if the office isn't on screen yet, give it a moment");
     return false;
   };
 
@@ -204,10 +226,14 @@ async function main() {
   }
 
   if (cmd === "restart") {
-    const wasUp = await daemonUp();
-    if (wasUp) { info("Stopping the office…"); await killAll(); }
+    // ALWAYS kill — never gate on /health. A half-dead daemon (process alive
+    // but not answering, or a stale shell holding the single-instance lock)
+    // reports "down", and gating the kill on that left the old shell running
+    // so the fresh one bailed on the single-instance check → nothing restarted.
+    info("Stopping the office…");
+    await killAll();
     // let Windows release the processes + port 8787 before relaunching
-    await new Promise((r) => setTimeout(r, wasUp ? 2500 : 600));
+    await new Promise((r) => setTimeout(r, 2500));
     if (await startOffice("restarting the office")) ok("The office is back 🏢");
     return;
   }
@@ -219,14 +245,22 @@ async function main() {
   }
 
   if (cmd === "fixmic") {
+    if (process.platform !== "win32") return info("Voice-typing reset is only applicable on Windows");
     spawn("powershell", ["-NoProfile", "-Command",
       "Get-Process TextInputHost -ErrorAction SilentlyContinue | Stop-Process -Force"],
       { stdio: "ignore" }).on("close", () =>
       ok("Voice-typing panel reset (Windows reopens it on its own)"));
     return;
   }
-
   if (cmd === "update") {
+    if (process.platform === "darwin") {
+      const sh = path.join(ROOT, "installer", "update-mac.sh");
+      if (!fs.existsSync(sh)) return bad("installer/update-mac.sh not found");
+      info("Updating… (the app will restart itself)");
+      spawn("bash", [sh], { cwd: ROOT, detached: true, stdio: "inherit" });
+      return;
+    }
+    if (process.platform !== "win32") return info(`Run ${c.accent}git pull${c.reset} and then ${c.accent}./build-mac.sh${c.reset} to update.`);
     const ps = path.join(ROOT, "installer", "update.ps1");
     if (!fs.existsSync(ps)) return bad("installer/update.ps1 not found");
     info("Updating… (the app will restart itself)");
@@ -236,6 +270,28 @@ async function main() {
   }
 
   if (cmd === "uninstall") {
+    if (process.platform === "darwin") {
+      const sh = path.join(ROOT, "installer", "uninstall-mac.sh");
+      if (!fs.existsSync(sh)) return bad("installer/uninstall-mac.sh not found");
+      const keepData = rest.includes("--keep-data");
+      const shArgs = [sh];
+      if (keepData) shArgs.push("--keep-data");
+      const go = () => {
+        info("Uninstalling… a new Terminal window finishes up.");
+        const escapedArgs = shArgs.map(a => a.replace(/'/g, "'\\''"));
+        spawn("osascript", ["-e",
+          `tell application "Terminal" to do script "bash '${escapedArgs.join("' '")}'"`,
+        ], { detached: true, stdio: "ignore" }).unref();
+        process.exit(0);
+      };
+      if (rest.includes("-y") || rest.includes("--yes")) return go();
+      warn(`This removes BagIdea Office — app files, PATH entry, LaunchAgent (autostart).`);
+      process.stdout.write("  Continue? (y/N) ");
+      const rl = require("readline").createInterface({ input: process.stdin });
+      rl.once("line", (a) => { rl.close(); if (/^y/i.test(a.trim())) go(); else info("Cancelled."); });
+      return;
+    }
+    if (process.platform !== "win32") return info("Run the uninstall script manually.");
     const ps = path.join(ROOT, "installer", "uninstall.ps1");
     if (!fs.existsSync(ps)) return bad("installer/uninstall.ps1 not found");
     const keepData = rest.includes("--keep-data");
@@ -243,8 +299,6 @@ async function main() {
     if (keepData) psArgs.push("-KeepData");
     const go = () => {
       info("Uninstalling… a new window finishes up (this terminal can close).");
-      // Detached + cwd outside the app folder so the script can delete it once
-      // we exit. We pass through OUR exit; the .ps1 waits a beat then removes.
       spawn("powershell", psArgs,
         { cwd: require("os").homedir(), detached: true, stdio: "ignore", windowsHide: false }).unref();
       process.exit(0);
@@ -293,6 +347,10 @@ async function main() {
     const today = s.days[s.days.length - 1];
     banner();
     console.log(`\n  ${c.bold}Today${c.reset}  ${c.bold}${today.runs}${c.reset} jobs   ${c.ok}✓ ${today.done}${c.reset}  ${c.err}✗ ${today.failed}${c.reset}   ${c.warn}$${(today.cost || 0).toFixed(2)}${c.reset}   ${c.gray}uptime ${Math.floor(s.uptimeSec / 3600)}h ${Math.floor((s.uptimeSec % 3600) / 60)}m${c.reset}`);
+    {
+      const g = (today.aux && today.aux.gemini) || 0, o = (today.aux && today.aux.openai) || 0, cl = today.cost || 0;
+      console.log(`  ${c.gray}spend  Claude $${cl.toFixed(2)} · Gemini ≈$${g.toFixed(3)} · OpenAI ≈$${o.toFixed(3)} · total ≈$${(cl + g + o).toFixed(2)}  (Gemini/OpenAI are estimates)${c.reset}`);
+    }
     head("Last 7 days");
     const maxR = Math.max(1, ...s.days.map((d) => d.runs));
     for (const d of s.days) {
@@ -334,6 +392,25 @@ async function main() {
       console.log(`  ${c.bold}${a.name}${c.reset} ${c.gray}${id}${c.reset}  ${a.role} ${c.gray}· tier ${a.tier || 3}${a.voice ? ` · 🗣 ${a.voice}` : ""}${c.reset}`);
       console.log(`  ${c.gray}🎯 ${(a.skills || []).length} skills · 🔧 ${(a.tools || []).join(", ") || "read-only"}${c.reset}\n`);
     }
+    return;
+  }
+
+  if (cmd === "brains") {
+    const b = await req("GET", "/brains");
+    const fmtK = (n) => (n >= 1000 ? Math.round(n / 1000) + "k" : String(n || 0));
+    head("Providers");
+    for (const p of b.providers || []) {
+      const dot = p.connected ? `${c.ok}●${c.reset}` : `${c.gray}○${c.reset}`;
+      const star = p.id === b.defaultProvider ? ` ${c.warn}★${c.reset}` : "";
+      console.log(`  ${dot} ${c.bold}${p.label}${c.reset}${star} ${c.gray}· ${(p.agents || []).length} agent${c.reset}`);
+    }
+    head("Agents · brains");
+    for (const a of b.agents || []) {
+      const u = a.usage;
+      const ctx = u ? `  ${c.gray}📊 ${fmtK(u.in)}/${fmtK(u.win)} (${u.pct}%)${c.reset}` : "";
+      console.log(`  ${c.bold}${a.name}${c.reset} ${c.gray}${a.role || ""}${c.reset}  🧠 ${a.tag}${ctx}`);
+    }
+    console.log("");
     return;
   }
 
@@ -410,9 +487,14 @@ async function main() {
     if (r.status !== 200) return bad(r.buf.toString("utf8"));
     const wav = path.join(require("os").tmpdir(), "bagidea_say.wav");
     fs.writeFileSync(wav, r.buf);
-    spawn("powershell", ["-NoProfile", "-Command",
-      `(New-Object Media.SoundPlayer '${wav}').PlaySync()`], { stdio: "ignore" })
-      .on("close", () => ok("Done speaking"));
+    if (process.platform === "win32") {
+      spawn("powershell", ["-NoProfile", "-Command",
+        `(New-Object Media.SoundPlayer '${wav}').PlaySync()`], { stdio: "ignore" })
+        .on("close", () => ok("Done speaking"));
+    } else {
+      spawn("afplay", [wav], { stdio: "ignore" })
+        .on("close", () => ok("Done speaking"));
+    }
     return;
   }
 
