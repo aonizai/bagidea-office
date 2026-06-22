@@ -1,0 +1,5 @@
+# Map contributor commits made with a misconfigured local git identity back to
+# the real person, so `git shortlog -sne` / `git log --use-mailmap` credit them.
+# (GitHub's Contributors graph uses the commit email directly, so credit there is
+#  carried by Co-authored-by trailers on merged work — see CONTRIBUTORS.md.)
+spondanai <32901242+spondanai@users.noreply.github.com> <mr.poring@example.com>
