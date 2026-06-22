@@ -19,7 +19,8 @@
 **Install in one line** — `npx bagidea` (or [from source](#install)). Windows · macOS/Linux (beta).
 
 <p align="center">
-  <img src="https://bagidea.github.io/bagidea-office/img/hero.gif" width="760" alt="BagIdea Office — a living HD-2D AI-agent office running as your desktop wallpaper, agents at their desks behind your icons">
+  <a href="https://bagidea.github.io/bagidea-office/" title="Watch it live"><img src="https://bagidea.github.io/bagidea-office/img/hero-still.png" width="820" alt="BagIdea Office — a living HD-2D AI-agent office running as your desktop wallpaper, agents at their desks behind your icons"></a>
+  <br><sub><b><a href="https://bagidea.github.io/bagidea-office/">▶ Watch it live — smooth autoplay demo on the site</a></b></sub>
 </p>
 
 Not a dashboard. Not a chat window. A **world** that renders the true state of
