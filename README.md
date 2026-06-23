@@ -72,8 +72,8 @@ BagIdea Office is updated **constantly** — every office gets a 🔄 banner and
 | 💬 Talk to the office (CEO seat) | 🎨 Rearrange it in the 3D Editor |
 |---|---|
 | ![Chat panel focused on the CEO](docs/img/overlay.png) | ![The 3D Office Editor](docs/img/editor.png) |
-| 👥 Agents at their desks, auras lit | ⌨️ The `bagidea` CLI |
-| ![Agents working at their desks](docs/img/agents.png) | ![The bagidea CLI help](docs/img/cli.png) |
+| 👥 The team mid-huddle, auras lit | ⌨️ The `bagidea` CLI |
+| ![The agents gathered together, their status auras glowing, on the office floor at night](docs/img/agents.png) | ![The bagidea CLI help](docs/img/cli.png) |
 | 🔌 Plugins — agents build & run their own | 📰 A live briefing panel (a plugin in action) |
 | ![The PLUGINS panel listing installed plugins, with install-from-GitHub](docs/img/plugins.png) | ![A morning briefing rendered inside a plugin panel](docs/img/briefing.png) |
 
