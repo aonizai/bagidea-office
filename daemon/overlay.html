@@ -39,6 +39,7 @@
        nudges it off-centre. Reset so the glyph sits dead-centre in the circle. */
     line-height: 1; letter-spacing: normal; font-weight: 400; text-align: center;
   }
+  .winbtn svg { width: 15px; height: 15px; display: block; }
   .winbtn:hover { background: rgba(94,200,255,0.25); border-color: var(--accent); }
   .winbtn.hide:hover { background: rgba(255,84,72,0.3); border-color: #ff5448; }
   /* "stop the agent to take over" pill — wider, labelled; arms on first click. */
@@ -843,7 +844,9 @@
     header { padding: 6px 10px; font-size: 11px; }
     header .sub { display: none; }
     #opsBtn, #setBtn { display: none; }  /* still reachable via ⋯ + window */
-    #miniBtn { margin-left: auto; }
+    /* ops/set carry the margin-left:auto in full mode; they're hidden here, so move the
+       push to the first remaining control → the whole button cluster pins right. */
+    #moreBtn { margin-left: auto; }
     #threadBar { display: none; }
     #log { padding: 10px; }
     footer { padding: 8px 10px; }
@@ -858,7 +861,7 @@
   <button id="setBtn" title="Office settings — agents, roles" style="margin-left:6px">⚙</button>
   <button id="moreBtn" title="เพิ่มเติม" style="margin-left:6px">⋯</button>
   <button id="sideBtn" title="Security Center & Mission Control" style="margin-left:6px">🛡<span id="permBadge"></span></button>
-  <div class="winbtn" id="miniBtn" title="Mini window" style="margin-left:6px">◱</div>
+  <div class="winbtn" id="miniBtn" title="Mini window" style="margin-left:6px"></div>
   <div class="winbtn hide" id="hideBtn" title="Hide (chat head brings it back)">—</div>
 </header>
 <!-- ⋯ overflow menu: secondary tools, so the header never overflows -->
@@ -5472,14 +5475,15 @@
     const miniBtn = document.getElementById("miniBtn");
     miniBtn.onclick = () => shellPost("mini");
     document.getElementById("hideBtn").onclick = () => shellPost("hide");
-    // ◱ toggles mini ↔ full in the shell, but users got stuck because the button
-    // never changed — they couldn't find how to restore. Reflect the state: show a
-    // clear ⛶ "Restore" while shrunk. Use the SAME media query the mini-mode CSS
-    // uses (NOT window.innerHeight — that can read 0 before first paint on a window
-    // that's born full and never fires a resize, leaving the button stuck on ⛶).
+    // The ◱/⛶ glyphs DON'T render on Windows 10 (no font coverage) — the restore
+    // button showed up EMPTY there, so people couldn't find their way back from mini.
+    // Use inline SVG icons (identical everywhere). State via the same media query the
+    // mini-mode CSS uses: ICON_MINI when full (action: shrink), ICON_RESTORE when mini.
+    const ICON_MINI = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="1.6"/><rect x="2.5" y="9" width="6" height="4.5" rx="1" fill="currentColor" stroke="none"/></svg>';
+    const ICON_RESTORE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.3H3.3V6M10 3.3h2.7V6M6 12.7H3.3V10M10 12.7h2.7V10"/></svg>';
     const syncMiniBtn = () => {
       const small = _miniMQ.matches;   // mini window is ≤480px wide / ≤460px tall
-      miniBtn.textContent = small ? "⛶" : "◱";
+      miniBtn.innerHTML = small ? ICON_RESTORE : ICON_MINI;
       miniBtn.title = small ? "Restore window size" : "Mini window";
     };
     syncMiniBtn();
