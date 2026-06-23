@@ -318,6 +318,7 @@ async function maybeLearnSkill(agent, task, prompt, acts, finalText, projId) {
   const existing = Object.values(reg.skills).map((s) => s.name).join(", ") || "(none)";
   // ONE reflection call distills both: a reusable skill AND durable memory
   // facts (Hermes-style growth without doubling the token bill).
+  const agentEntry = reg.agents && reg.agents[agent];
   const out = await claudeText(
     `An AI office agent "${agent}" just completed a task.\n` +
     `Task prompt: ${String(prompt).slice(0, 600)}\n` +
@@ -333,7 +334,8 @@ async function maybeLearnSkill(agent, task, prompt, acts, finalText, projId) {
       `worth remembering (Thai)", ...max 2] | null}\n` : ` "projectMemory": null}\n`) +
     `skill = null unless this contains a REUSABLE, GENERALIZABLE procedure ` +
     `not covered by an existing skill. memory/projectMemory = null unless ` +
-    `genuinely worth remembering forever. Be strict; most tasks yield nulls.`);
+    `genuinely worth remembering forever. Be strict; most tasks yield nulls.`,
+    { provider: agentEntry && agentEntry.provider, model: agentEntry && agentEntry.model });
   const m = out.match(/\{[\s\S]*\}/);
   if (!m) return;
   try {
@@ -1811,16 +1813,17 @@ model "${mtag}". If the owner asks which AI/model/LLM you are, answer truthfully
 
 // Summarize a thread's visible history with Claude (the always-present engine, big
 // context) so continuity survives a compaction/recovery. Returns "" on any failure.
-async function summarizeThread(oldEntry) {
+async function summarizeThread(oldEntry, agent) {
   try {
     const hist = (oldEntry.log || []).slice(-40)
       .map((l) => `${l.who}: ${String(l.text || "")}`).join("\n").slice(0, 12000);
     if (!hist.trim()) return "";
+    const a = reg.agents && reg.agents[agent];
     return await claudeText(
       `สรุปบทสนทนาในออฟฟิศนี้ให้เพื่อนร่วมงานอ่านแล้วทำงานต่อได้ทันที: ข้อเท็จจริงสำคัญ ` +
       `การตัดสินใจ งานที่ค้างอยู่ และสิ่งที่ต้องทำต่อ. ตอบเป็นภาษาเดียวกับบทสนทนา ` +
       `กระชับ ≤200 คำ ไม่ต้องเกริ่นนำ.\n\n${hist}`,
-      { provider: "claude" });
+      { provider: a && a.provider, model: a && a.model });
   } catch { return ""; }
 }
 
@@ -1837,7 +1840,7 @@ function brainLabel(agent) {
 async function restartOnFreshThread(agent, prompt, opts, oldEntry, notice, flag) {
   console.error(`[brain] ${flag} ${agent}: summarizing + restarting on a fresh thread`);
   try {
-    const brief = await summarizeThread(oldEntry);
+    const brief = await summarizeThread(oldEntry, agent);
     const retryPrompt = brief
       ? `<previously-in-this-thread>\n${brief}\n</previously-in-this-thread>\n\n${prompt}`
       : prompt;
@@ -3041,7 +3044,7 @@ async function runDiscussion(ids, topic, rounds, social) {
             `กติกาความปลอดภัยข้อเดียว: ถ้าจะต่อยอดกับตัวโปรแกรม BagIdea Office เองให้เสนอเป็น ` +
             `"plugin" เท่านั้น (ดู docs/guide/plugins.md — plugin เข้าถึงโปรแกรมได้ลึก: panel, route, command, ` +
             `broadcast, ฯลฯ ทำเป็น solution จริงให้เจ้าของได้) — ห้ามแก้ระบบหลัก (daemon/godot/shell) ตรง ๆ เพราะจะทำให้โปรแกรมพัง.` : ""),
-          { tools: social ? "" : "WebSearch,WebFetch,Read,Glob,Grep", env: { OFFICE_AGENT: id, OFFICE_TASK: task } });
+          { tools: social ? "" : "WebSearch,WebFetch,Read,Glob,Grep", provider: a && a.provider, model: a && a.model, env: { OFFICE_AGENT: id, OFFICE_TASK: task } });
         let line = text.split("\n").filter(Boolean).join(" ").slice(0, 500);
         // PROPOSAL: a project pitch for the owner to approve — protocol, not prose.
         const pm = text.match(/PROPOSAL:\s*([^:]+?)\s*::\s*(.+)/);
@@ -4648,6 +4651,8 @@ const server = http.createServer((req, res) => {
           .map(([id, d]) => `  ${id}: ${d}`).join("\n");
         const skillIds = Object.keys(reg.skills);
         const toolIds = Object.keys(BUILTIN_TOOLS);
+        // Use the first available agent's provider for persona generation
+        const firstAgent = Object.values(reg.agents || {}).find((a) => a.provider && a.provider !== "claude");
         const draft = await claudeText(
           `Design a complete persona for an AI agent in a software office, and ` +
           `pick the skills + tools that fit its job.\n` +
@@ -4665,7 +4670,8 @@ const server = http.createServer((req, res) => {
           `"tools":["ToolName", ...]}\n` +
           `Every field must genuinely reflect the brief. skills/tools MUST be chosen ` +
           `ONLY from the lists above (exact ids/names). Match the brief's language ` +
-          `(Thai brief → Thai text fields; skill ids and tool names stay verbatim).`);
+          `(Thai brief → Thai text fields; skill ids and tool names stay verbatim).`,
+          { provider: firstAgent && firstAgent.provider, model: firstAgent && firstAgent.model });
         let out = { prompt: draft };
         const m = draft.match(/\{[\s\S]*\}/);
         if (m) try { out = JSON.parse(m[0]); } catch {}
