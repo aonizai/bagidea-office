@@ -857,10 +857,13 @@
     .seat .face { width: 30px; height: 30px; }
     header { padding: 6px 10px; font-size: 11px; }
     header .sub { display: none; }
-    /* Hide the "BAGIDEA OFFICE" wordmark in the narrow mini window — the logo icon is
-       enough — so the control cluster always fits and never clips the restore button
-       (reported on a Win10 mini window where it was half cut off). */
-    header .titletxt { display: none; }
+    /* Keep the "BAGIDEA OFFICE" wordmark in the mini window (hiding it looked empty),
+       but let it SHRINK and ellipsis-truncate instead of pushing the controls off:
+       min-width:0 + nowrap + overflow lets flexbox shrink the title first, so the
+       restore/hide buttons can never be clipped even on a very narrow mini window. */
+    header .titletxt {
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
     #opsBtn, #setBtn { display: none; }  /* still reachable via ⋯ + window */
     /* #opsBtn carries the margin-left:auto that pins the cluster right in full mode, but
        it's hidden here → move the push to the first remaining control (#moreBtn). It has
