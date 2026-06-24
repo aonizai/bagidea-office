@@ -1,7 +1,16 @@
 {
   "_comment": "BagIdea Office — community plugin catalog (source of truth for the Plugins Hub). To add a plugin: publish it as a public GitHub repo with a plugin.json, then open a PR adding an entry below. The owner reviews every PR (plugins run real code on a user's machine). 'id' MUST match the plugin's manifest id so the office can tell what's installed. See docs/guide/plugin-hub.md.",
-  "updated": "2026-06-22",
+  "updated": "2026-06-24",
   "plugins": [
+    {
+      "id": "agent-workbench",
+      "name": "🧪 Agent Workbench",
+      "author": "misternay",
+      "repo": "https://github.com/misternay/bagidea-office-agent-workbench-plugin",
+      "tags": ["tools", "automation"],
+      "th": { "desc": "ทดสอบและ benchmark AI agents — รัน prompt, จับ response, วัด token usage, เก็บ test case ไว้เช็ค regression · agents จับคู่ provider/model/agent ได้แม่น" },
+      "en": { "desc": "Test and benchmark AI agents — run prompts, capture responses, measure token usage, save test cases for regression checks. Accurately tracks provider/model/agent combinations." }
+    },
     {
       "id": "music",
       "name": "🎵 Music Player",
