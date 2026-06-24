@@ -18,6 +18,11 @@
   .tgrp > .gh h2 { margin:0; font-size:22px; }
   .tgrp > .gh .ghsub { color:var(--dim); font-size:14px; }
   .pgrid { display:flex; flex-wrap:wrap; gap:16px; margin-top:18px; }
+  .psearch { display:block; width:100%; max-width:440px; margin:0 auto 6px; padding:11px 16px;
+    background:rgba(255,255,255,.04); border:1px solid var(--line,rgba(255,255,255,.12));
+    border-radius:12px; color:var(--text); font-size:15px; outline:none; }
+  .psearch:focus { border-color:var(--accent); }
+  .psearch::placeholder { color:var(--dim); }
   .pcard { flex:1 1 300px; max-width:calc(33.33% - 11px); background:var(--card,rgba(255,255,255,.03));
     border:1px solid var(--line,rgba(255,255,255,.1)); border-radius:16px; padding:18px 20px; display:flex; flex-direction:column; }
   @media(max-width:900px){ .pcard { max-width:calc(50% - 8px); } }
@@ -69,6 +74,8 @@
 
 <section>
   <div class="wrap phwrap">
+    <input type="search" class="psearch" id="tsearch" autocomplete="off"
+      data-i18n-attr="placeholder:t_search" placeholder="Search tools…" aria-label="Search tools">
     <div class="tgrp">
       <div class="gh"><h2 data-i18n="t_builtin_h">🛠 Built-in tools</h2><span class="ghsub" data-i18n="t_builtin_sub">Native to every agent — tick them on in the agent editor, no setup.</span></div>
       <div class="pgrid" id="grid-builtin"><p class="muted" data-i18n="t_loading">Loading…</p></div>
@@ -77,6 +84,7 @@
       <div class="gh"><h2 data-i18n="t_mcp_h">🔌 Add-on capabilities</h2><span class="ghsub" data-i18n="t_mcp_sub">Wire in an MCP server (⚙ → MCP SERVERS), then assign it per agent. Copy a launch command to start.</span></div>
       <div class="pgrid" id="grid-mcp"></div>
     </div>
+    <p class="muted" id="tnomatch" data-i18n="t_nomatch" hidden style="text-align:center;font-size:14px">No tools match your search.</p>
   </div>
 </section>
 
@@ -132,6 +140,7 @@
           source:"คู่มือ ↗", official:"ทางการ · มาในตัว", builtin:"มาในตัว", empty:"ยังไม่มีเครื่องมือในรายการ" },
   };
   let CATALOG = [];
+  let QUERY = "";
   const lang = () => (document.documentElement.lang === "th" ? "th" : "en");
   const esc = (s) => String(s || "").replace(/[<>&"]/g, (c) => ({ "<":"&lt;", ">":"&gt;", "&":"&amp;", '"':"&quot;" }[c]));
 
@@ -155,9 +164,21 @@
   function render() {
     const L = lang(), u = TT[L] || TT.en;
     const gB = document.getElementById("grid-builtin"), gM = document.getElementById("grid-mcp");
-    if (!CATALOG.length) { gB.innerHTML = `<p class="muted">${u.empty}</p>`; gM.innerHTML = ""; return; }
-    gB.innerHTML = CATALOG.filter((t) => t.kind === "builtin").map((t) => card(t, u, L)).join("");
-    gM.innerHTML = CATALOG.filter((t) => t.kind === "mcp").map((t) => card(t, u, L)).join("");
+    const nm = document.getElementById("tnomatch");
+    if (!CATALOG.length) { gB.innerHTML = `<p class="muted">${u.empty}</p>`; gM.innerHTML = ""; if (nm) nm.hidden = true; return; }
+    // Filter by name / description (any language) / tags / command / kind.
+    const q = QUERY.trim().toLowerCase();
+    const list = !q ? CATALOG : CATALOG.filter((t) => {
+      const desc = [(t.en && t.en.desc), (t.th && t.th.desc), (t[L] && t[L].desc)].filter(Boolean).join(" ");
+      return [t.name, desc, (t.tags || []).join(" "), t.cmd || "", t.kind].join(" ").toLowerCase().includes(q);
+    });
+    const bs = list.filter((t) => t.kind === "builtin"), ms = list.filter((t) => t.kind === "mcp");
+    gB.innerHTML = bs.map((t) => card(t, u, L)).join("");
+    gM.innerHTML = ms.map((t) => card(t, u, L)).join("");
+    // Hide a whole group when a query empties it; show the no-match line if nothing matched.
+    gB.closest(".tgrp").hidden = !!q && bs.length === 0;
+    gM.closest(".tgrp").hidden = !!q && ms.length === 0;
+    if (nm) nm.hidden = list.length > 0;
   }
   function copyCmd(btn, cmd) {
     const u = TT[lang()] || TT.en;
@@ -172,6 +193,9 @@
     CATALOG = (d.tools || []).filter((t) => t && t.id && t.kind);
     render();
   }).catch(() => render());
+
+  const tsearch = document.getElementById("tsearch");
+  if (tsearch) tsearch.addEventListener("input", (e) => { QUERY = e.target.value; render(); });
 
   const topBtn = document.querySelector(".toplink");
   addEventListener("scroll", () => topBtn.classList.toggle("show", scrollY > 600));
