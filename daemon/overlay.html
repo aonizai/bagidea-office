@@ -1294,6 +1294,10 @@
   let target = "ceo";   // open on the CEO seat (you) — orders flow to the Director
 
   function ensureAgent(id, state) {
+    // Guard: never resurrect a deleted agent. ROSTER keys are the source of
+    // truth; before the first sync ROSTER is empty so we let everything through
+    // until the sync arrives and populates it.
+    if (Object.keys(ROSTER).length > 0 && !ROSTER[id]) return;
     if (!agents[id]) {
       agents[id] = { state: state || "idle" };
       renderRail();
@@ -5234,7 +5238,7 @@
       return;
     }
     if (ev.agent) ensureAgent(ev.agent);
-    if (ev.agents) ev.agents.forEach((a) => ensureAgent(a, "meeting"));
+    if (ev.agents) ev.agents.forEach((a) => { if (typeof a === "string") ensureAgent(a, "meeting"); });
 
     if (ev.type === "chat.message") {
       // The pane is per-conversation: bubble only for the current agent's
