@@ -120,3 +120,23 @@ for you to approve/reject. Multiple discussions can run at once (different teams
 **History:** every meeting is saved as a group session — open it in the 🧵 thread menu
 under **"🗣 Meetings"** (read-only), and it's also saved as a Markdown file in
 `workspace/meetings/` so other agents can grep it for reuse
+
+## 🔍 Verify delegated work before it reaches you (optional)
+
+By default, when the Director hands a task to a teammate, their result is reported straight
+back. Turn on **Verify** and the office adds a **quality gate**: before a delegate's result
+returns to the Director, a **strict reviewer pass** double-checks it.
+
+**How it works:**
+
+- The reviewer runs **as the same agent** (so it has the project's tools and working folder)
+  but on a **fresh thread** — it inspects the actual files/project with fresh eyes, not just
+  the agent's own summary, and judges whether the task is **genuinely and fully done**.
+- **APPROVED** → the result ships to the Director unchanged.
+- **ISSUES found** → the reviewer hands the work back to the assignee **once** (on their own
+  thread) to fix, then the revised result is reported. It's **bounded** — one fix-back loop,
+  never recurses, and if the review itself fails it ships the original result rather than block.
+
+**Turn it on:** **⚙ → AGENTS → "Verify work before it reaches the CEO"**. It's **off by
+default** because it costs an extra pass — slower and more tokens. Switch it on for work where
+correctness matters more than speed (see [Cost & vision](cost-and-vision.md) for the trade-off).
