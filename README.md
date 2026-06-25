@@ -128,7 +128,7 @@ breaks down **estimated spend per provider**.
 
 ---
 
-> ✅ **Status: working product — Windows 11 (stable) · macOS 13+ (beta) · Linux (experimental 🧪).** The full pipeline works end-to-end: wallpaper → daemon → real Claude Code sessions working *inside real project folders* → spatialized approvals → agent management UI → Telegram/Discord/LINE channels → CLI → self-updater. All visuals and sounds **ship in the repo** (free / CC0 art — see [Art assets](#art-assets)), so a fresh install and `bagidea update` carry the full look out of the box.
+> ✅ **Status: working product — Windows 11 (stable) · macOS 13+ (beta) · Linux (experimental 🧪).** The full pipeline works end-to-end: wallpaper → daemon → real Claude Code sessions working *inside real project folders* → spatialized approvals → agent management UI → Telegram / Discord / LINE / Slack / WhatsApp / Messenger channels → CLI → self-updater. All visuals and sounds **ship in the repo** (free / CC0 art — see [Art assets](#art-assets)), so a fresh install and `bagidea update` carry the full look out of the box.
 
 ---
 
@@ -223,7 +223,7 @@ Sponsorship is a **recurring monthly subscription handled entirely by GitHub Spo
 
 ### 🎤 Voice, channels, memory & media (2026-06)
 - **Voice in / out**: hold-to-record in the webview → **OpenAI Whisper / Gemini** transcription (no Windows dictation panel); **F6** speaks a command straight to the CEO; agents can be given **Gemini TTS voices** — **16 presets split clearly ♀ / ♂** (8 each), each its own emotion/style, per-agent, gimmick `SPEAK:` announcements; **📞 realtime voice chat** (the **main agent only**) bridges your mic to **Gemini Live** in the main agent's assigned voice (or a sensible default), with the office's own knowledge in context
-- **Channels**: connect **Telegram / Discord / LINE** — messages enter the CEO flow, the Director answers back on the same channel
+- **Channels**: connect **Telegram · Discord · LINE · Slack · WhatsApp · Messenger** — messages enter the CEO flow, the Director answers back on the same channel
 - **Hermes-style memory** (token-lean, relevance-retrieved): shared `workspace/OFFICE.md` (owner) + per-agent `workspace/memory/<id>.md` + per-project `workspace/projects/<id>/MEMORY.md`, distilled automatically after real work. A pure on-device keyword index (BM25, zero deps, works in Thai too) injects only the memories **relevant to the task at hand** — not a blind dump — with full recall on demand via `GET /recall` + the `archive-search` skill
 - **Main API keys + feature gates**: `OPENAI_API_KEY` / `GEMINI_API_KEY` are first-class — voice/TTS/image/realtime grey out with guidance until set; an extra-key vault feeds agents' own env
 - **Attachments & media**: paperclip / drag-drop upload; chat renders images, video, audio inline (**click any image to view it full-size**); every message is **timestamped**; agents produce images via the `/gen/image` **system tool** and they appear automatically
@@ -253,7 +253,7 @@ Sponsorship is a **recurring monthly subscription handled entirely by GitHub Spo
 - **Claude Code hooks integration**: any Claude Code session in this project reports its tool calls — your real work animates the Director automatically
 - **Permission broker**: tools you *granted* in an agent's profile run silently; anything else is held until you approve — with a **✓✓ forever** option that remembers the grant
 - **📁 Projects**: register real folders as projects (with PLACE shorthands like `"ห้องเรียน" → D:\Learning`); the Director creates new ones himself via a `PROJECT:` protocol line and routes work with `DELEGATE: <agent> @ <project> :: <job>` — the assignee's claude session lives **inside** that directory and is resumable by you. One window per project: ▶ opens (or surfaces) *the* window. **One occupant at a time** — while an agent works the project you can't open it (the row shows a **⏹ stop agent** button with a two-click confirm to take over), and while you have it open an agent won't be dispatched into it. Removing/deleting a project also closes its window; disk-deletes sweep leftover dev servers first
-- **📨 Channels**: Telegram (long-poll), Discord (native gateway client) and LINE (webhook) feed straight into the Director — order your office from your phone, the reply comes back on the same channel
+- **📨 Channels (6)**: Telegram (long-poll), Discord (native gateway), LINE, Slack (Events API), WhatsApp (Meta Cloud API) and Messenger (Meta Graph) feed straight into the Director — order your office from your phone, the reply comes back on the same channel
 - **🔑 API key vault**: store `OPENAI_API_KEY` & friends once; they're injected into every agent run's environment, and agents are told which names exist
 - **♻️ Self-healing daemon**: a watchdog respawns the daemon if it ever dies, and `bagidea restart` is more resilient — the office stays up on its own
 - **🔄 Self-updating (version-gated)**: a `VERSION` file marks releases. The daemon compares the local `VERSION` with the one on `main` and only raises the in-app banner on a real version bump — routine commits and dev-branch work never nag users. The banner (or `bagidea update`) pulls, rebuilds what changed, and relaunches. `bagidea version` shows the current build and whether an update is out (release flow: [`RELEASING.md`](RELEASING.md))
@@ -281,7 +281,7 @@ Served by the daemon at `http://127.0.0.1:8787/` — best experienced through th
 - **🗣 Discussions**: launch agent-to-agent meetings
 - **🗂 OFFICE OPS**: projects (create / register / open / stop-agent-to-take-over / hide / delete, with an in-house Blender-style folder picker), standing tasks, calendar, the shared note board, and the org chart by tier
 - **🔵 NOW WORKING strip**: one calm line under the header — "กำลังทำ N งาน · latest…" — expandable into the full live task list; visible in feed mode too
-- **🔗 CONNECT tab**: API key vault (masked) + Telegram/Discord/LINE channel setup with live status dots
+- **🔗 CONNECT tab**: API key vault (masked) + Telegram / Discord / LINE / Slack / WhatsApp / Messenger channel setup with live status dots
 - **📡 Feed mode**: right-click the chat head — the panel becomes a translucent right-edge activity stream (scrollback, hover-to-focus, 🧹 clear, actionable permission cards); the wallpaper stays clean for streaming/recording
 - **🎤 Push-to-talk**: hold **F6** anywhere in Windows, speak (Windows Voice Typing — Thai works), release; a pulsing live pill shows what was heard; feed mode auto-sends to the Director (the F6 global hotkey is Windows-only for now — on macOS/Linux use the in-overlay mic button)
 - **🌗 Atmosphere picker**, slide-over **🛡 Security/Mission/Office-Log sidebar** (edge handle pulses when an approval is waiting; pops open on arrival)
@@ -602,7 +602,7 @@ Full reference: [`docs/guide/cli.md`](docs/guide/cli.md).
 | `GET /fs?dir=` · `POST /fs/mkdir` | in-house folder picker |
 | `POST /places` `{name, folder \| remove}` | PLACE shorthands |
 | `POST /registry/key` `{name, value \| remove}` | API key vault (env injection) |
-| `POST /registry/channel` `{kind, config}` · `GET /channels/status` | Telegram/Discord/LINE |
+| `POST /registry/channel` `{kind, config}` · `GET /channels/status` | Telegram / Discord / LINE / Slack / WhatsApp / Messenger |
 | `POST /channels/line/webhook` | LINE Messaging API webhook target |
 | `POST /chat` with `wait: true` | hold the response until the run finishes (the CLI's `ask`) |
 | `POST /update` | run the updater (human-UI-only) |
@@ -640,7 +640,7 @@ One JSON event per WebSocket message / journal line: `{type, agent, task?, tool?
 | `roster.sync` / `roster.removed` | registry → world (spawn/update/despawn) |
 | `reminder` | the Director walks over and tells you in person 🔔 |
 | `ceo.report` | the Director walks the final summary to the boss 📨 |
-| `channel.message` | a message arrived from Telegram/Discord/LINE 📨 |
+| `channel.message` | a message arrived from Telegram / Discord / LINE / Slack / WhatsApp / Messenger 📨 |
 | `projects.changed` | project list/status flipped (live UI refresh) |
 | `update.available` | main's `VERSION` is newer than local — the 🔄 banner appears |
 | `ui.daylight` | atmosphere override |
@@ -707,7 +707,7 @@ this makes them employable"*).
 - [x] **Channels** — Telegram / Discord / LINE → the Director
 - [x] API key vault, `bagidea` CLI, one-shot installer + self-updater
 - [x] Voice engine v2 (Whisper/Gemini), agent TTS voices, **realtime voice** (Gemini Live)
-- [x] Channels (Telegram/Discord/LINE) → CEO flow
+- [x] Channels (Telegram / Discord / LINE / Slack / WhatsApp / Messenger) → CEO flow
 - [x] Hermes-style memory (OFFICE.md + per-agent), main keys + feature gates
 - [x] Attachments & inline media, AI image generation system tool
 - [x] Social office + project proposals, dashboard, CLI v2
