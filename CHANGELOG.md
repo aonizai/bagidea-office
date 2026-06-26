@@ -4,6 +4,27 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.9.31] — Cross-platform project folders + Linux lifecycle fixes
+
+**Added**
+- **Native folder picker on every platform.** The PROJECTS tab's 📂 browse button now opens
+  your OS's real folder chooser — `choose folder` on macOS, the Windows folder dialog, and
+  `zenity` on Linux (falling back to the built-in picker when `zenity` isn't installed). The
+  path separator and platform are now reported by the daemon instead of the deprecated
+  `navigator.platform`. Thanks to **[@misternay](https://github.com/misternay)** (#30, closes #29).
+
+**Fixed**
+- **macOS project terminals.** Opening a project on macOS now reliably tags its Terminal window
+  (previously a race when Terminal was busy) and no longer breaks on folder titles that contain
+  quotes or backslashes.
+- **Linux: no more orphaned daemon.** Closing the office on Linux could leave `daemon/server.js`
+  running and holding port 8787. The Linux launcher no longer starts the daemon separately — the
+  shell owns the whole stack (daemon + Godot) and shuts it down on quit, like the other launch
+  paths already did. Reported by **[@nookpp](https://github.com/nookpp)** (#28).
+- **Linux/X11: the stray blank grey window is gone.** The chat overlay hid itself by parking
+  off-screen — which X11 window managers clamp back onto the desktop as a blank fixed-size panel.
+  On Linux the overlay now hides for real. (#28)
+
 ## [0.9.30] — Media from anywhere, baseline skills for everyone, no more scroll jumps
 
 **Fixed**
