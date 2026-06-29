@@ -954,6 +954,18 @@
 
 <div id="threadBar">🧵 thread: <b id="threadName">ล่าสุด (ต่อเนื่องอัตโนมัติ)</b><span id="threadCtx" style="color:var(--dim);font-size:10.5px"></span></div>
 <div id="attachRow"></div>
+<!-- Speak bar for LIVE meetings only. Separate element + handler from send():
+     send() hard-returns whenever groupView is set, so it can't be reused. -->
+<div id="speakBar" style="display:none">
+  <div style="display:flex;gap:6px;align-items:center;padding:6px 8px;background:rgba(80,160,255,.08);border:1px solid rgba(80,160,255,.25);border-radius:6px">
+    <span id="liveDot" style="font-size:11px;flex:1">🔴 LIVE meeting — พิมพ์เข้าวงประชุม</span>
+    <button id="mtPause" class="send" title="พักวงประชุม (หยุดเริ่มคนถัดไป)">⏸</button>
+    <button id="mtResume" class="send" title="ประชุมต่อ" style="display:none">▶</button>
+    <button id="mtEnd" class="send" title="เลิกประชุมเลย">🏁</button>
+  </div>
+  <textarea id="speakInp" rows="1" placeholder="พิมพ์ข้อความเข้าวงประชุม…   ⏎ send"
+            autocomplete="off" spellcheck="false" style="width:100%;margin-top:4px"></textarea>
+</div>
 <footer>
   <textarea id="inp" rows="1" placeholder="Message Main…   ⏎ send · ⇧⏎ new line"
             autofocus autocomplete="off" spellcheck="false"></textarea>
@@ -1377,6 +1389,7 @@
 
   function setTarget(id) {
     groupView = null;  // leaving a meeting log view
+    if (typeof hideSpeakBar === "function") hideSpeakBar();
     target = id;
     document.getElementById("compName").textContent = nameOf(id);
     document.getElementById("compRole").textContent = roleOf(id);
@@ -4800,16 +4813,80 @@
       ? "งานของ sub-agent (อ่านอย่างเดียว) — คลิก agent ใน rail เพื่อกลับไปคุย"
       : "บันทึกการประชุม (อ่านอย่างเดียว) — คลิก agent ใน rail เพื่อกลับไปคุย";
     log.innerHTML = "";
+    let live = false;
     try {
       const r = await fetch(`/sessions/log?agent=${encodeURIComponent(bucket)}&key=${encodeURIComponent(key)}`)
         .then((x) => x.json());
+      live = !!r.live;
       for (const m of r.log || []) {
-        if (m.who === "tool") addToolRow(m.text);
-        else if (m.who === "you") addMsg("you", null, m.text, m.ts);
-        else addMsg("agent", faceId || m.who, m.text, m.ts);
+        renderGroupMsg(m, faceId);
       }
     } catch {}
+    // Load historical action items for finished meetings (if any)
+    if (!live && bucket === "@group") {
+      try {
+        const actionsRes = await fetch(`/sessions/${encodeURIComponent(key)}/actions`);
+        if (actionsRes.ok) {
+          const { actions } = await actionsRes.json();
+          if (actions && actions.length) {
+            for (const a of actions) {
+              const ownerName = (reg.agents[a.owner] || { name: a.owner }).name;
+              addMsg("you", null, `✅ <b>${ownerName}</b>: ${a.text}`, a.created, "· action item");
+            }
+          }
+        }
+      } catch {}
+    }
+    // Speak bar shows ONLY on the exact live meeting — never on a finished log
+    // or a @sub log. liveMeetings is kept in sync by meeting.live/ended events.
+    syncSpeakBar(key, live);
   }
+
+  // Render one message from a group/@sub transcript. Factored out so both the
+  // history replay (above) and the live chat.message handler use one path.
+  function renderGroupMsg(m, faceId) {
+    if (m.who === "tool") addToolRow(m.text);
+    else if (m.who === "you") addMsg("you", null, m.text, m.ts);
+    else if (m.who === "ceo") addMsg("you", null, m.text, m.ts);   // CEO = you
+    else addMsg("agent", faceId || m.who, m.text, m.ts, m.phase ? "· " + m.phase : "");
+  }
+
+  // ── Live-meeting speak bar + controls ───────────────────────────────────
+  // liveMeetings: set of session keys that are currently live (synced from
+  // meeting.live / meeting.ended / meeting.control events). The speak bar
+  // appears only when groupView is one of these.
+  const liveMeetings = new Set();
+  function syncSpeakBar(key, live) {
+    const bar = document.getElementById("speakBar");
+    if (!bar) return;
+    const show = live && groupView === key;
+    bar.style.display = show ? "block" : "none";
+  }
+  function hideSpeakBar() {
+    const bar = document.getElementById("speakBar");
+    if (bar) bar.style.display = "none";
+  }
+  function speakIntoMeeting() {
+    const inp = document.getElementById("speakInp");
+    const text = (inp.value || "").trim();
+    if (!text || !groupView) return;
+    api("/discuss/message", { session: groupView, text })
+      .then(() => { inp.value = ""; })
+      .catch((e) => addChip("⚠ ส่งไม่ได้: " + (e && e.message)));
+  }
+  // Wire the speak bar once (Enter to send, control buttons).
+  (function wireSpeakBar() {
+    const go = () => speakIntoMeeting();
+    document.getElementById("speakInp").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); go(); }
+    });
+    const pause = document.getElementById("mtPause");
+    const resume = document.getElementById("mtResume");
+    pause.onclick = () => groupView && api("/discuss/control", { session: groupView, action: "pause" });
+    resume.onclick = () => groupView && api("/discuss/control", { session: groupView, action: "resume" });
+    document.getElementById("mtEnd").onclick = () =>
+      groupView && confirm("เลิกประชุมเลย?") && api("/discuss/control", { session: groupView, action: "end" });
+  })();
 
   // CEO orders run as the Director's sessions (👑-prefixed) — the CEO pane
   // reads and resumes those threads, so "what did my order produce" is one
@@ -4876,11 +4953,11 @@
     };
     mk("🆕 เริ่ม thread ใหม่", "ความจำใหม่ ไม่ต่อจากของเดิม", "new",
       SESS[target] === "new",
-      () => { groupView = null; SESS[target] = "new"; addChip(`🧵 เริ่ม thread ใหม่กับ <b>${nameOf(target)}</b>`); });
+      () => { groupView = null; hideSpeakBar(); SESS[target] = "new"; addChip(`🧵 เริ่ม thread ใหม่กับ <b>${nameOf(target)}</b>`); });
     for (const s of list)
       mk(`🧵 ${s.title || s.key}`, new Date(s.ts).toLocaleString(), s.key,
         !groupView && SESS[target] !== "new" && s.key === activeKey,
-        () => { groupView = null; CUR[target] = null; SESS[target] = s.key;
+        () => { groupView = null; hideSpeakBar(); CUR[target] = null; SESS[target] = s.key;
           addChip(`🧵 สลับไป thread: <b>${(s.title || s.key).slice(0, 40)}</b>`); });
     if (!list.length && SESS[target] !== "new")
       mk("(ยังไม่มี thread เก่า — คุยครั้งแรกจะสร้างให้เอง)", "", undefined, false, () => {});
@@ -4959,21 +5036,60 @@
 
   // ---- discussion launcher ----------------------------------------------------
   document.getElementById("discussBtn").onclick = () => openDiscuss();
+  // Meeting templates — loaded from server to avoid duplication
+  let MEETING_TEMPLATES = [
+    { id: "custom", label: "✏️ Custom topic", topic: "", rounds: 2 }
+  ];
+  // Load templates from server on startup
+  fetch("/meeting-templates")
+    .then(r => r.json())
+    .then(data => {
+      if (data.templates && data.templates.length) {
+        // Prepend custom option to server templates
+        MEETING_TEMPLATES = [
+          { id: "custom", label: "✏️ Custom topic", topic: "", rounds: 2 },
+          ...data.templates.map(t => ({
+            ...t,
+            label: getLabelIcon(t.id) + " " + t.label
+          }))
+        ];
+      }
+    })
+    .catch(err => console.error("Failed to load meeting templates:", err));
+
+  function getLabelIcon(id) {
+    const icons = {
+      standup: "📋", retro: "🔁", brainstorm: "💡",
+      "design-review": "🎨", planning: "🗓"
+    };
+    return icons[id] || "📝";
+  }
   function openDiscuss() {
     modal.classList.add("open");
     const picked = new Set();
+    const tmplOpts = MEETING_TEMPLATES
+      .map((t) => `<option value="${t.id}">${t.label}</option>`).join("");
     modalCard.innerHTML = hdr("🗣 AGENT DISCUSSION") +
-      `<div class="field"><label>TOPIC — หัวข้อให้ทีมถกกัน</label>
+      `<div class="field"><label>TEMPLATE</label>
+         <select id="dTmpl">${tmplOpts}</select></div>
+       <div class="field"><label>TOPIC — หัวข้อให้ทีมถกกัน</label>
          <input id="dTopic" placeholder='เช่น "วางแผนฟีเจอร์ onboarding ใหม่"'></div>
        <div class="field"><label>PARTICIPANTS (เลือก 2-4 ตัว)</label>
          <div class="checks" id="dWho"></div></div>
-       <div class="field"><label>ROUNDS</label>
+       <div class="field"><label>DISCUSSION ROUNDS (ความลึกของวงถก)</label>
          <select id="dRounds"><option value="1">1 — เร็ว</option>
          <option value="2" selected>2 — มาตรฐาน</option><option value="3">3 — ลึก</option></select></div>
        <div class="btnrow">
          <button id="dCancel">Cancel</button>
          <button class="primary" id="dGo">🗣 Start discussion</button>
        </div>`;
+    // Picking a template fills topic + rounds (unless the user edits them after).
+    modalCard.querySelector("#dTmpl").onchange = function () {
+      const t = MEETING_TEMPLATES.find((x) => x.id === this.value);
+      if (!t) return;
+      if (t.topic) modalCard.querySelector("#dTopic").value = t.topic;
+      modalCard.querySelector("#dRounds").value = String(t.rounds);
+    };
     const box = modalCard.querySelector("#dWho");
     // ทีมทั้งหมดจาก registry (CEO คือคุณ — ไม่เข้าร่วมวงประชุมของ AI)
     for (const id of Object.keys(ROSTER).filter((x) => x !== "ceo")) {
@@ -4994,10 +5110,15 @@
     modalCard.querySelector("#dGo").onclick = async () => {
       const topic = modalCard.querySelector("#dTopic").value.trim();
       if (!topic || picked.size < 2) return;
-      await api("/discuss", { agents: [...picked], topic,
-        rounds: Number(modalCard.querySelector("#dRounds").value) });
+      const r = await api("/discuss", { agents: [...picked], topic,
+        rounds: Number(modalCard.querySelector("#dRounds").value) }).catch(() => ({}));
       closeModal();
       addChip(`🗣 meeting started: <b>${topic.slice(0, 50)}</b>`);
+      // Open the live meeting so messages stream in and the speak bar appears.
+      // /discuss returns the session key synchronously; liveMeetings.add is a
+      // belt-and-suspenders in case the meeting.live broadcast hasn't landed.
+      const key = r && r.session;
+      if (key) { liveMeetings.add(key); openGroupLog(key, topic); }
     };
   }
 
@@ -5322,7 +5443,15 @@
       // come from /sessions/log instead.
       if (!ev.replay && groupView && ev.session === groupView) {
         hideTyping();
-        addMsg("agent", ev.agent, ev.text, ev.ts, ev.model ? "🧠 " + ev.model : "");
+        if (ev.isSummary) {
+          // Secretary's minutes — render distinctly, prefixed so it reads as a recap.
+          addMsg("agent", ev.agent, "📝\n" + ev.text, ev.ts, "· summary");
+        } else if (ev.agent === "ceo") {
+          addMsg("you", null, ev.text, ev.ts);   // owner spoke into the meeting
+        } else {
+          addMsg("agent", ev.agent, ev.text, ev.ts,
+            ev.phase ? "· " + ev.phase : (ev.model ? "🧠 " + ev.model : ""));
+        }
         uiSnd("msg");
       } else if (!ev.replay && !groupView &&
           (ev.agent === target || (target === "ceo" && ev.agent === "main")) &&
@@ -5431,6 +5560,46 @@
     }
     else if (ev.type === "collab.ended") {
       if (!ev.replay) addLog(`🤝 ประชุมจบ`);
+    }
+    else if (ev.type === "meeting.live") {
+      // A meeting just went live. Track it so the speak bar can show when the
+      // owner opens it. (No auto-open: the launcher already opens its own.)
+      liveMeetings.add(ev.session);
+    }
+    else if (ev.type === "meeting.ended") {
+      liveMeetings.delete(ev.session);
+      if (groupView === ev.session) { hideSpeakBar(); }
+    }
+    else if (ev.type === "meeting.control") {
+      // Reflect pause/resume state on the speak bar buttons.
+      if (groupView === ev.session) {
+        const pause = document.getElementById("mtPause");
+        const resume = document.getElementById("mtResume");
+        const dot = document.getElementById("liveDot");
+        if (pause) pause.style.display = ev.paused ? "none" : "";
+        if (resume) resume.style.display = ev.paused ? "" : "none";
+        if (dot) dot.textContent = ev.paused ? "⏸ พักวงประชุม" : "🔴 LIVE meeting — พิมพ์เข้าวงประชุม";
+        if (ev.ended && dot) dot.textContent = "🏁 กำลังจบ…";
+      }
+    }
+    else if (ev.type === "meeting.resumed") {
+      // Auto-resume after a forgotten pause; just flip the UI back.
+      if (groupView === ev.session) {
+        const pause = document.getElementById("mtPause");
+        const resume = document.getElementById("mtResume");
+        const dot = document.getElementById("liveDot");
+        if (pause) pause.style.display = "";
+        if (resume) resume.style.display = "none";
+        if (dot) dot.textContent = "🔴 LIVE meeting — พิมพ์เข้าวงประชุม";
+      }
+    }
+    else if (ev.type === "meeting.action") {
+      // An action item was minted by the summary secretary. Surface it as a
+      // chip in the feed (NOT on Mission Control — see ADR-0001).
+      if (!ev.replay && ev.action) {
+        addChip(`✅ <b>${nameOf(ev.action.owner)}</b>: ${ev.action.text}` +
+          (ev.action.due ? ` <span style="color:var(--dim)">⏰ ${ev.action.due}</span>` : ""));
+      }
     }
     else if (ev.type === "skill.created") {
       if (!ev.replay) addLog(`📚 <b>${nameOf(ev.agent)}</b> learned a new skill: <b>${ev.skill}</b>`);

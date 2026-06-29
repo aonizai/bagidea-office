@@ -2947,6 +2947,16 @@ const PROPOSALS = path.join(__dirname, "proposals.json");
 let proposals = loadJson(PROPOSALS, []);
 const saveProposals = () => fs.writeFileSync(PROPOSALS, JSON.stringify(proposals, null, 2));
 
+// Action Items (per ADR-0001) — NOT jobs.json. A meeting's follow-ups live in
+// their own per-meeting file: workspace/meetings/<key>.actions.json. Each item
+// is { id, meeting, owner, text, due, status, created }. Owner is a roster id.
+function actionsPath(meetingKey) { return path.join(WORKSPACE, "meetings", `${meetingKey}.actions.json`); }
+function loadActions(meetingKey) { return loadJson(actionsPath(meetingKey), []); }
+function saveActions(meetingKey, arr) {
+  try { fs.mkdirSync(path.join(WORKSPACE, "meetings"), { recursive: true }); } catch {}
+  fs.writeFileSync(actionsPath(meetingKey), JSON.stringify(arr, null, 2));
+}
+
 const BANTER = [
   ["{a}: เห็นเจ้าเหมียวงีบบนโซฟาอีกแล้ว อิจฉาชีวิตมัน 🐱", "{b}: อย่าไปทักนะ เดี๋ยวตื่นมาเหยียบคีย์บอร์ดผม", "{a}: ครั้งก่อนมันพิมพ์ ggggggg ลงรายงานผมไป 555"],
   ["{a}: เมื่อกี้เตะบอลข้ามตึกไปเลยนะ เห็นป่ะ ⚽", "{b}: เห็น… มันลอยผ่านหัว CEO ไปเฉียดมาก", "{a}: งั้นทำเงียบๆ ไว้นะ 🤫"],
@@ -3067,78 +3077,247 @@ function addProposal(by, agents, name, detail) {
 // while ANY meeting is live, without forcing meetings to be one-at-a-time.
 let activeDiscussions = 0;
 
-async function runDiscussion(ids, topic, rounds, social) {
+// Live meetings: keyed by entry.key, value { entry, ctrl:{paused,ended} }.
+// The source of truth for "is this meeting live?" — the owner's speak bar and
+// the /discuss/message + /discuss/control endpoints consult it. (activeDiscussions
+// above is just a count, kept for socialTick gating; this Map is the lookup.)
+const activeMeetings = new Map();
+const PAUSE_AUTO_RESUME_MS = 10 * 60000;  // a forgotten pause must not freeze social ticks forever
+
+// Meeting phases — the structure every NON-social meeting runs through. Social
+// chats collapse to a single `chat` phase (the PROPOSAL block below still fires).
+// Decision/action synthesis is NOT a phase: one summary secretary owns it (see
+// generateMeetingSummary) so there's one canonical action-item list, not N.
+const OPENING_INSTRUCTION =
+  "Open the meeting: give YOUR 1–2 sentence starting position on the topic — " +
+  "your take, grounded in the context you were given. Do not yet react to others; " +
+  "just stake your opening. Plain text, same language as the topic.";
+const DISCUSSION_INSTRUCTION =
+  "Build on the others: respond to what's been said, advance the topic, " +
+  "stay concrete. Max 3 sentences, plain text, same language as the topic.";
+
+// The social/break-room PROPOSAL instruction block — preserved verbatim. Keeping
+// it as one extracted constant makes the social path explicit and prevents the
+// regression where a phase rewrite silently drops project-pitch generation.
+const SOCIAL_PROPOSAL_INSTRUCTION =
+  `\nคุณภาพสำคัญกว่าปริมาณเสมอ. ส่วนใหญ่ไอเดียควร "อยู่เป็นไอเดีย" — เสนอเฉพาะอันที่` +
+  `มีประโยชน์จริง ใช้ได้จริง และคุณจะใช้มันเองหรือเจ้าของได้ใช้จริง ๆ. ` +
+  `อย่าเสนอของเล่นทิ้งขว้างหรือ plugin ขยะ และอย่าเสนอถี่ — ถ้ายังไม่ตกผลึกหรือยังไม่คุ้ม อย่าเพิ่งเสนอ.\n` +
+  `ก่อนจะเสนอ ถามตัวเองให้ครบ: ใครได้ใช้? แก้ปัญหาอะไรจริง ๆ? ทำไมถึงคุ้มที่จะสร้าง? ดีกว่าของที่มีอยู่ตรงไหน?\n` +
+  `ถ้าตกผลึกเป็นโปรเจคที่ "ควรสร้างจริง" ให้เพิ่มบรรทัดสุดท้าย:\n` +
+  `PROPOSAL: <ชื่อโปรเจค> :: <อธิบายให้ชัด: ทำอะไร ใครใช้ แก้ปัญหาอะไร และทำไมถึงคุ้ม — ให้เจ้าของตัดสินใจได้>\n` +
+  `คิดให้รอบคอบและคิดการใหญ่ได้: plugin ที่จริงจังมี UI + แก้ปัญหาให้เจ้าของได้จริง, หรือเป็น` +
+  `เว็บ/เว็บแอป/โปรแกรม/เครื่องมือที่ใช้งานได้จริง (โปรเจคอิสระใน workspace). เลือกขนาดให้เหมาะกับคุณค่าของมัน.\n` +
+  `กติกาความปลอดภัยข้อเดียว: ถ้าจะต่อยอดกับตัวโปรแกรม BagIdea Office เองให้เสนอเป็น ` +
+  `"plugin" เท่านั้น (ดู docs/guide/plugins.md — plugin เข้าถึงโปรแกรมได้ลึก: panel, route, command, ` +
+  `broadcast, ฯลฯ ทำเป็น solution จริงให้เจ้าของได้) — ห้ามแก้ระบบหลัก (daemon/godot/shell) ตรง ๆ เพราะจะทำให้โปรแกรมพัง.`;
+
+// Meeting templates fill the launcher (topic + discussion depth). Pure data —
+// the overlay maps them to a <select>; they never change phase structure.
+const MEETING_TEMPLATES = [
+  { id: "standup",       label: "Standup",       topic: "Standup: what you did / will do / blockers", rounds: 1 },
+  { id: "retro",         label: "Retro",         topic: "Retro: what went well / badly / to improve", rounds: 2 },
+  { id: "brainstorm",    label: "Brainstorm",    topic: "Brainstorm: generate ideas, no judgment yet", rounds: 3 },
+  { id: "design-review", label: "Design Review", topic: "Design review: questions, critique, suggestions", rounds: 2 },
+  { id: "planning",      label: "Planning",      topic: "Planning: goal, steps, owners, timeline",     rounds: 2 }
+];
+
+// Build once-per-meeting grounding context. Projects come from the retrieval
+// index (tier "proj"); per-agent private memory (workspace/memory/<id>.md) is
+// returned keyed by agent so the caller injects it ONLY into that agent's own
+// opening prompt — memory never crosses between agents.
+function buildMeetingContext(topic, ids) {
+  let projectBlurb = "";
+  try {
+    if (retrievalOk) {
+      const hits = retrieval.search(topic, { k: 3, tiers: ["proj"] }) || [];
+      if (hits.length) projectBlurb = "Related projects:\n" +
+        hits.map((h) => `- ${(h.name || h.ref || "").slice(0, 80)}: ${(h.text || "").slice(0, 160)}`).join("\n");
+    }
+  } catch (e) { console.error("[meeting] context projects failed:", e && e.message); }
+  const memory = {};
+  try {
+    for (const id of ids) {
+      const file = path.join(WORKSPACE, "memory", `${id}.md`);
+      const m = fs.existsSync(file) && fs.readFileSync(file, "utf8");
+      if (m) memory[id] = m.slice(0, 1200);  // private to this agent
+    }
+  } catch (e) { console.error("[meeting] context memory failed:", e && e.message); }
+  return { projectBlurb, memory };
+}
+
+// Dynamic sliding window: enough turns to stay grounded, capped so a long
+// meeting never feeds the whole transcript to every call. The cap (20) only
+// bites around ~96 messages — a safety ceiling, not the common case.
+function windowSize(len) { return Math.min(20, 8 + Math.floor(len / 8)); }
+
+// Summarize a finished meeting in ONE call: markdown minutes + a fenced JSON
+// actionItems[] array. Owners are validated against the roster (unknown owners
+// are dropped — better a missing item than a phantom assignee). Returns
+// { summary, actions } where either may be "" / [] if the model declines.
+async function generateMeetingSummary(entry, ids) {
+  const names = ids.map((id) => `${id} (${(reg.agents[id] || { name: id }).name})`).join(", ");
+  const transcript = entry.log
+    .map((m) => `[${m.phase || "chat"}] ${(reg.agents[m.who] || { name: m.who }).name}: ${m.text}`)
+    .join("\n");
+  const roster = ids.join(", ");
+  const prompt =
+    `You are the secretary summarizing a just-finished team meeting.\n` +
+    `Topic: ${entry.title}\nParticipants: ${names}\n\nTranscript:\n${transcript}\n\n` +
+    `Write a concise markdown summary with sections: ## Summary, ## Decisions, ## Open Questions.\n` +
+    `Then output ONE fenced block of JSON — an array of action items, each ` +
+    `{ "owner": "<one of: ${roster}>", "text": "<the follow-up>", "due": "<optional>" }.\n` +
+    `Only use owners from the list above. If there are no action items, output [].\n` +
+    `\`\`\`json\n[]\n\`\`\``;
+  let raw = "";
+  try { raw = await claudeText(prompt, { tools: "" }); }
+  catch (e) { console.error("[meeting] summary claudeText failed:", e && e.message); }
+  // Pull the last fenced ```json ... ``` block out of the response.
+  const blocks = [...raw.matchAll(/```json\s*([\s\S]*?)```/gi)].map((m) => m[1]);
+  let actions = [];
+  if (blocks.length) {
+    try {
+      const parsed = JSON.parse(blocks[blocks.length - 1]);
+      if (Array.isArray(parsed)) actions = parsed
+        .filter((a) => a && ids.includes(a.owner) && a.text)
+        .map((a) => ({ owner: a.owner, text: String(a.text).slice(0, 300), due: a.due || "" }));
+    } catch (e) { console.error("[meeting] summary JSON parse failed:", e && e.message); }
+  }
+  // Summary prose = the markdown minus the fenced block(s).
+  const summary = raw.replace(/```json\s*[\s\S]*?```/gi, "").trim();
+  return { summary, actions };
+}
+
+async function runDiscussion(ids, topic, rounds, social, preKey) {
   activeDiscussions++;
   const task = "disc" + (Date.now() % 100000);
   // Every meeting is a persistent GROUP session ("@group" bucket): topic,
   // participants and the full transcript — readable later from the thread
   // menu, and written to workspace/meetings/ so agents can grep it too.
-  const entry = { key: "g" + Date.now(), sid: null, ts: Date.now(),
+  const entry = { key: preKey || ("g" + Date.now()), sid: null, ts: Date.now(),
     title: String(topic).replace(/\s+/g, " ").slice(0, 60),
-    agents: ids.slice(), log: [] };
+    agents: ids.slice(), task, log: [] };
   sess["@group"] = sess["@group"] || [];
   sess["@group"].push(entry);
   saveSess();
+  // Register as live so the owner can speak into it and control it. ctrl is a
+  // shared object the loop re-reads every turn; /discuss/control mutates it.
+  const ctrl = { paused: false, ended: false, pausedAt: 0 };
+  activeMeetings.set(entry.key, { entry, ctrl });
   broadcast({ type: "collab.started", agents: ids, task, text: topic, session: entry.key });
+  broadcast({ type: "meeting.live", session: entry.key, topic: entry.title, agents: ids });
+  // Build grounding context once. projectBlurb is shared; memory[id] is private.
+  const ctx = social ? { projectBlurb: "", memory: {} } : buildMeetingContext(topic, ids);
+  // Phases: social collapses to one `chat` phase (PROPOSAL block still fires).
+  const phases = social
+    ? [{ name: "chat", instruction: "", rounds: rounds || 1 }]
+    : [{ name: "opening", instruction: OPENING_INSTRUCTION, rounds: 1 },
+       { name: "discussion", instruction: DISCUSSION_INSTRUCTION, rounds: Math.max(1, rounds || 2) }];
   try {
-    for (let r = 0; r < rounds; r++) {
-      for (const id of ids) {
-        const a = reg.agents[id] || { name: id, role: "Staff", prompt: "" };
-        // Feed only the recent exchanges (sliding window), never the whole meeting
-        // — bounds each call instead of growing O(agents×rounds). The full record
-        // still lives in entry.log and the saved minutes.
-        const recent = entry.log.slice(-8)
-          .map((m) => `${(reg.agents[m.who] || { name: m.who }).name}: ${m.text}`).join("\n");
-        const text = await claudeText(
-          `You are "${a.name}" (${a.role}) in a ${social ? "casual break-room chat" : "team meeting"} at the office.\n` +
-          (a.prompt ? `Your persona: ${a.prompt}\n` : "") +
-          `Meeting topic: ${topic}\n` +
-          (recent ? `Recent discussion:\n${recent}\n` : "You open the meeting.\n") +
-          `Give YOUR next contribution as ${a.name}: concrete, build on the others, ` +
-          `max 3 sentences, plain text only, in the same language as the topic.` +
-          `\nถ้าจำเป็นต้องใช้ข้อมูลจริงเพื่อให้ความเห็นแน่นขึ้น คุณค้นเองได้ ` +
-          `(WebSearch / WebFetch / Read) — เฉพาะตอนที่จำเป็นจริงๆ เท่านั้น ไม่ต้องค้นพร่ำเพรื่อ ` +
-          `และตอบกลับเป็นข้อความสนทนาตามปกติ.` +
-          (social ? `\nคุณภาพสำคัญกว่าปริมาณเสมอ. ส่วนใหญ่ไอเดียควร "อยู่เป็นไอเดีย" — เสนอเฉพาะอันที่` +
-            `มีประโยชน์จริง ใช้ได้จริง และคุณจะใช้มันเองหรือเจ้าของได้ใช้จริง ๆ. ` +
-            `อย่าเสนอของเล่นทิ้งขว้างหรือ plugin ขยะ และอย่าเสนอถี่ — ถ้ายังไม่ตกผลึกหรือยังไม่คุ้ม อย่าเพิ่งเสนอ.\n` +
-            `ก่อนจะเสนอ ถามตัวเองให้ครบ: ใครได้ใช้? แก้ปัญหาอะไรจริง ๆ? ทำไมถึงคุ้มที่จะสร้าง? ดีกว่าของที่มีอยู่ตรงไหน?\n` +
-            `ถ้าตกผลึกเป็นโปรเจคที่ "ควรสร้างจริง" ให้เพิ่มบรรทัดสุดท้าย:\n` +
-            `PROPOSAL: <ชื่อโปรเจค> :: <อธิบายให้ชัด: ทำอะไร ใครใช้ แก้ปัญหาอะไร และทำไมถึงคุ้ม — ให้เจ้าของตัดสินใจได้>\n` +
-            `คิดให้รอบคอบและคิดการใหญ่ได้: plugin ที่จริงจังมี UI + แก้ปัญหาให้เจ้าของได้จริง, หรือเป็น` +
-            `เว็บ/เว็บแอป/โปรแกรม/เครื่องมือที่ใช้งานได้จริง (โปรเจคอิสระใน workspace). เลือกขนาดให้เหมาะกับคุณค่าของมัน.\n` +
-            `กติกาความปลอดภัยข้อเดียว: ถ้าจะต่อยอดกับตัวโปรแกรม BagIdea Office เองให้เสนอเป็น ` +
-            `"plugin" เท่านั้น (ดู docs/guide/plugins.md — plugin เข้าถึงโปรแกรมได้ลึก: panel, route, command, ` +
-            `broadcast, ฯลฯ ทำเป็น solution จริงให้เจ้าของได้) — ห้ามแก้ระบบหลัก (daemon/godot/shell) ตรง ๆ เพราะจะทำให้โปรแกรมพัง.` : ""),
-          { tools: social ? "" : "WebSearch,WebFetch,Read,Glob,Grep", provider: a && a.provider, model: a && a.model, env: { OFFICE_AGENT: id, OFFICE_TASK: task } });
-        let line = text.split("\n").filter(Boolean).join(" ").slice(0, 500);
-        // PROPOSAL: a project pitch for the owner to approve — protocol, not prose.
-        const pm = text.match(/PROPOSAL:\s*([^:]+?)\s*::\s*(.+)/);
-        if (pm) {
-          line = line.replace(/PROPOSAL:.*$/, "").trim();
-          addProposal(id, ids, pm[1], pm[2]);
-        }
-        if (line) {
-          entry.log.push({ who: id, text: line, ts: Date.now() });
-          saveSess();
-          broadcast({ type: "chat.message", agent: id, task, text: line, session: entry.key });
+    outerPhase:
+    for (const phase of phases) {
+      for (let r = 0; r < phase.rounds; r++) {
+        for (const id of ids) {
+          // Re-fetch controls before each turn — End while paused must exit the
+          // WHOLE meeting, not just the inner loop (hence the labeled break).
+          if (ctrl.ended) break outerPhase;
+          // Graceful pause: don't START the next turn (claudeText has no kill
+          // path, so a mid-turn pause can't interrupt). Spin until resumed or
+          // ended. Auto-resume after PAUSE_AUTO_RESUME_MS so a forgotten pause
+          // can't freeze social ticks indefinitely.
+          while (ctrl.paused && !ctrl.ended) {
+            if (ctrl.pausedAt && Date.now() - ctrl.pausedAt > PAUSE_AUTO_RESUME_MS) {
+              ctrl.paused = false; ctrl.pausedAt = 0;
+              broadcast({ type: "meeting.resumed", session: entry.key, via: "auto-resume" });
+              break;
+            }
+            await new Promise((r) => setTimeout(r, 500));
+          }
+          if (ctrl.ended) break outerPhase;
+
+          const a = reg.agents[id] || { name: id, role: "Staff", prompt: "" };
+          // Sliding window — bounds each call instead of growing O(agents×rounds).
+          const win = windowSize(entry.log.length);
+          const recent = entry.log.slice(-win)
+            .map((m) => `${(reg.agents[m.who] || { name: m.who }).name}: ${m.text}`).join("\n");
+          const isOpening = phase.name === "opening";
+          const text = await claudeText(
+            `You are "${a.name}" (${a.role}) in a ${social ? "casual break-room chat" : "team meeting"} at the office.\n` +
+            (a.prompt ? `Your persona: ${a.prompt}\n` : "") +
+            `Meeting topic: ${topic}\n` +
+            (ctx.projectBlurb && isOpening ? `${ctx.projectBlurb}\n` : "") +
+            (isOpening && ctx.memory[id] ? `Your private memory (only you see this):\n${ctx.memory[id]}\n` : "") +
+            (recent ? `Recent discussion:\n${recent}\n` : "You open the meeting.\n") +
+            `Phase: ${phase.name}. ` +
+            (social ? `Give YOUR next contribution as ${a.name}.` : phase.instruction) +
+            `\nถ้าจำเป็นต้องใช้ข้อมูลจริงเพื่อให้ความเห็นแน่นขึ้น คุณค้นเองได้ ` +
+            `(WebSearch / WebFetch / Read) — เฉพาะตอนที่จำเป็นจริงๆ เท่านั้น ไม่ต้องค้นพร่ำเพรื่อ ` +
+            `และตอบกลับเป็นข้อความสนทนาตามปกติ.` +
+            (social ? SOCIAL_PROPOSAL_INSTRUCTION : ""),
+            { tools: social ? "" : "WebSearch,WebFetch,Read,Glob,Grep", provider: a && a.provider, model: a && a.model, env: { OFFICE_AGENT: id, OFFICE_TASK: task } });
+          let line = text.split("\n").filter(Boolean).join(" ").slice(0, 500);
+          // If the owner pressed End while this claude call was in flight, drop the
+          // lagging reply entirely — otherwise it would surface as a ghost message
+          // AFTER meeting.ended has already fired and the summary has been written
+          // (transcript would then disagree with the minutes).
+          if (ctrl.ended) break outerPhase;
+          // PROPOSAL: a project pitch for the owner to approve — protocol, not prose.
+          const pm = text.match(/PROPOSAL:\s*([^:]+?)\s*::\s*(.+)/);
+          if (pm) {
+            line = line.replace(/PROPOSAL:.*$/, "").trim();
+            addProposal(id, ids, pm[1], pm[2]);
+          }
+          if (line) {
+            entry.log.push({ who: id, text: line, ts: Date.now(), phase: phase.name });
+            saveSess();
+            broadcast({ type: "chat.message", agent: id, task, text: line, session: entry.key, phase: phase.name });
+          }
         }
       }
     }
   } finally {
     broadcast({ type: "collab.ended", agents: ids, task, session: entry.key });
+    broadcast({ type: "meeting.ended", session: entry.key });
+    activeMeetings.delete(entry.key);
     activeDiscussions = Math.max(0, activeDiscussions - 1);
+    // One summary secretary → one canonical action-item list (per ADR-0001 these
+    // live in their own .actions.json, NOT jobs.json, and NOT on Mission Control).
+    // The summary call is best-effort: it must NEVER block or throw away the
+    // minutes (a hung/slow/failed claude can't lose the transcript). Minutes are
+    // written FIRST with whatever we have, then enriched if the summary lands.
+    let summary = "", actions = [];
+    try {
+      ({ summary, actions } = social ? { summary: "", actions: [] }
+        : await generateMeetingSummary(entry, ids));
+    } catch (e) {
+      console.error("[meeting] summary generation failed:", e && e.message);
+      summary = "(summary generation failed)";
+      actions = [];
+    }
+    // Always attempt to save and broadcast action items, even if summary failed
+    try {
+      if (actions.length) {
+        const stamped = actions.map((a, i) => ({
+          id: `${entry.key}-${i + 1}`, meeting: entry.key, owner: a.owner,
+          text: a.text, due: a.due || "", status: "open", created: Date.now()
+        }));
+        saveActions(entry.key, stamped);
+        for (const a of stamped)
+          broadcast({ type: "meeting.action", action: a, session: entry.key });
+      }
+    } catch (e) { console.error("[meeting] action items save failed:", e && e.message); }
     // Markdown minutes inside the agents' workspace — searchable by them.
     try {
       const dir = path.join(WORKSPACE, "meetings");
       fs.mkdirSync(dir, { recursive: true });
       const names = ids.map((id) => (reg.agents[id] || { name: id }).name).join(", ");
+      const summaryBlock = summary ? `## Summary\n\n${summary}\n\n## Transcript\n\n` : "";
       const md = `# Meeting: ${entry.title}\n\n- Date: ${new Date(entry.ts).toISOString()}\n` +
-        `- Participants: ${names}\n\n## Transcript\n\n` +
-        entry.log.map((m) => `**${(reg.agents[m.who] || { name: m.who }).name}**: ${m.text}`).join("\n\n") + "\n";
+        `- Participants: ${names}\n\n${summaryBlock}` +
+        entry.log.map((m) => `**[${m.phase || "chat"}] ${(reg.agents[m.who] || { name: m.who }).name}**: ${m.text}`).join("\n\n") + "\n";
       fs.writeFileSync(path.join(dir, `${entry.key}.md`), md);
       try { if (retrievalOk) { retrieval.addDoc("arch", "meeting", `arch:meeting:${entry.key}`, md.slice(0, 1200)); retrieval.persist(); } } catch {}
-    } catch {}
+    } catch (e) { console.error("[meeting] minutes write failed:", e && e.message); }
   }
 }
 
@@ -3363,7 +3542,11 @@ const server = http.createServer((req, res) => {
     const q = new URL(req.url, "http://x").searchParams;
     const entry = (sess[q.get("agent")] || []).find((e) => e.key === q.get("key"));
     res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-    res.end(JSON.stringify({ log: (entry && entry.log) || [] }));
+    // live=true tells the overlay it may show the speak bar + controls for this
+    // meeting (a finished Meeting Log stays read-only). Only group meetings are
+    // ever live; @sub logs never are.
+    res.end(JSON.stringify({ log: (entry && entry.log) || [],
+      live: !!(entry && activeMeetings.has(entry.key)) }));
 
   } else if (req.method === "GET" && req.url === "/sessions/all") {
     res.writeHead(200, { "content-type": "application/json" });
@@ -3383,6 +3566,24 @@ const server = http.createServer((req, res) => {
         res.end(String(e.message));
       }
     });
+
+  } else if (req.method === "GET" && req.url.startsWith("/sessions/") && req.url.includes("/actions")) {
+    // GET /sessions/:key/actions — retrieve action items for a historical meeting
+    const pathParts = req.url.split("/");
+    const key = pathParts[2];
+    try {
+      const actions = loadActions(key);
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ actions }));
+    } catch (e) {
+      res.writeHead(404, { "content-type": "application/json" });
+      res.end(JSON.stringify({ actions: [] }));
+    }
+
+  } else if (req.method === "GET" && req.url === "/meeting-templates") {
+    // GET /meeting-templates — serve meeting templates to eliminate client-side duplication
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ templates: MEETING_TEMPLATES }));
 
   } else if (req.method === "GET" && req.url.startsWith("/sessions")) {
     const agent = new URL(req.url, "http://x").searchParams.get("agent") || "main";
@@ -3425,13 +3626,68 @@ const server = http.createServer((req, res) => {
       try {
         const p = JSON.parse(body);
         const ids = (p.agents || []).filter((id) => id !== "ceo").slice(0, 4);
+        // Validate every participant exists in the roster — a stray id would
+        // otherwise be silently impersonated by the {name:id} fallback.
+        const bad = ids.find((id) => !reg.agents[id]);
+        if (bad) throw new Error("unknown agent: " + bad);
         if (ids.length < 2) throw new Error("need at least 2 agents");
         if (!p.topic) throw new Error("no topic");
         // Concurrent meetings are allowed — disjoint teams huddle in parallel,
         // and the wallpaper ghost-splits anyone double-booked.
-        runDiscussion(ids, String(p.topic), Math.min(Math.max(Number(p.rounds) || 2, 1), 3));
+        const mkey = "g" + Date.now();
+        runDiscussion(ids, String(p.topic), Math.min(Math.max(Number(p.rounds) || 2, 1), 3), false, mkey);
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ ok: true, session: mkey }));
+      } catch (e) {
+        res.writeHead(400);
+        res.end(String(e.message));
+      }
+    });
+
+  } else if (req.method === "POST" && req.url === "/discuss/message") {
+    // Owner speaks into a LIVE meeting. No async chain, no per-agent claudeText:
+    // we just append the CEO's line to entry.log (phase "user") and broadcast
+    // it. The main loop's sliding window picks it up on the next agent's turn,
+    // so replies arrive in turn order — no racing claude processes.
+    readBody(req, (body) => {
+      try {
+        const { session, text } = JSON.parse(body);
+        const live = activeMeetings.get(session);
+        if (!live) { res.writeHead(404); return res.end("meeting not live"); }
+        const msg = String(text || "").trim().slice(0, 1000);
+        if (!msg) throw new Error("empty message");
+        live.entry.log.push({ who: "ceo", text: msg, ts: Date.now(), phase: "user" });
+        saveSess();
+        broadcast({ type: "chat.message", agent: "ceo", task: live.entry.task,
+          text: msg, session, phase: "user" });
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        res.writeHead(400);
+        res.end(String(e.message));
+      }
+    });
+
+  } else if (req.method === "POST" && req.url === "/discuss/control") {
+    // Pause / resume / skip / end a live meeting. Mutates the shared ctrl object
+    // the loop re-reads every turn — graceful (pause = don't start next turn).
+    readBody(req, (body) => {
+      try {
+        const { session, action } = JSON.parse(body);
+        const live = activeMeetings.get(session);
+        if (!live) { res.writeHead(404); return res.end("meeting not live"); }
+        const c = live.ctrl;
+        switch (String(action)) {
+          case "pause":  c.paused = true;  c.pausedAt = Date.now(); break;
+          case "resume": c.paused = false; c.pausedAt = 0;          break;
+          case "skip":   /* loop advances naturally; no-op flag */   break;
+          case "end":    c.ended = true;   c.paused = false;         break;
+          default: throw new Error("bad action");
+        }
+        broadcast({ type: "meeting.control", session, action,
+          paused: c.paused, ended: c.ended });
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ ok: true, paused: c.paused, ended: c.ended }));
       } catch (e) {
         res.writeHead(400);
         res.end(String(e.message));
