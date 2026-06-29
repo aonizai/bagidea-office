@@ -1973,11 +1973,11 @@ fn main() {
         // Unix signal (SIGTERM/SIGINT) → same cleanup as tray Exit.
         if SIGNAL_SHUTDOWN.load(Ordering::Relaxed) {
             SHUTTING_DOWN.store(true, Ordering::Relaxed);
-            if let Some(ref mut daemon) = daemon {
-                let _ = daemon.kill();
+            if let Some(c) = daemon_child.as_mut() {
+                let _ = c.kill();
             }
-            if let Some(ref mut godot) = godot {
-                let _ = godot.kill();
+            if let Some(c) = office_child.as_mut() {
+                let _ = c.kill();
             }
             *control_flow = ControlFlow::Exit;
             return;
