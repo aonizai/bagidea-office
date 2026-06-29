@@ -5992,3 +5992,25 @@ server.listen(OEP_PORT, "127.0.0.1", () => {
   // replays last and clears any stale working state on the wallpaper + overlay.
   broadcast({ type: "task.reset" });
 });
+
+// Parent-death watchdog: if the shell that spawned us (via OEP_SPAWNED=1) exits
+// or crashes, we self-shutdown instead of going orphan on PID 1 and holding port
+// 8787 forever. Polls every 3s — cheap, and 3s is fast enough to avoid port
+// collisions on a quick restart. Only active when OEP_SPAWNED is set, so a
+// manual `node server.js` from a terminal won't false-positive.
+if (process.env.OEP_SPAWNED === "1") {
+  const parentPid = process.ppid;
+  setInterval(() => {
+    try {
+      // process.kill(pid, 0) throws if the process no longer exists.
+      process.kill(parentPid, 0);
+    } catch {
+      console.log("[oep] parent shell exited — shutting down daemon.");
+      for (const child of runChildren.values()) {
+        try { child.kill("SIGTERM"); } catch {}
+      }
+      server.close();
+      process.exit(0);
+    }
+  }, 3000);
+}

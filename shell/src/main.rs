@@ -18,6 +18,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 // Flipped true the moment the user quits from the tray, so the daemon watchdog
 // stops resurrecting the daemon we're deliberately tearing down.
 static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
+// Flipped true by a Unix signal handler (SIGTERM/SIGINT) so the event loop
+// picks up the shutdown on its next tick — same cleanup path as tray Exit.
+static SIGNAL_SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
 use tao::{
     dpi::{LogicalPosition, LogicalSize},
@@ -210,6 +213,11 @@ fn spawn_daemon(root: &PathBuf) -> Option<Child> {
     }
     let mut c = Command::new("node");
     c.arg(root.join("daemon").join("server.js"));
+    // Mark the daemon as shell-spawned so it enables parent-death detection
+    // (polls our PID and self-shuts-down if we crash/exit, instead of going
+    // orphan on PID 1 and holding port 8787 forever). A manual `node server.js`
+    // from a terminal won't have this env var, so it won't false-positive.
+    c.env("OEP_SPAWNED", "1");
     // A release GUI shell has NO console (windows_subsystem="windows"), so an
     // INHERITED stdout/stderr is an invalid handle and node can crash on its
     // first write — taking the daemon down seconds after launch. Send the
@@ -1780,6 +1788,21 @@ fn main() {
     // Make the website's one-click install reach us (idempotent; self-heals).
     platform::register_uri_scheme();
 
+    // ---- Unix signal handlers: SIGTERM/SIGINT → clean shutdown
+    // Without this, `kill <shell-pid>` or `launchctl unload` kills the shell
+    // but leaves the node daemon and Godot as orphans on PID 1.
+    #[cfg(unix)]
+    {
+        use std::os::raw::c_int;
+        extern "C" fn handle_signal(_sig: c_int) {
+            SIGNAL_SHUTDOWN.store(true, Ordering::Relaxed);
+        }
+        unsafe {
+            libc::signal(libc::SIGTERM, handle_signal as usize);
+            libc::signal(libc::SIGINT, handle_signal as usize);
+        }
+    }
+
     use wry::WebViewBuilder;
 
     // ---- boot the whole stack
@@ -1964,10 +1987,22 @@ fn main() {
     let mut vis_on = true;
     let mut last_watch = std::time::Instant::now();
     event_loop.run(move |event, target, control_flow| {
+        // Unix signal (SIGTERM/SIGINT) → same cleanup as tray Exit.
+        if SIGNAL_SHUTDOWN.load(Ordering::Relaxed) {
+            SHUTTING_DOWN.store(true, Ordering::Relaxed);
+            if let Some(ref mut daemon) = daemon {
+                let _ = daemon.kill();
+            }
+            if let Some(ref mut godot) = godot {
+                let _ = godot.kill();
+            }
+            *control_flow = ControlFlow::Exit;
+        }
+
         // A slow poll tick keeps the tray channels live without pinning a core.
         *control_flow = ControlFlow::WaitUntil(
-            std::time::Instant::now() + std::time::Duration::from_millis(250));
-
+            std::time::Instant::now() + std::time::Duration::from_millis(250),
+        );
         // Chat-head watchdog — THROTTLED. Re-asserting window state every tick
         // pins a CPU core on macOS (each level/visibility poke wakes the loop),
         // so we only check every ~2s and only touch the window when the orb has
