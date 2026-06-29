@@ -4,6 +4,23 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.9.34] — Linux chat restored + clean child-process shutdown
+
+**Fixed**
+- **Linux: opening the chat works again.** The v0.9.31 visibility fix turned out to break Open on
+  X11 — `set_visible(true)` doesn't actually re-map the overlay on some window managers, so clicking
+  Open (or the orb) did nothing and chat was unreachable. Reverted to the mapped/off-screen approach:
+  the chat opens and closes as before. The blank grey panel returns as a side effect (cosmetic); a
+  proper "no grey window" fix (creating the overlay on demand) is being worked on with the reporter.
+  Thanks to **[@nookpp](https://github.com/nookpp)** for the decisive diagnostic (#28).
+- **No more orphan processes when the shell exits.** A crash, `kill`, or `launchctl unload` used to
+  leave the Node daemon holding port 8787 and Godot running in the background. The shell now traps
+  SIGTERM/SIGINT and kills its children before exiting, and the daemon self-shuts when its parent
+  shell is gone. Thanks to **[@misternay](https://github.com/misternay)** (#34, closes #33).
+
+---
+Shell (Rust) changes — prebuilt binaries rebuild for all platforms via CI.
+
 ## [0.9.33] — Resilient brains, correct context windows, richer meetings
 
 **Fixed**
