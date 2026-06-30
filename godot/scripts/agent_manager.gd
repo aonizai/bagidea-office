@@ -39,6 +39,7 @@ var ceo: Sprite3D
 var _i18n := {}            # thai status plate -> translation for the chosen language
 var _lang := "en"
 var _i18n_req: HTTPRequest
+var _i18n_fetching := false   # guard: the _ready fetch + the set_connected fetch can overlap
 var _pos_req: HTTPRequest
 var _pos_busy := false
 
@@ -124,10 +125,16 @@ func _fetch_i18n() -> void:
 	if _lang == "" or _lang == "th":
 		_i18n = {}
 		return
-	if is_instance_valid(_i18n_req):
-		_i18n_req.request("http://127.0.0.1:8787/i18n/all?lang=" + _lang)
+	# A Godot HTTPRequest rejects a second request while one is in-flight
+	# ("HTTPRequest is processing a request…"). _ready's fetch and the one
+	# set_connected fires on socket-open can overlap — skip if already fetching.
+	if _i18n_fetching or not is_instance_valid(_i18n_req):
+		return
+	_i18n_fetching = true
+	_i18n_req.request("http://127.0.0.1:8787/i18n/all?lang=" + _lang)
 
 func _on_i18n_loaded(_res: int, code: int, _h: PackedStringArray, body: PackedByteArray) -> void:
+	_i18n_fetching = false   # allow a retry on the next connect regardless of outcome
 	if code != 200:
 		return
 	var data: Variant = JSON.parse_string(body.get_string_from_utf8())
