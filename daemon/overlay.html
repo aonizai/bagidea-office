@@ -15,7 +15,13 @@
   html { background: #0a111d; }
   body {
     font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, "Helvetica Neue", "Thonburi", sans-serif;
-    background: radial-gradient(1200px 700px at 70% -10%, #14233c 0%, #0a111d 60%, #070b13 100%);
+    /* Opaque base color FIRST, gradient as background-image on top — so the body
+       always paints dark even if a renderer (notably WebKitGTK on Linux) draws the
+       radial-gradient layer as transparent. A bare `background: <gradient>` leaves
+       background-color at its initial transparent, which renders as a grey/blank
+       window when the webview surface is also composited without a backing fill. */
+    background-color: #0a111d;
+    background-image: radial-gradient(1200px 700px at 70% -10%, #14233c 0%, #0a111d 60%, #070b13 100%);
     color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden;
     border: 1px solid rgba(110, 185, 255, 0.35); border-radius: 18px;
   }
