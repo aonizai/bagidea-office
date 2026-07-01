@@ -41,6 +41,30 @@ fn browser_chat() -> bool {
     cfg!(target_arch = "aarch64")
 }
 
+// Open (or focus) the chat in an external browser — the Linux/aarch64 path where the
+// embedded overlay renders blank. Tries, in order: focus an already-open BagIdeaOffice
+// window (no duplicate tabs); else a Chromium/Chrome app window (dedicated, focusable,
+// sets WM_CLASS=BagIdeaOffice so the next Open re-focuses it); else the system default
+// browser via xdg-open. Never makes any of these a hard requirement.
+fn open_chat_browser() {
+    let url = "http://127.0.0.1:8787/";
+    // 1) Focus an existing BagIdeaOffice window if one is open.
+    let focused = std::process::Command::new("sh")
+        .args(["-c", "wid=$(xdotool search --class BagIdeaOffice 2>/dev/null | head -1); [ -n \"$wid\" ] && xdotool windowactivate \"$wid\""])
+        .status().map(|s| s.success()).unwrap_or(false);
+    if focused { return; }
+    // 2) A Chromium/Chrome-family app window (no tab chrome, its own taskbar entry).
+    for b in ["chromium", "chromium-browser", "google-chrome", "google-chrome-stable", "brave-browser", "microsoft-edge"] {
+        let ok = std::process::Command::new(b)
+            .args([format!("--app={url}"), "--class=BagIdeaOffice".into()])
+            .spawn().is_ok();
+        if ok { return; }
+    }
+    // 3) Fall back to the system default browser.
+    let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+}
+
+
 use tao::{
     dpi::{LogicalPosition, LogicalSize},
     event::{Event, WindowEvent},
@@ -1976,6 +2000,12 @@ fn main() {
         .build(&orb)
         .expect("orb webview");
     orb.set_outer_position(LogicalPosition::new(PARK.0, PARK.1 + 200.0));
+    // Browser-chat mode: the orb is an always-on-top click target — on X11 it gets
+    // clamped on-screen and becomes an invisible click-stealer over the desktop/apps.
+    // Hide it (and skip showing it on WorldReady below) so only the tray + browser run.
+    if browser_chat() {
+        orb.set_visible(false);
+    }
 
     // Re-assert the orb on top WITHOUT churning its frame. The old false→true
     // always_on_top toggle issued frame-changing SetWindowPos calls, which flashed the
@@ -2071,12 +2101,9 @@ fn main() {
 
         let do_toggle = |feed_now: bool| {
             // Browser-chat mode (Linux/ARM64): the embedded overlay is blank here,
-            // so open the chat in the system browser instead of toggling it. The
-            // browser owns its own window; each "Open" (re)focuses the chat tab.
+            // so open/focus the chat in an external browser instead of toggling it.
             if browser_chat() {
-                let _ = std::process::Command::new("xdg-open")
-                    .arg("http://127.0.0.1:8787/")
-                    .spawn();
+                open_chat_browser();
                 let _ = feed_now;
                 return;
             }
@@ -2127,11 +2154,15 @@ fn main() {
                 UserEvent::WorldReady => {
                     world_ready = true;
                     splash.set_visible(false);
-                    orb.set_outer_position(LogicalPosition::new(orb_x, orb_y));
-                    raise_orb(&orb);
-                    // Orb is now shown at its real spot with DPI settled — clip it to a
-                    // circle so its transparent corners are click-through to the desktop.
-                    platform::region_circle(&orb, ORB_SIZE);
+                    // Browser-chat mode keeps the orb hidden — skip placing/raising it so
+                    // it can't be clamped on-screen as an invisible always-on-top target.
+                    if !browser_chat() {
+                        orb.set_outer_position(LogicalPosition::new(orb_x, orb_y));
+                        raise_orb(&orb);
+                        // Orb is now shown at its real spot with DPI settled — clip it to a
+                        // circle so its transparent corners are click-through to the desktop.
+                        platform::region_circle(&orb, ORB_SIZE);
+                    }
                 }
                 UserEvent::EditorOpening => {
                     if platform::focus_pid(editor_pid) {
