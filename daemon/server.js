@@ -404,8 +404,15 @@ function brainRoute(agentId) {
 // proxy's "larger than your account ... can never fit" 400. Deliberately excludes
 // transient rolling-window rate limits (those surface as a retryable 429 and claude
 // just backs off) so recovery never churns on a temporary TPM blip.
-const OVERFLOW_RE = /larger than your account|can never fit|context[_ ]?length|context_length_exceeded|maximum context|context window|prompt is too long|input is too long|string too long|reduce the (length|number)|too many tokens|exceeds the maximum (context|number of tokens|token)/i;
+const OVERFLOW_RE = /larger than your account|can never fit|context[_ ]?length|context_length_exceeded|maximum context|context window|prompt is too long|input is too long|string too long|reduce the (length|number)|too many tokens|exceeds the maximum (context|number of tokens|token)|max \d+\s*[kmg]?b|request too large.{0,40}smaller file|payload too large|request entity too large|content[- ]?too large/i;
 function isOverflowError(t) { return !!t && OVERFLOW_RE.test(String(t)); }
+// Token-overflow vs request-PAYLOAD-overflow: the patterns above also catch byte-size
+// caps (Groq's "max 32MB / smaller file", HTTP 413 / payload-too-large) — distinct from
+// a token *rate* limit (OpenAI's "Request too large ... Limit L, Requested N" on TPM,
+// which must pause/resume, not compact). The payload patterns don't match that TPM text
+// (no "max ..MB", no "smaller file", no "413"), so a 32MB rejection now triggers the
+// same summarize-and-restart-on-a-fresh-thread recovery as a context overflow instead of
+// surfacing a raw error — the fresh thread drops the image-heavy history that bloated it.
 
 // A TEMPORARY ceiling that DOES clear with time — usage/rate/quota limits, 429s, an
 // overloaded backend. Unlike overflow, retrying the SAME request later succeeds, so
@@ -4791,9 +4798,19 @@ end tell`;
     res.end(JSON.stringify({ plugins: plugins.list() }));
 
   } else if (req.method === "POST" && req.url === "/plugins/reload") {
-    plugins.load();
+    // load() syntax-checks every index.js (node --check) before require(), so a
+    // JS-broken plugin is rejected with a clear parser error instead of crashing
+    // silently. Report failures explicitly — a reload that dropped a plugin is
+    // NOT a plain "ok".
+    const result = plugins.load();
     broadcast({ type: "plugins.changed" }, false);
-    res.writeHead(200); res.end("ok");
+    if (result && result.failed && result.failed.length) {
+      res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: false, loaded: result.loaded, failed: result.failed }));
+    } else {
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: true, loaded: result ? result.loaded : 0 }));
+    }
 
   } else if (req.method === "POST" && req.url === "/editor/open") {
     // 🎨 Ask the shell to open the editor — it shows its circular logo splash,
