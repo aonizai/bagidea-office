@@ -48,7 +48,19 @@ fn browser_chat() -> bool {
 // browser via xdg-open. Never makes any of these a hard requirement.
 fn open_chat_browser() {
     let url = "http://127.0.0.1:8787/";
-    // 1) Focus an existing BagIdeaOffice window if one is open.
+    // 1) Restore/focus an already-open BagIdeaOffice window. wmctrl -x -a reliably
+    //    un-minimizes on GNOME/Mutter — xdotool windowactivate activates but leaves a
+    //    minimized window minimized, so Open "did nothing" after minimize. Check the
+    //    window exists first: wmctrl -a is a silent no-op when nothing matches.
+    let exists = std::process::Command::new("sh")
+        .args(["-c", "wmctrl -lx 2>/dev/null | grep -qi BagIdeaOffice"])
+        .status().map(|s| s.success()).unwrap_or(false);
+    if exists {
+        let _ = std::process::Command::new("wmctrl")
+            .args(["-x", "-a", "BagIdeaOffice"]).status();
+        return;
+    }
+    // No window yet (or wmctrl missing) — xdotool focus as a backup before launching.
     let focused = std::process::Command::new("sh")
         .args(["-c", "wid=$(xdotool search --class BagIdeaOffice 2>/dev/null | head -1); [ -n \"$wid\" ] && xdotool windowactivate \"$wid\""])
         .status().map(|s| s.success()).unwrap_or(false);
