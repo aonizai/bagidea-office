@@ -417,7 +417,7 @@ mod platform {
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         EnumWindows, FindWindowExW, FindWindowW, GetWindowLongW, GetWindowThreadProcessId,
-        IsWindow, IsWindowVisible, SendMessageTimeoutW, SetLayeredWindowAttributes, SetParent,
+        IsWindowVisible, SendMessageTimeoutW, SetLayeredWindowAttributes, SetParent,
         SetWindowLongW, ShowWindow, SystemParametersInfoW, GWL_EXSTYLE, LWA_ALPHA,
         SMTO_NORMAL, SPI_SETDESKWALLPAPER, SW_HIDE, SW_SHOW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
         WS_EX_TOOLWINDOW,
@@ -848,26 +848,6 @@ mod platform {
                 position_wallpaper(godot, workerw, &root);
             }
             let _ = proxy.send_event(UserEvent::WorldReady);
-            // Non-invasive recovery: the "leave it alone" embed survives Win+D on a
-            // good day, but if the wallpaper window is HIDDEN — display sleep / lock /
-            // resume, a Win+D flip, or an Explorer hiccup — nothing re-shows it, so the
-            // office silently vanishes. Re-show it the moment it goes invisible.
-            // Deliberately NOT MoveWindow / not poking Progman every tick (that churn
-            // was the v0.7.7 regression that made it vanish on Win+D) — this only ever
-            // calls ShowWindow when the window is genuinely hidden, and skips while the
-            // owner hid the office from the tray.
-            loop {
-                std::thread::sleep(std::time::Duration::from_secs(3));
-                if WALLPAPER_HIDDEN.load(std::sync::atomic::Ordering::SeqCst) {
-                    continue;
-                }
-                if IsWindow(godot) == 0 {
-                    break;  // Godot process gone — stop watching.
-                }
-                if IsWindowVisible(godot) == 0 {
-                    ShowWindow(godot, SW_SHOW);
-                }
-            }
         });
     }
 
