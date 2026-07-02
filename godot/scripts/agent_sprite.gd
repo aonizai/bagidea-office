@@ -24,7 +24,7 @@ const WALK_SPEED := 1.6        # m/s
 const IDLE_FPS := 5.0
 const WALK_FPS := 9.0
 # How much the sheet art is lifted (in texture px) so the feet land on the floor.
-# The sheet's feet sit below the cell center; the node floats at y≈0.86 so this
+# The sheet's feet sit below the cell center; the node floats at y≈0.7 so this
 # offset pulls the art down into the right spot. If characters look like they
 # FLOAT above the floor (gap under their feet), REDUCE this; if they SINK into
 # the floor, INCREASE it. Was 4.0 (dev calc); lowered because the art's feet sit
@@ -231,7 +231,7 @@ func set_aura(element: String) -> void:
 	if not AuraFactory.has_assets():
 		return
 	_aura_node = AuraFactory.build(element)
-	_aura_node.position = Vector3(0, -0.84, 0)  # node floats at y 0.86 — ring on floor
+	_aura_node.position = Vector3(0, -0.68, 0)  # node floats at y 0.7 — ring on floor
 	add_child(_aura_node)
 
 ## Live identity update from the registry (rename / new role / new avatar).
@@ -357,8 +357,9 @@ func _process(delta: float) -> void:
 			elif _walking:
 				_walking = false
 				_dir = DIR_DOWN
-	# Sheet art: feet sit 31 px below cell center; node stands at y 0.86
-	# (0.86 / 0.032 ≈ 27 px) → lift by 4 px so feet land exactly on the floor.
+	# Sheet art: feet sit 31 px below cell center; node stands at y 0.7
+	# (was 0.86 — lowered so the billboard casts a tighter, grounded shadow).
+	# FEET_LIFT_PX pulls the art into place; tune it if feet float or sink.
 	if _mode == "procedural":
 		offset.y = sin(_t) * 0.15
 	else:

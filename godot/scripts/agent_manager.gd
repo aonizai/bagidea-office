@@ -790,7 +790,7 @@ func _spawn_base(id: String) -> Vector3:
 	# waypoints not ready → spread across the floor interior (never a pile)
 	_spawn_n += 1
 	var h: Vector2 = world.floor_half() if world.has_method("floor_half") else Vector2(14.0, 10.0)
-	return Vector3(randf_range(-h.x + 2.0, h.x - 2.0), 0.86, randf_range(-h.y + 2.0, h.y - 2.0))
+	return Vector3(randf_range(-h.x + 2.0, h.x - 2.0), 0.7, randf_range(-h.y + 2.0, h.y - 2.0))
 
 func _ensure(id: String) -> Dictionary:
 	if agents.has(id):
@@ -862,7 +862,7 @@ func _ops_spot(id: String) -> Vector3:
 	for k in agents:
 		if k != id and str(agents[k].get("desk", "")) == "ops_c":
 			n += 1
-	var base: Vector3 = world.WP.get("ops_c", Vector3(3, 0.86, -6.75))
+	var base: Vector3 = world.WP.get("ops_c", Vector3(3, 0.7, -6.75))
 	var col := n % 4
 	var row := n / 4
 	return base + Vector3(-0.9 + 0.6 * float(col), 0.0, 0.6 * float(row))
@@ -1213,7 +1213,7 @@ func _start_collab(task: String, members: Array, topic: String, theatrical := fa
 				center_name = alt
 				break
 	if center == Vector3.ZERO:
-		center = Vector3(0.0, 0.86, 0.0)
+		center = Vector3(0.0, 0.7, 0.0)
 	var is_primary := (center_name == "meeting_c")
 	var info := {"members": members.duplicate(), "center": center,
 		"center_name": center_name, "is_primary": is_primary,
@@ -1434,7 +1434,7 @@ func _idle_life_loop() -> void:
 
 func _act_tv(a: Dictionary) -> void:
 	a.node.set_status(ui("ดูทีวี 📺"))
-	var spot := Vector3(-7.25, 0.86, randf_range(7.6, 9.2))
+	var spot := Vector3(-7.25, 0.7, randf_range(7.6, 9.2))
 	var d: float = a.node.walk_to(world.path_to(a.node.position, "rec_s1") + [spot])
 	await get_tree().create_timer(d).timeout
 	if a.state != "idle":
@@ -1454,7 +1454,7 @@ func _act_ball(a: Dictionary) -> void:
 	a.node.set_status(ui("เตะบอล ⚽"))
 	var bp: Vector3 = world.ball.position
 	var d: float = a.node.walk_to(world.path_to(a.node.position, "rec_s2") +
-		[Vector3(bp.x - 0.45, 0.86, bp.z + 0.3)])
+		[Vector3(bp.x - 0.45, 0.7, bp.z + 0.3)])
 	await get_tree().create_timer(d + 0.2).timeout
 	if a.state != "idle":
 		return
@@ -1470,7 +1470,7 @@ func _act_pet(a: Dictionary) -> void:
 	a.node.set_status(ui("เล่นกับแมว 🐱"))
 	var pp: Vector3 = world.pet.position
 	var d: float = a.node.walk_to(world.path_to(a.node.position, "rec_c") +
-		[Vector3(pp.x + 0.7, 0.86, pp.z + 0.35)])
+		[Vector3(pp.x + 0.7, 0.7, pp.z + 0.35)])
 	await get_tree().create_timer(d).timeout
 	if a.state != "idle":
 		return
