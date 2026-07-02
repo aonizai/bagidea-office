@@ -553,6 +553,16 @@ func _reconcile_roster() -> void:
 		na.registered = true
 		na.node.apply_identity(roster[rid].name, roster[rid].role, roster[rid].avatar)
 		na.node.set_aura(roster[rid].aura)
+	# Drop agents that left the roster (renamed or deleted) but whose roster.removed
+	# never reached us — without this their node lingers as a phantom seat on the
+	# floor (e.g. a leftover "Agent" after a rename). Roster is the full list each
+	# sync, so anyone missing from it is genuinely gone. main/ceo are protected.
+	# (Ghosts live in their own dicts, so this only ever touches real roster seats.)
+	for aid in agents.keys():
+		if aid == "main" or aid == "ceo":
+			continue
+		if not roster.has(aid) and agents.has(aid):
+			_remove_agent(aid)
 
 func _remove_agent(id: String) -> void:
 	if id == "" or id in ["main", "ceo"] or not agents.has(id):
