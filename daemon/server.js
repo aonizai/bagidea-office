@@ -1756,18 +1756,26 @@ model "${mtag}". If the owner asks which AI/model/LLM you are, answer truthfully
       // those failures will NEVER clear on the same brain — bad auth (401/403) and a
       // dead/unreachable endpoint (error_status null + "unknown"). For those, kill the
       // child now and tell the owner plainly, instead of a ~2-minute blind hang that
-      // ends in a raw API error. Transient ceilings (429/529/overloaded) are left to
-      // the CLI's own retries and the existing rate-limit pause/resume path.
+      // ends in a raw API error. A SUSTAINED 529/503 (overload) fails over to Claude
+      // too after a few retries — a one-off hiccup is left to the CLI's own retries.
       if (m.type === "system") {
         if (!brainDead && m.subtype === "api_retry") {
           apiRetries++;
           const st = m.error_status;
           const permanent = st === 401 || st === 403;                 // bad/expired key or no access — never recovers
           const dead = (st === null || st === undefined) && apiRetries >= 2;  // endpoint not responding
-          if (permanent || dead) {
+          // Sustained overload (529/503): the provider's server is overloaded. A
+          // brief hiccup clears within the first retry or two, so we DON'T failover
+          // on the first 529 (that'd burn the Claude fallback on a transient blip
+          // + hammer an already-strained server). But when it PERSISTS — the CLI has
+          // already retried several times and the provider is still down — fail over
+          // to Claude so the task runs instead of ending in a raw "API Error: 529".
+          const sustainedOverload = (st === 529 || st === 503) && apiRetries >= 4;
+          if (permanent || dead || sustainedOverload) {
             brainDead = true;
             const why = st === 401 ? "API key ผิด/หมดอายุ (401)"
               : st === 403 ? "ไม่ได้รับอนุญาต (403)"
+              : sustainedOverload ? `สมองโอเวอร์โหลด (${st}) ติดต่อกัน — เซิร์ฟเวอร์ provider แย่อยู่`
               : "endpoint ไม่ตอบ (น่าจะ down หรือไม่น่าจะกลับมา)";
             const an = (reg.agents[agent] || {}).name || agent;
             // Auto-failover to Claude (the always-present default brain) so a dead
