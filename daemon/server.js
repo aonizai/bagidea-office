@@ -699,6 +699,18 @@ if (!fs.existsSync(OFFICE_MD)) {
       fs.writeFileSync(OFFICE_MD, OFFICE_MD_DEFAULT);
   } catch {}
 }
+// Migrate: an older OFFICE.md told agents to copy media into workspace/uploads
+// ("the chat renderer only sees files in workspace") — that's been false since the
+// chat renders media from ANY path. If the stale line is present, fix it in place.
+try {
+  let md = fs.readFileSync(OFFICE_MD, "utf8");
+  if (/มองเห็นเฉพาะไฟล์ใน workspace|copy เข้า `workspace\/uploads\/` ก่อนเสมอ/.test(md)) {
+    md = md.replace(
+      /^- \*\*ส่งไฟล์ให้ CEO ในแชท[^\n]*$/m,
+      "- **ส่งไฟล์ให้ CEO ในแชท (รูป/วิดีโอ/เสียง)**: แปะ full path ของไฟล์ในบรรทัดของมันเอง — ไฟล์อยู่ที่ไหนก็ได้บนเครื่อง (Desktop, Downloads, ไดรฟ์อื่น, โปรเจค, workspace ฯลฯ) ออฟฟิศ render ในแชทได้หมด **ไม่ต้อง copy เข้า workspace ก่อน** — ห้ามบอกแค่ที่อยู่หรือแปะลิงก์ดาวน์โหลด ให้ส่ง path ตรงๆ แล้วแชทจะแสดงให้เอง");
+    fs.writeFileSync(OFFICE_MD, md);
+  }
+} catch {}
 
 // 🔀 One-time cleanup: older versions SEEDED example workflows into
 // workspace/workflows. Examples now live read-only in the bundle, so drop any
