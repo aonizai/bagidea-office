@@ -21,14 +21,45 @@
 
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
+
+// Syntax-check a plugin's index.js with `node --check` BEFORE require(), so a
+// broken file (unbalanced brace, stray token…) is rejected up front with a clear
+// parser error instead of throwing inside require(). The waxwing unlock crash
+// showed why this matters: a JS-broken plugin used to load with mod:null and
+// still log "loaded", masking the failure as a silent runtime glitch. Returns
+// null when the file parses, or the first useful line of the parser message.
+// Uses process.execPath (the running node) so it never depends on PATH.
+function checkSyntax(file) {
+  try {
+    execFileSync(process.execPath, ["--check", file],
+      { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8", timeout: 5000 });
+    return null;
+  } catch (err) {
+    // `node --check` prints a "file:line" header, the offending line, a caret,
+    // then a "SyntaxError: <reason>" line, then a stack trace. Keep the
+    // location + the reason — together they say exactly what and where.
+    const lines = String(err.stderr || "").split("\n").map((l) => l.trim()).filter(Boolean);
+    const loc = lines[0] || "";
+    const reason = lines.find((l) => /SyntaxError|Error:/.test(l)) || "";
+    return [loc, reason].filter(Boolean).join(" — ") || err.message;
+  }
+}
 
 module.exports = function initPlugins(ctx) {
-  const DIR = path.join(__dirname, "..", "plugins");
+  // ctx.pluginsDir lets a test harness point load() at a throwaway folder;
+  // production callers leave it unset and we use the real plugins/ tree.
+  const DIR = (ctx && ctx.pluginsDir) || path.join(__dirname, "..", "plugins");
   fs.mkdirSync(DIR, { recursive: true });
   let plugins = {};   // id -> { manifest, mod, dir, dataDir }
+  // Result of the most recent load(): { loaded, failed:[{id,file,error}] }.
+  // Exposed so /plugins/reload can report a clear failure instead of "ok".
+  let lastLoad = { loaded: 0, failed: [] };
 
   function load() {
     plugins = {};
+    const failed = [];
+    let loadedCount = 0;
     let entries = [];
     try { entries = fs.readdirSync(DIR, { withFileTypes: true })
       .filter((e) => e.isDirectory() && !e.name.startsWith(".")); }
@@ -47,15 +78,34 @@ module.exports = function initPlugins(ctx) {
       let mod = null;
       const idx = path.join(dir, "index.js");
       if (fs.existsSync(idx)) {
+        const synErr = checkSyntax(idx);
+        if (synErr) {
+          // Syntax-broken JS must NOT be registered — rejecting up front here
+          // keeps a bad plugin from sneaking in as mod:null and logging
+          // "loaded" (the silent-fail that masked the waxwing unlock crash).
+          ctx.log("[plugin] syntax fail " + manifest.id + ": " + synErr);
+          failed.push({ id: manifest.id, file: "index.js", error: synErr });
+          continue;
+        }
         try {
           delete require.cache[require.resolve(idx)];
           const factory = require(idx);
           mod = factory({ ...ctx, dataDir, pluginDir: dir, manifest });
-        } catch (err) { ctx.log("[plugin] load fail " + manifest.id + ": " + err.message); }
+        } catch (err) {
+          // Same anti-mask rule as the syntax check above: a plugin whose
+          // factory throws at load time must be skipped and reported, not
+          // registered as mod:null and logged "loaded".
+          ctx.log("[plugin] load fail " + manifest.id + ": " + err.message);
+          failed.push({ id: manifest.id, file: "index.js", error: err.message });
+          continue;
+        }
       }
       plugins[manifest.id] = { manifest, mod, dir, dataDir };
+      loadedCount++;
       ctx.log("[plugin] loaded " + manifest.id + " v" + (manifest.version || "?"));
     }
+    lastLoad = { loaded: loadedCount, failed };
+    return lastLoad;
   }
   load();
 
@@ -157,5 +207,5 @@ module.exports = function initPlugins(ctx) {
   // assume plugins/<id>. Returns null if no loaded plugin has that id.
   function dirOf(id) { return plugins[id] ? plugins[id].dir : null; }
 
-  return { load, list, handleHttp, agentNote, dirOf };
+  return { load, list, handleHttp, agentNote, dirOf, lastLoad: () => lastLoad };
 };
