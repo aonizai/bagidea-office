@@ -4,6 +4,46 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.9.40] — Install anywhere, always-current model lists, media that renders
+
+**Fixed**
+- **The installer no longer hard-fails without winget.** A Windows box without winget
+  (Windows Server, fresh Administrator accounts) used to die at `! winget not found`
+  before it ever reached the prebuilt-shell path — which needs no winget at all. Now
+  winget is optional: Git and Node are downloaded directly (portable MinGit + the
+  nodejs.org LTS zip), the prebuilt shell is fetched from the release, and only the
+  optional agent CLIs (gh/ffmpeg/…) are skipped when winget is absent.
+- **Model lists in the 🧠 brain picker are always current.** The picker carried its own
+  hardcoded model list that drifted stale (e.g. it still offered `glm-4.6` long after
+  `glm-5.2` shipped). Now the backend catalog is the single source of truth, served to
+  the UI, plus a **↻ refresh** button that force-pulls a provider's full live model list
+  on demand. Live lists no longer get alphabetically sorted-then-truncated (which buried
+  newer ids), and MiniMax fetches its live list too.
+- **Chat previews media at ANY absolute path — including paths with spaces.** Files
+  outside `workspace/` (e.g. `…/ChatGPT Image Jul 1, 2026, 08_10_04 PM.png`, Thai
+  filenames) silently failed to render because the path detector rejected spaces. It now
+  accepts spaces and any drive/common absolute root, and covers `svg`/`mov`/`pdf`.
+- **A JS-broken plugin is rejected up front** instead of loading as a silent no-op that
+  still logged "loaded". `plugins.js` runs `node --check` before requiring a plugin;
+  `POST /plugins/reload` answers `400` with the failed list (good plugins still load).
+
+**Changed**
+- **Brain-overload policy simplified.** Reverted the v0.9.39 auto-failover-to-Claude: not
+  everyone configures a Claude brain, and a transient 529/503 shouldn't burn the Claude
+  fallback. The CLI now retries the same brain hard; only bad auth (401/403) and a
+  dead/unreachable endpoint fast-fail with a clear message.
+- **Docs: the one-shot installer is the primary path**, `npx bagidea` is presented as an
+  optional wrapper around the same installer (README, website, and getting-started no
+  longer imply "npx first"). Website install headings retranslated across all 11 locales.
+
+**Added**
+- **Ollama local-model guide** (`docs/guide/ollama-local.md`) — back an agent with a model
+  running locally, no key, no cloud.
+
+---
+Daemon + installer + docs change — no shell code change (the prebuilt shell is rebuilt on
+the release tag). Update via the in-app 🔄 banner or `bagidea update`.
+
 ## [0.9.39] — Fail over to Claude when a brain is SUSTAINEDLY overloaded (529/503)
 
 **Fixed**
