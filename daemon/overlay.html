@@ -3244,6 +3244,10 @@
            <input id="eModel" autocomplete="off" maxlength="60" style="margin:0;width:100%" placeholder="โมเดล (เว้นว่าง = ดีฟอลต์ของผู้ให้บริการ)">
            <div id="eModelMenu" class="cbmenu"></div>
          </div>
+         <div id="eModelRefreshRow" style="margin-top:5px;display:flex;align-items:center;gap:8px">
+           <button class="send" id="eRefreshModels" type="button" title="↻" style="padding:2px 9px;font-size:12px;line-height:1.4">↻</button>
+           <span id="eModelHint" style="color:var(--dim);font-size:10.5px"></span>
+         </div>
          <div id="eProvWarn" style="display:none;margin-top:6px;font-size:11px">
            <span style="color:#ffb054">⚠ ยังไม่ได้เชื่อมต่อ provider นี้</span>
            <button class="send" id="eGoConnect" style="margin-left:6px">🔗 ไปหน้า CONNECT</button>
@@ -3455,6 +3459,9 @@
         ["groq", "Groq · proxy"], ["cerebras", "Cerebras · proxy"], ["xai", "xAI · Grok · proxy"],
         ["mistral", "Mistral · proxy"], ["together", "Together AI · proxy"], ["fireworks", "Fireworks AI · proxy"],
         ["ollama", "Ollama · local"], ["lmstudio", "LM Studio · local"]];
+      // FALLBACK ONLY — the authoritative curated list now comes from the backend
+      // catalog (CATALOG, served by /registry from providers.js). These inline maps
+      // are used only if that fetch fails; do not rely on them staying current.
       const MODELS = { claude: ["", "opus", "sonnet", "haiku"], glm: ["glm-4.6", "glm-4.5"],
         deepseek: ["deepseek-v4-pro", "deepseek-v4-flash"],
         qwen: ["qwen3-coder-plus", "qwen3-coder-next", "qwen3-coder-flash"],
@@ -3489,6 +3496,7 @@
       if (goc) goc.onclick = () => openSettings("connect");
       const saveBtn = modalCard.querySelector("#eSave");
       let pcAll = {};
+      let CATALOG = {};   // backend curated catalog {id:{models,best,hasModelsUrl}} — single source of truth
       let curModels = [];
       const refreshed = new Set();
       // Keep the model list current: silently re-pull a connected provider's live models
@@ -3503,6 +3511,22 @@
           renderModels(false);
           if (keep) modelInput.value = keep;
         }).catch(() => {});
+      };
+      // ↻ button: force a LIVE re-pull of this provider's full model list on demand
+      // (bypasses the once-per-open guard + the connected gate), so the picker can
+      // always be made current. Feedback is symbolic (…/✓ N/⚠) — no new i18n strings.
+      const setHint = (t) => { const h = modalCard.querySelector("#eModelHint"); if (h) h.textContent = t || ""; };
+      const forceRefreshModels = (p) => {
+        if (!p || p === "claude") { setHint(""); return; }
+        setHint("…"); refreshed.delete(p);
+        api("/registry/provider/test", { provider: p }).then((r) => {
+          if (provSel.value !== p) return;
+          if (r && r.models && r.models.length) {
+            pcAll[p] = pcAll[p] || {}; pcAll[p].models = r.models; pcAll[p].connected = true;
+            const keep = modelInput.value; renderModels(false); if (keep) modelInput.value = keep;
+            setHint("✓ " + r.models.length);
+          } else { setHint(r && r.ok ? "✓" : ("⚠ " + ((r && r.msg) || ""))); }
+        }).catch(() => setHint("⚠"));
       };
       const buildProviderOptions = () => {
         const customs = Object.keys(pcAll).filter((id) => !BSET.has(id) && pcAll[id] && pcAll[id].label)
@@ -3536,7 +3560,7 @@
         // embedding/realtime variants + Gemini's "models/" prefix), so pickers show
         // only models that can actually back a text agent.
         const NONCHAT = /(image|tts|audio|speech|whisper|transcri|embedding|\bembed\b|moderation|rerank|guard|safety|dall|imagen|veo|sora|-live\b|realtime|\bclip\b|bison|gecko)/i;
-        const stat = MODELS[p] || [];
+        const stat = (CATALOG[p] && CATALOG[p].models) || MODELS[p] || [];
         const live = ((pcAll[p] && pcAll[p].models) || []).map((m) => m.replace(/^models\//, ""));
         const liveChat = live.filter((m) => !NONCHAT.test(m));
         const usable = liveChat.length ? liveChat : live;
@@ -3545,13 +3569,15 @@
         // sensible default (first usable model) so the field is never left invalid.
         // Default to the provider's BEST / NEWEST model (a quiet nudge toward the latest);
         // fall back to the first usable one. Never the blank/implicit model.
-        const def = BEST_MODEL[p] || curModels.find(Boolean) || "";
+        const def = (CATALOG[p] && CATALOG[p].best) || BEST_MODEL[p] || curModels.find(Boolean) || "";
         modelInput.value = (!provChanged && a.model && p === (a.provider || "claude")) ? a.model : def;
       };
       buildProviderOptions();
-      provSel.onchange = () => { renderModels(true); refreshModels(provSel.value); };
+      provSel.onchange = () => { setHint(""); renderModels(true); refreshModels(provSel.value); };
+      const refBtn = modalCard.querySelector("#eRefreshModels");
+      if (refBtn) refBtn.onclick = () => forceRefreshModels(provSel.value);
       renderModels(false);
-      fetch("/registry").then((x) => x.json()).then((rg) => { pcAll = rg.providerConfig || {}; buildProviderOptions(); renderModels(false); refreshModels(provSel.value); }).catch(() => {});
+      fetch("/registry").then((x) => x.json()).then((rg) => { pcAll = rg.providerConfig || {}; CATALOG = rg.providerCatalog || {}; buildProviderOptions(); renderModels(false); refreshModels(provSel.value); }).catch(() => {});
     }
       modalCard.querySelector("#ePrompt").value = a.prompt || "";
       modalCard.querySelector("#eExpertise").value = px.expertise || "";

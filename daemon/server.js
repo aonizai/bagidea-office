@@ -3788,8 +3788,25 @@ const server = http.createServer((req, res) => {
     });
 
   } else if (req.method === "GET" && req.url === "/registry") {
+    // Ship the backend's curated model catalog alongside reg so the brain picker
+    // has ONE source of truth. The frontend used to carry its own hardcoded
+    // MODELS/BEST_MODEL copy that drifted stale (e.g. it still showed glm-4.6 long
+    // after glm-5.2 shipped) — that duplicate was the real "models don't update"
+    // bug. best = newest = the first non-empty curated id (catalogs list newest
+    // first; claude keeps its explicit default). hasModelsUrl tells the UI a LIVE
+    // list can be pulled (any openai-format provider, or an anthropic one that
+    // declares modelsUrl).
+    const providerCatalog = {};
+    for (const [id, spec] of Object.entries(providers.PROVIDERS)) {
+      const models = (spec.models || []).slice();
+      providerCatalog[id] = {
+        models,
+        best: id === "claude" ? "claude-opus-4-8" : (models.filter(Boolean)[0] || ""),
+        hasModelsUrl: !!spec.modelsUrl || spec.format === "openai",
+      };
+    }
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify(reg));
+    res.end(JSON.stringify({ ...reg, providerCatalog }));
 
   } else if (req.method === "GET" && req.url.startsWith("/recall")) {
     // Relevance search over the office's memory / projects / owner facts /
@@ -4527,7 +4544,7 @@ end tell`;
           const r = await fetch(modelsUrl, { headers: { authorization: "Bearer " + key }, signal });
           if (r.ok) {
             let models = [];
-            try { const j = await r.json(); captureModelCtx(provider, j.data); models = proxy.cleanModels((j.data || []).map((m) => m.id)).sort().slice(0, 120); } catch {}
+            try { const j = await r.json(); captureModelCtx(provider, j.data); models = proxy.cleanModels((j.data || []).map((m) => m.id)).slice(0, 300); } catch {}
             setConn(true, models);
             return done(true, "เชื่อมต่อแล้ว ✓", models);
           }
@@ -4557,7 +4574,7 @@ end tell`;
           try {
             const msig = AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined;
             const mr = await fetch(murl, { headers: { authorization: "Bearer " + pc.token }, signal: msig });
-            if (mr.ok) { const j = await mr.json(); captureModelCtx(provider, j.data); models = proxy.cleanModels((j.data || []).map((m) => m.id)).sort().slice(0, 120); }
+            if (mr.ok) { const j = await mr.json(); captureModelCtx(provider, j.data); models = proxy.cleanModels((j.data || []).map((m) => m.id)).slice(0, 300); }
           } catch {}
         }
         setConn(!authBad && !pathBad, models && models.length ? models : null);

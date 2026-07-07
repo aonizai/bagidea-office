@@ -55,6 +55,9 @@ const PROVIDERS = {
     // confirmed (MiniMax docs). International endpoint; mainland-China is
     // https://api.minimaxi.com/anthropic (extra "i") — set reg.providerConfig.minimax.baseUrl.
     baseUrl: "https://api.minimax.io/anthropic",
+    // Best-effort live list from MiniMax's OpenAI-compatible endpoint; if it 404s
+    // the fetch is caught and we fall back to the static hint (never blocks Connect).
+    modelsUrl: "https://api.minimax.io/v1/models",
     models: ["MiniMax-M3"],
   },
   moonshot: {
