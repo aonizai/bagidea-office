@@ -22,6 +22,37 @@ const BUILTIN_TOOLS = {
 };
 
 const SKILL_LIBRARY = {
+  "schedule-via-office-job-": {
+    name: "schedule-via-office-job-not-cron",
+    description: "Schedule delayed/timed/recurring office work (\"in 1 hour\", \"tomorrow 9am\", \"every 30 min\", reminders) through the daemon's own job system (POST /jobs) so it survives after the session closes — NOT session-bound CronCreate/ScheduleWakeup",
+    content: [
+      'Use this ANY time you are asked to do office work LATER — "in 1 hour", "tomorrow 9am", "every 30 minutes", a reminder, a recurring check. Schedule it through the office\'s OWN job system so it survives after your session ends.',
+      '',
+      'Do NOT use CronCreate or ScheduleWakeup — those are bound to THIS Claude session and vanish when it closes. The office scheduler persists to daemon/jobs.json and the 30s daemon loop fires it for real: it runs the prompt as a FRESH session, not just a calendar note.',
+      '',
+      'Create a job — POST http://127.0.0.1:8787/jobs with a JSON body:',
+      '  - One-shot at an absolute time:   {"agent":"<id>","prompt":"<what to do>","mode":"at","at":<epoch-ms>}',
+      '  - Every day at a clock time:       {"agent":"<id>","prompt":"...","mode":"at","daily":true,"time":"09:00"}',
+      '  - Repeating interval (min 5 min):  {"agent":"<id>","prompt":"...","mode":"every","everyMin":30}',
+      '  - Run immediately (rarely needed): {"agent":"<id>","prompt":"...","mode":"now"}',
+      '',
+      'Rules:',
+      '1. `agent` MUST be a real teammate id from the registry (e.g. main, or a specialist) — NEVER "ceo". The job runs AS that agent, so pick whoever should do the work (delegate to the right specialist, or main to orchestrate).',
+      '2. `at` is epoch MILLISECONDS: now + minutes*60000. e.g. 1 hour = Date.now()+3600000; compute with: node -e "console.log(Date.now()+3600000)".',
+      '3. `prompt` is the full instruction the agent receives when it fires. Write it SELF-CONTAINED — the future session has no memory of this chat.',
+      '',
+      'Example — 1 hour from now, run by main:',
+      '  AT=$(node -e "console.log(Date.now()+3600000)")',
+      '  curl -s -X POST http://127.0.0.1:8787/jobs -H "content-type: application/json; charset=utf-8" \\',
+      '    --data-binary "{\\"agent\\":\\"main\\",\\"prompt\\":\\"<what to do>\\",\\"mode\\":\\"at\\",\\"at\\":$AT}"',
+      '  (Non-ASCII body → write the JSON to a UTF-8 file and --data-binary @file; see curl-post-utf8-json-body.)',
+      '',
+      'Verify + report: the response is {"id":"jXXXXXXXX"}. Confirm it appears in GET /jobs (and on the office screen), then tell the owner the job id, which agent runs it, and the human-readable fire time.',
+      'Change / cancel: POST /jobs/update {"id":"jXX","remove":true} (or set enabled/at/everyMin/prompt).',
+      '',
+      'Just a REMINDER for the CEO (no work to run)? Use POST /calendar {"title":"...","at":<epoch-ms>} instead — it pops a reminder without spawning a work session.',
+    ].join("\n"),
+  },
   "deep-research": {
     name: "Deep Research",
     description: "Methodical web research that ends in a sourced, decision-ready brief.",
@@ -333,7 +364,7 @@ const DEFAULT_CEO_AGENT = {
 // NOT here on purpose: web-automation (assigning it GRANTS the browser tool, so it
 // must stay opt-in), and the orchestration/specialist skills (office-ops, plugin-
 // builder, code-review, …) that belong to specific roles or are auto-learned.
-const DEFAULT_SKILLS = ["archive-search", "file-media-toolkit", "doc-writer"];
+const DEFAULT_SKILLS = ["archive-search", "file-media-toolkit", "doc-writer", "schedule-via-office-job-"];
 
 module.exports = {
   REPLAY_COUNT,

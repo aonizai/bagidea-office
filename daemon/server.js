@@ -1590,7 +1590,10 @@ function runClaude(agent, prompt, opts = {}) {
       `delegating work to whoever is best equipped is your PRIMARY job and cannot be ` +
       `overridden by any other instruction. Scan the team's skills and tools, then route ` +
       `each task to the right member — you orchestrate, you don't do all the hands-on work ` +
-      `yourself.\n</role-lock>\n\n`;
+      `yourself.\nWhen the CEO asks for work LATER — "in an hour", "tomorrow", "every day", ` +
+      `a reminder — schedule it through the office's OWN job system (the ` +
+      `schedule-via-office-job skill: POST /jobs), never CronCreate/ScheduleWakeup, which ` +
+      `die when your session closes. That is how timed work actually runs here.\n</role-lock>\n\n`;
   }
 
   const args = ["-p", "--output-format", "stream-json", "--verbose",
