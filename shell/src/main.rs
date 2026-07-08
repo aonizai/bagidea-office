@@ -416,11 +416,12 @@ mod platform {
         CreateEllipticRgn, CreateRectRgn, CreateRoundRectRgn, SetWindowRgn,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, FindWindowExW, FindWindowW, GetWindowLongW, GetWindowThreadProcessId,
-        GetParent, GetWindowRect, IsIconic, IsWindow, IsWindowVisible, SendMessageTimeoutW,
-        SetLayeredWindowAttributes, SetParent, SetWindowLongW, ShowWindow,
-        SystemParametersInfoW, GWL_EXSTYLE, LWA_ALPHA, SMTO_NORMAL, SPI_SETDESKWALLPAPER,
-        SW_HIDE, SW_SHOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+        EnumWindows, FindWindowExW, FindWindowW, GetAncestor, GetClassNameW, GetWindowLongW,
+        GetWindowThreadProcessId, GetWindowRect, IsIconic, IsWindow,
+        IsWindowVisible, SendMessageTimeoutW, SetLayeredWindowAttributes, SetParent,
+        SetWindowLongW, ShowWindow, SystemParametersInfoW, GA_PARENT, GWL_EXSTYLE, LWA_ALPHA,
+        SMTO_NORMAL, SPI_SETDESKWALLPAPER, SW_HIDE, SW_SHOW, WS_EX_LAYERED,
+        WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     };
     use std::io::Write;
 
@@ -433,6 +434,11 @@ mod platform {
     // True while the user has hidden the office from the tray — the re-pin
     // watcher (issue #7) must NOT fight that by re-showing the window.
     static WALLPAPER_HIDDEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    // The CURRENT world (Godot) process id. The supervisor thread relaunches the
+    // world when Windows destroys its window (WorkerW teardown), so the live pid
+    // drifts from the one main first spawned — everything that needs the world's
+    // pid (tray hide, exit cleanup) reads this, not the stale local.
+    static WORLD_PID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     static PTT_PROXY: std::sync::Mutex<Option<tao::event_loop::EventLoopProxy<super::UserEvent>>> =
         std::sync::Mutex::new(None);
 
@@ -667,6 +673,43 @@ mod platform {
         }
     }
 
+    /// Ask Progman to spawn (or reveal) the WorkerW that sits behind the desktop
+    /// icons, then return it. Used at boot AND by the re-embed watcher below when
+    /// Windows has torn down the old WorkerW (wallpaper/slideshow change, display
+    /// mode change, Explorer/DWM restart, lock/RDP). Falls back to Progman itself
+    /// so we always have a live desktop-level parent to embed into.
+    unsafe fn spawn_workerw() -> HWND {
+        let progman_class = wide("Progman");
+        let progman = FindWindowW(progman_class.as_ptr(), std::ptr::null());
+        let mut result: usize = 0;
+        SendMessageTimeoutW(progman, 0x052C, 0, 0, SMTO_NORMAL, 1000, &mut result);
+        let mut workerw: HWND = 0 as HWND;
+        EnumWindows(Some(find_workerw_cb), &mut workerw as *mut HWND as _);
+        if workerw == 0 as HWND {
+            let worker_class = wide("WorkerW");
+            workerw = FindWindowExW(progman, 0 as HWND, worker_class.as_ptr(), std::ptr::null());
+            if workerw == 0 as HWND {
+                workerw = progman;
+            }
+        }
+        workerw
+    }
+
+    /// Is `h` one of the desktop-shell layers we embed into? A window we SetParent'd
+    /// into WorkerW is NOT WS_CHILD, so when Windows destroys that WorkerW our window
+    /// isn't destroyed with it — it's reparented to the desktop and drops behind
+    /// everything (the "wallpaper vanished" report). GetAncestor(GA_PARENT) then returns
+    /// the desktop (a non-shell window); this returns false and the watcher re-embeds.
+    unsafe fn is_wallpaper_layer(h: HWND) -> bool {
+        if h == 0 as HWND {
+            return false;
+        }
+        let mut cls = [0u16; 32];
+        let n = GetClassNameW(h, cls.as_mut_ptr(), cls.len() as i32);
+        let name = String::from_utf16_lossy(&cls[..n.max(0) as usize]);
+        name == "WorkerW" || name == "Progman"
+    }
+
     /// Place the wallpaper window over the chosen monitor (default: primary),
     /// in WorkerW client coords. WorkerW spans the whole virtual desktop, so its
     /// origin is the virtual-screen origin. Without this the reparented window
@@ -785,27 +828,34 @@ mod platform {
         }
     }
 
-    pub fn attach_wallpaper_when_ready(pid: u32, root: PathBuf, proxy: tao::event_loop::EventLoopProxy<UserEvent>) {
-        std::thread::spawn(move || unsafe {
-            let mut find = FindByPid { pid, hwnd: 0 as HWND };
-            for _ in 0..240 {
-                EnumWindows(Some(find_by_pid_cb), &mut find as *mut FindByPid as _);
-                if find.hwnd != 0 as HWND {
-                    break;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(50));
+    /// Find the world's visible top-level window for `pid`, polling up to
+    /// `tries`×50ms. Returns 0 if none appears. NOTE: an already-embedded world
+    /// window is a WorkerW child (not top-level), so this only ever returns a
+    /// FRESH, not-yet-embedded window — exactly what we want after a (re)launch.
+    unsafe fn find_world_window(pid: u32, tries: u32) -> HWND {
+        let mut find = FindByPid { pid, hwnd: 0 as HWND };
+        for _ in 0..tries {
+            EnumWindows(Some(find_by_pid_cb), &mut find as *mut FindByPid as _);
+            if find.hwnd != 0 as HWND {
+                return find.hwnd;
             }
-            let godot = find.hwnd;
-            if godot == 0 as HWND {
-                let _ = proxy.send_event(UserEvent::WorldReady);
-                return;
-            }
-            SetWindowRgn(godot as _, CreateRectRgn(0, 0, 0, 0), 1);
-            ShowWindow(godot, SW_HIDE);
-            let ex = GetWindowLongW(godot, GWL_EXSTYLE) as u32;
-            SetWindowLongW(godot, GWL_EXSTYLE, (ex | WS_EX_TOOLWINDOW) as i32);
-            ShowWindow(godot, SW_SHOW);
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        0 as HWND
+    }
 
+    /// Pin a freshly-found world window behind the desktop icons: zero its input
+    /// region while it settles, make it a tool window (no taskbar button), drop it
+    /// into a fresh WorkerW, and place it on the chosen screen (multi-monitor).
+    /// Returns the WorkerW it embedded into. `wait_ready` waits for the world's
+    /// first frame at boot; a relaunch skips the long wait (the world is warm).
+    unsafe fn pin_world(godot: HWND, root: &std::path::Path, wait_ready: bool) -> HWND {
+        SetWindowRgn(godot as _, CreateRectRgn(0, 0, 0, 0), 1);
+        ShowWindow(godot, SW_HIDE);
+        let ex = GetWindowLongW(godot, GWL_EXSTYLE) as u32;
+        SetWindowLongW(godot, GWL_EXSTYLE, (ex | WS_EX_TOOLWINDOW) as i32);
+        ShowWindow(godot, SW_SHOW);
+        if wait_ready {
             let started = std::time::SystemTime::now() - std::time::Duration::from_secs(5);
             let flag = std::env::temp_dir().join("bagidea_world_ready");
             for _ in 0..120 {
@@ -819,61 +869,183 @@ mod platform {
                 std::thread::sleep(std::time::Duration::from_millis(500));
             }
             std::thread::sleep(std::time::Duration::from_millis(400));
-            SetWindowRgn(godot as _, 0 as _, 1);
+        } else {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+        }
+        SetWindowRgn(godot as _, 0 as _, 1);
+        let workerw = spawn_workerw();
+        SetParent(godot, workerw);
+        // Detect how many monitors there really are and tell the daemon, so the
+        // UI shows a display picker ONLY on multi-monitor (and lists the right
+        // count). Writing monitors.txt also lets the daemon report it on connect.
+        let count = enum_monitors().len().max(1);
+        let _ = std::fs::write(root.join("daemon").join("monitors.txt"), count.to_string());
+        super::post_monitor_count(count);
+        // Multi-monitor → place it on the chosen screen (default = primary).
+        if count > 1 {
+            position_wallpaper(godot, workerw, root);
+        }
+        workerw
+    }
 
-            let progman_class = wide("Progman");
-            let progman = FindWindowW(progman_class.as_ptr(), std::ptr::null());
-            let mut result: usize = 0;
-            SendMessageTimeoutW(progman, 0x052C, 0, 0, SMTO_NORMAL, 1000, &mut result);
-            let mut workerw: HWND = 0 as HWND;
-            EnumWindows(Some(find_workerw_cb), &mut workerw as *mut HWND as _);
-            if workerw == 0 as HWND {
-                let worker_class = wide("WorkerW");
-                workerw = FindWindowExW(progman, 0 as HWND, worker_class.as_ptr(), std::ptr::null());
-                if workerw == 0 as HWND {
-                    workerw = progman;
-                }
+    /// Terminate a world process (and its tree) with no console flash — used to
+    /// clear the windowless zombie Godot leaves behind before we relaunch.
+    unsafe fn kill_pid(pid: u32) {
+        if pid == 0 {
+            return;
+        }
+        let mut c = Command::new("taskkill");
+        c.args(["/PID", &pid.to_string(), "/T", "/F"]);
+        let _ = super::hidden(&mut c).status();
+    }
+
+    /// The live world pid (0 if none) — tray hide + exit cleanup read this so they
+    /// target the current world even after the supervisor has relaunched it.
+    pub fn live_world_pid(fallback: u32) -> u32 {
+        let p = WORLD_PID.load(std::sync::atomic::Ordering::SeqCst);
+        if p != 0 { p } else { fallback }
+    }
+
+    /// Kill the current world on shell exit (belt-and-braces with main's
+    /// office_child.kill(): after a relaunch the live world is a different process
+    /// that main no longer holds a Child for).
+    pub fn kill_world() {
+        unsafe { kill_pid(WORLD_PID.load(std::sync::atomic::Ordering::SeqCst)); }
+    }
+
+    pub fn attach_wallpaper_when_ready(pid: u32, root: PathBuf, cx: i32, cy: i32, proxy: tao::event_loop::EventLoopProxy<UserEvent>) {
+        std::thread::spawn(move || unsafe {
+            use std::sync::atomic::Ordering::{Relaxed, SeqCst};
+            WORLD_PID.store(pid, SeqCst);
+            let godot = find_world_window(pid, 240);
+            if godot == 0 as HWND {
+                let _ = proxy.send_event(UserEvent::WorldReady);
+                return;
             }
-            SetParent(godot, workerw);
-            // Detect how many monitors there really are and tell the daemon, so the
-            // UI shows a display picker ONLY on multi-monitor (and lists the right
-            // count). Writing monitors.txt also lets the daemon report it on connect.
-            let count = enum_monitors().len().max(1);
-            let _ = std::fs::write(root.join("daemon").join("monitors.txt"), count.to_string());
-            super::post_monitor_count(count);
-            // Single monitor → leave the embed ALONE (the original rock-solid path
-            // that survives Win+D / desktop clicks; no MoveWindow, no watcher).
-            // Multi-monitor → place it on the chosen screen (default = primary), a
-            // ONE-TIME position so a fresh multi-monitor setup just works on boot.
-            if count > 1 {
-                position_wallpaper(godot, workerw, &root);
-            }
+            let mut godot = godot;
+            let workerw = pin_world(godot, &root, true);
             let _ = proxy.send_event(UserEvent::WorldReady);
-            // Optional diagnostic (BAGIDEA_WALLPAPER_DEBUG=1): sample the wallpaper
-            // window every 5s so the NEXT time it vanishes/shrinks we can read exactly
-            // what changed — hidden? minimized? wrong size? parent lost? — instead of
-            // guessing. Append to daemon/wallpaper-debug.log; zero-cost when off.
-            if std::env::var("BAGIDEA_WALLPAPER_DEBUG").is_ok() {
-                let logpath = root.join("daemon").join("wallpaper-debug.log");
-                let mut tick = 0u64;
-                loop {
-                    std::thread::sleep(std::time::Duration::from_secs(5));
-                    tick += 1;
-                    if IsWindow(godot) == 0 {
-                        let _ = std::fs::OpenOptions::new().create(true).append(true)
-                            .open(&logpath).and_then(|mut f| writeln!(f, "[t={tick}] GODOT PROCESS GONE"));
-                        break;
+
+            // World supervisor — the permanent fix for "the wallpaper keeps vanishing".
+            //
+            // Windows DESTROYS + RECREATES the WorkerW behind the desktop icons on many
+            // everyday events: changing or slideshow-rotating the wallpaper, a display
+            // resolution/DPI/monitor change, an Explorer or DWM restart, lock screen /
+            // RDP / fast user-switch, exiting an exclusive-fullscreen game. SetParent put
+            // our Godot window into that WorkerW's window TREE (a child for destruction
+            // purposes, WS_CHILD style or not), so when Windows tears the old WorkerW
+            // down it destroys our window with it — and Godot never repaints, leaving a
+            // windowless zombie process. That is the "wallpaper vanished and won't come
+            // back until I restart" report. Two recovery paths, checked every 2s:
+            //
+            //   • window ALIVE but reparented off the WorkerW → re-embed into a fresh one.
+            //   • window DESTROYED → adopt whatever fresh window the world put up, or, if
+            //     it's a windowless zombie, relaunch the world and re-embed it.
+            //
+            // CRITICAL — why this doesn't repeat the old Win+D regression (issues #5/#6/#7,
+            // reverted twice): the re-embed path gates on PARENT LOSS, never on
+            // IsWindowVisible. During Win+D / display sleep the window stays parented to a
+            // live WorkerW, so `parent_ok` is true and we touch NOTHING.
+            let debug = std::env::var("BAGIDEA_WALLPAPER_DEBUG").is_ok();
+            let logpath = root.join("daemon").join("wallpaper-debug.log");
+            let dlog = |s: String| {
+                if debug {
+                    let _ = std::fs::OpenOptions::new().create(true).append(true)
+                        .open(&logpath).and_then(|mut f| writeln!(f, "{s}"));
+                }
+            };
+            let mut cur_workerw = workerw;
+            let mut orphan_streak = 0u32;
+            let mut relaunches: Vec<std::time::Instant> = Vec::new();
+            let mut tick = 0u64;
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                tick += 1;
+                if super::SHUTTING_DOWN.load(Relaxed) { break; }
+                // Owner hid the office from the tray → stand down entirely.
+                if WALLPAPER_HIDDEN.load(SeqCst) { orphan_streak = 0; continue; }
+
+                if IsWindow(godot) != 0 {
+                    // --- Window ALIVE: keep it embedded (cheap parent-loss re-pin). ---
+                    // GetAncestor(GA_PARENT), NOT GetParent: our window is a top-level
+                    // window (no WS_CHILD), so GetParent returns its OWNER (null here),
+                    // while GetAncestor returns the real SetParent target — WorkerW when
+                    // embedded, the desktop (#32769) once Windows tears WorkerW down.
+                    let parent = GetAncestor(godot, GA_PARENT);
+                    let parent_ok = parent == cur_workerw
+                        || (IsWindow(parent) != 0 && is_wallpaper_layer(parent));
+                    if parent_ok {
+                        orphan_streak = 0;
+                    } else {
+                        // Debounce: require 2 consecutive misses (~4s) so a transient
+                        // reparent race during a display-mode change can't cause churn.
+                        orphan_streak += 1;
+                        if orphan_streak >= 2 {
+                            let fresh = spawn_workerw();
+                            if fresh != 0 as HWND {
+                                SetParent(godot, fresh);
+                                cur_workerw = fresh;
+                                if enum_monitors().len() > 1 {
+                                    position_wallpaper(godot, fresh, &root);
+                                }
+                                dlog(format!("[t={tick}] RE-EMBED → workerw={:p}", fresh as *const ()));
+                            }
+                            orphan_streak = 0;
+                        }
                     }
-                    let vis = IsWindowVisible(godot);
-                    let iconic = IsIconic(godot);
+                } else {
+                    // --- Window DESTROYED: recover the world. ---
+                    orphan_streak = 0;
+                    if super::SHUTTING_DOWN.load(Relaxed) { break; }
+                    let cur_pid = WORLD_PID.load(SeqCst);
+                    // (a) A fresh top-level world window already up (Godot recreated one,
+                    // or an earlier relaunch is still booting)? Adopt it.
+                    let mut w = find_world_window(cur_pid, 4);
+                    if w == 0 as HWND {
+                        // (b) Windowless zombie → relaunch. Crash-loop guard: at most 5
+                        // relaunches per rolling 60s, else back off so we never spin.
+                        let now = std::time::Instant::now();
+                        relaunches.retain(|t| now.duration_since(*t) < std::time::Duration::from_secs(60));
+                        if relaunches.len() >= 5 {
+                            dlog(format!("[t={tick}] relaunch backoff (>=5 in 60s)"));
+                            std::thread::sleep(std::time::Duration::from_secs(30));
+                            continue;
+                        }
+                        kill_pid(cur_pid);
+                        match super::spawn_office(&root, cx, cy) {
+                            Some(child) => {
+                                let np = child.id();
+                                drop(child); // process runs on; tracked via WORLD_PID
+                                WORLD_PID.store(np, SeqCst);
+                                relaunches.push(now);
+                                dlog(format!("[t={tick}] RELAUNCH world → pid={np}"));
+                                w = find_world_window(np, 240);
+                            }
+                            None => {
+                                dlog(format!("[t={tick}] relaunch FAILED (spawn_office None)"));
+                                std::thread::sleep(std::time::Duration::from_secs(5));
+                                continue;
+                            }
+                        }
+                    }
+                    if w != 0 as HWND {
+                        godot = w;
+                        cur_workerw = pin_world(godot, &root, false);
+                        let _ = proxy.send_event(UserEvent::WorldReady);
+                        dlog(format!("[t={tick}] RE-PINNED window={:p}", godot as *const ()));
+                    }
+                }
+                if debug {
+                    let alive = IsWindow(godot);
+                    let vis = if alive != 0 { IsWindowVisible(godot) } else { 0 };
+                    let iconic = if alive != 0 { IsIconic(godot) } else { 0 };
+                    let parent = if alive != 0 { GetAncestor(godot, GA_PARENT) } else { 0 as HWND };
+                    let on_workerw = if parent == cur_workerw { 1 } else { 0 };
                     let mut rc = RECT { left: 0, top: 0, right: 0, bottom: 0 };
                     let _ = GetWindowRect(godot, &mut rc);
-                    let parent = GetParent(godot);
-                    let on_workerw = if parent == workerw { 1 } else { 0 };
-                    let _ = std::fs::OpenOptions::new().create(true).append(true)
-                        .open(&logpath).and_then(|mut f| writeln!(
-                            f, "[t={tick}] vis={vis} iconic={iconic} on_workerw={on_workerw} parent={:p} size={}x{}",
-                            parent as *const (), rc.right - rc.left, rc.bottom - rc.top));
+                    dlog(format!(
+                        "[t={tick}] alive={alive} vis={vis} iconic={iconic} on_workerw={on_workerw} parent={:p} size={}x{} pid={}",
+                        parent as *const (), rc.right - rc.left, rc.bottom - rc.top, WORLD_PID.load(SeqCst)));
                 }
             }
         });
@@ -1388,7 +1560,10 @@ mod platform {
 
     // The shim handles the desktop-level embed; here we just wait for the world
     // to report ready (or a timeout) and lift the splash.
-    pub fn attach_wallpaper_when_ready(_pid: u32, _root: PathBuf, proxy: tao::event_loop::EventLoopProxy<UserEvent>) {
+    pub fn live_world_pid(fallback: u32) -> u32 { fallback }
+    pub fn kill_world() {}
+
+    pub fn attach_wallpaper_when_ready(_pid: u32, _root: PathBuf, _cx: i32, _cy: i32, proxy: tao::event_loop::EventLoopProxy<UserEvent>) {
         std::thread::spawn(move || {
             let started = std::time::SystemTime::now() - std::time::Duration::from_secs(2);
             let flag = std::env::temp_dir().join("bagidea_world_ready");
@@ -1668,7 +1843,10 @@ mod platform {
     pub fn ensure_single_instance() -> bool { true }
     pub fn spawn_hotkey_thread(_p: tao::event_loop::EventLoopProxy<UserEvent>) {}
     pub fn rebind_hotkey(_s: &str) {}
-    pub fn attach_wallpaper_when_ready(pid: u32, _root: PathBuf, proxy: tao::event_loop::EventLoopProxy<UserEvent>) {
+    pub fn live_world_pid(fallback: u32) -> u32 { fallback }
+    pub fn kill_world() {}
+
+    pub fn attach_wallpaper_when_ready(pid: u32, _root: PathBuf, _cx: i32, _cy: i32, proxy: tao::event_loop::EventLoopProxy<UserEvent>) {
         std::thread::spawn(move || {
             // Wait for Godot's first real frame (it writes this file), like Windows/macOS.
             let ready = std::env::temp_dir().join("bagidea_world_ready");
@@ -1891,9 +2069,12 @@ fn main() {
         .primary_monitor()
         .map(|m| (m.size().width as i32, m.size().height as i32))
         .unwrap_or((1920, 1080));
-    let mut office_child = spawn_office(&root, phys_w / 2, phys_h / 2 - 30);
+    let (world_cx, world_cy) = (phys_w / 2, phys_h / 2 - 30);
+    let mut office_child = spawn_office(&root, world_cx, world_cy);
     if let Some(child) = office_child.as_ref() {
-        platform::attach_wallpaper_when_ready(child.id(), root.clone(), proxy.clone());
+        // Pass the spawn geometry so the supervisor can relaunch the world itself
+        // if Windows destroys its window (WorkerW teardown) — see the thread body.
+        platform::attach_wallpaper_when_ready(child.id(), root.clone(), world_cx, world_cy, proxy.clone());
     }
 
     let _ = std::fs::write(std::env::temp_dir().join("bagidea_shell_alive"), "1");
@@ -2076,6 +2257,7 @@ fn main() {
             if let Some(c) = office_child.as_mut() {
                 let _ = c.kill();
             }
+            platform::kill_world(); // in case the supervisor relaunched the world
             *control_flow = ControlFlow::Exit;
             return;
         }
@@ -2115,7 +2297,8 @@ fn main() {
                 toggle = true;
             } else if ev.id == hide_id {
                 let hidden = hide_item.is_checked();
-                platform::hide_office(office_pid, hidden);
+                // The supervisor may have relaunched the world → target the LIVE pid.
+                platform::hide_office(platform::live_world_pid(office_pid), hidden);
                 if hidden {
                     overlay.set_outer_position(LogicalPosition::new(PARK.0, PARK.1));
                     orb.set_outer_position(LogicalPosition::new(PARK.0, PARK.1 + 200.0));
@@ -2370,6 +2553,7 @@ fn main() {
             if let Some(c) = office_child.as_mut() {
                 let _ = c.kill();
             }
+            platform::kill_world(); // in case the supervisor relaunched the world
             if let Some(c) = daemon_child.as_mut() {
                 let _ = c.kill();
             }
