@@ -28,6 +28,11 @@ early macOS support, when the project was Windows-only:
   routing each agent's brain in meetings/reflection — the 401 fix
   ([#22](https://github.com/bagidea/bagidea-office/pull/22)), and stopping phantom
   agent seats after hire→delete ([#25](https://github.com/bagidea/bagidea-office/pull/25)).
+- **[@skiyo0177-lgtm](https://github.com/skiyo0177-lgtm)** — i18n: the tool-status
+  labels in the overlay now respect the selected UI language (zh/en/ja) — translating
+  the whole status string before splitting, a `loadTR()` priority fix so the dictionary
+  wins over a stale cache, and the missing status-label seed entries
+  ([#35](https://github.com/bagidea/bagidea-office/pull/35)).
 
 > Want to be on this list? Open a PR — see [docs/guide/plugin-hub.md](docs/guide/plugin-hub.md)
 > for plugins, or fix anything in the repo. Every merged contribution is credited here
