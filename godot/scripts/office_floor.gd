@@ -154,8 +154,10 @@ func _enter_editor_mode() -> void:
 	Engine.max_fps = 60
 	# tell the shell the editor is on screen → it drops the circular logo splash
 	# (same handoff as the wallpaper's bagidea_world_ready flag)
+	# NB: OS.get_temp_dir() (not $TEMP, which is Windows-only) so the flag lands
+	# where the shell's std::env::temp_dir() reads it on macOS/Linux too.
 	var flag := FileAccess.open(
-		OS.get_environment("TEMP").path_join("bagidea_editor_ready"), FileAccess.WRITE)
+		OS.get_temp_dir().path_join("bagidea_editor_ready"), FileAccess.WRITE)
 	if flag:
 		flag.store_line(Time.get_datetime_string_from_system())
 
@@ -178,8 +180,10 @@ func _opaque_after_first_frame() -> void:
 		DisplayServer.window_set_size(DisplayServer.screen_get_size())
 	# Signal the shell that the scene is on screen — it holds the WorkerW
 	# attach until now so the transparent splash survives the whole load.
+	# OS.get_temp_dir() works on all three OSes; $TEMP is Windows-only and would
+	# be empty on macOS/Linux, so the shell would never see this flag.
 	var flag := FileAccess.open(
-		OS.get_environment("TEMP").path_join("bagidea_world_ready"), FileAccess.WRITE)
+		OS.get_temp_dir().path_join("bagidea_world_ready"), FileAccess.WRITE)
 	if flag:
 		flag.store_line(Time.get_datetime_string_from_system())
 
