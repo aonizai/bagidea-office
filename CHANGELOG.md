@@ -4,6 +4,34 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.9.42] — Docs & website overhaul; a cross-platform ready-flag fix
+
+**Documentation**
+- A full accuracy + coverage pass across every doc surface — README, the guide
+  set, the website (all 14 languages), and the pitch deck. Provider count
+  corrected **18 → 19** (Kimi Code is its own provider), the builtin skill
+  library corrected to the real **15 packs**, stale model recommendations
+  refreshed (`glm-4.6 → glm-5.2`, `kimi-k2.5 → kimi-k2.6`), and the CLI
+  reference completed (`brains`, `jobs`, `key set`, `editor`).
+- **The File & Media Toolkit is now documented** as a headline capability —
+  every agent can read/convert PDF·Excel·Word·PowerPoint, build slide decks,
+  transcribe video, and edit images. It was undocumented before.
+- The website's "latest version" badge (stuck on `v0.8.0`) now **self-updates
+  from the repo `VERSION`**, and Linux is labelled "experimental" consistently.
+
+**Fixed**
+- **macOS/Linux: the world-ready handoff flag lands in the right place.** Godot
+  wrote it to `$TEMP` (a Windows-only variable), so on macOS/Linux the shell
+  never saw it and fell back to a blind ~9-second timeout to lift the splash.
+  It now uses `OS.get_temp_dir()`, which resolves correctly on all three OSes.
+
+**Known issue (under investigation)**
+- On some Macs the world can **stay stuck on the boot logo** and never render as
+  the wallpaper. Everything else runs (the daemon, agents, networking) — it's
+  Godot's first frame not drawing, so the boot splash never clears. This is a
+  render-path issue, separate from the flag fix above, and a fix is being
+  worked once the Mac-side console output pins the exact cause.
+
 ## [0.9.41] — The wallpaper stops vanishing; agents schedule timed work for real
 
 **Fixed**
