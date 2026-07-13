@@ -181,7 +181,7 @@ bagidea start   # launch the office</code></pre>
     <h2 id="brains" data-i18n="d_brain_h">Swappable brains (any model)</h2>
     <p data-i18n-html="d_brain_p">Run each agent on its own model. Claude Code stays the engine — only the brain behind it swaps, and it fails open to Claude, so nothing changes until you opt an agent in. <b>No LiteLLM or Python to install</b> — a translation proxy is built into the daemon.</p>
     <ul>
-      <li data-i18n-html="d_brain_direct"><b>Direct (Anthropic-compatible):</b> Claude · GLM (Z.AI) · DeepSeek · Qwen (Alibaba) · MiniMax · Kimi (Moonshot)</li>
+      <li data-i18n-html="d_brain_direct"><b>Direct (Anthropic-compatible):</b> Claude · GLM (Z.AI) · DeepSeek · Qwen (Alibaba) · MiniMax · Kimi (Moonshot) · Kimi Code</li>
       <li data-i18n-html="d_brain_proxy"><b>Via the built-in proxy (OpenAI-compatible):</b> OpenAI · Gemini · OpenRouter · NVIDIA · Groq · Cerebras · xAI (Grok) · Mistral · Together · Fireworks — plus <b>local Ollama / LM Studio with no API key</b>. Pickers fetch each provider's live model list.</li>
       <li data-i18n-html="d_brain_custom"><b>Custom providers:</b> add your own — name + Base URL + key, Anthropic- or OpenAI-style (point it at a LiteLLM gateway if you run one).</li>
     </ul>
@@ -198,7 +198,7 @@ bagidea start   # launch the office</code></pre>
     <img src="img/plugins.png" alt="The plugins panel listing installed plugins, with install-from-GitHub">
     <img src="img/briefing.png" alt="A morning briefing rendered inside a plugin panel">
     <pre><code>bagidea plugin install https://github.com/bagidea/bagidea-office-template</code></pre>
-    <p data-i18n="d_skills_p">Every office ships with a library of builtin skills (deep research, office control, plugin building, code review, docs, debugging, data wrangling, project kickoff, diagrams) you can assign to any agent, plus Hermes-style skills the office learns automatically after real work. Add new raw capability via MCP servers.</p>
+    <p data-i18n="d_skills_p">Every office ships with 15 builtin skill packs — deep research, web automation, office control, office operations, plugin building, code review, doc writing, debugging, data wrangling, project kickoff, diagram making, archive recall, workflow building, a file &amp; media toolkit (read/convert PDF·Excel·Word·PowerPoint, build slide decks, transcribe video, edit images), and office-scheduled jobs — that you can assign to any agent, plus Hermes-style skills the office learns automatically after real work. Add new raw capability via MCP servers.</p>
 
     <h2 id="workflow" data-i18n="d_wf_h">Workflow Builder</h2>
     <p data-i18n="d_wf_p">Plan work as plain-language nodes on a drag-drop canvas (⋯ menu → Workflow Builder) — each node is a step (trigger / fetch / action / decision / output) and the flow reads top to bottom. Press <b>Analyze</b> and the Director reads your plan and tells you which skills and tools it needs, what permissions or extra agents to add, and what's still undecided — so you can plan work even if you don't know how to instruct it, and let the team work out the execution.</p>

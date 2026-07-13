@@ -43,7 +43,7 @@
       <a class="btn ghost" href="docs.html" data-i18n="cta_docs">Read the docs</a>
     </div>
     <div class="badges">
-      <span data-i18n="badge_win">Windows · macOS (beta) · Linux (beta)</span>
+      <span data-i18n="badge_win">Windows · macOS (beta) · Linux (experimental)</span>
       <span data-i18n="badge_open">Open source</span>
       <span data-i18n="badge_free">Free to run</span>
       <span data-i18n="badge_langs">14 languages</span>
@@ -81,7 +81,7 @@
       <div class="feat"><div class="ic">🎤</div><h3 data-i18n="f_voice_t">Voice, channels & memory</h3><p data-i18n="f_voice_d">Talk by voice (Right Ctrl push-to-talk), call the office (realtime Gemini Live), give agents one of 16 ♀/♂ voices, and run it from Telegram, Discord, LINE, Slack, WhatsApp or Messenger. Hermes-style memory grows token-lean.</p></div>
       <div class="feat"><div class="ic">🔌</div><h3 data-i18n="f_plugin_t">Plugins, skills & tools</h3><p data-i18n="f_plugin_d">Extend the office with plugins (install from any GitHub repo), assign agents from a library of builtin skills, and add new capability via MCP servers — humans and agents can build plugins.</p></div>
       <div class="feat"><div class="ic">🧭</div><h3 data-i18n="f_web_t">Agents browse the web</h3><p data-i18n="f_web_d">Tick one skill and an agent drives a real browser — open pages, click, type, fill forms and screenshot — to run tasks on the web for you. Watch it live or let it work quietly in the background; it uses an isolated profile (not logged in) and every action still passes the Security Center.</p></div>
-      <div class="feat"><div class="ic">🧠</div><h3 data-i18n="f_brain_t">Swappable brains</h3><p data-i18n="f_brain_d">Run each agent on its own model — 18 providers built in: Claude/GLM/DeepSeek/Qwen/MiniMax/Kimi direct, OpenAI/Gemini/OpenRouter/NVIDIA/Groq/Cerebras/xAI/Mistral/Together/Fireworks via a built-in zero-dependency proxy (no LiteLLM), and local Ollama/LM Studio with no API key. Pickers fetch live model lists; auto-compact keeps long chats from clogging on any model.</p></div>
+      <div class="feat"><div class="ic">🧠</div><h3 data-i18n="f_brain_t">Swappable brains</h3><p data-i18n="f_brain_d">Run each agent on its own model — 19 providers built in: Claude/GLM/DeepSeek/Qwen/MiniMax/Kimi/Kimi Code direct, OpenAI/Gemini/OpenRouter/NVIDIA/Groq/Cerebras/xAI/Mistral/Together/Fireworks via a built-in zero-dependency proxy (no LiteLLM), and local Ollama/LM Studio with no API key. Pickers fetch live model lists; auto-compact keeps long chats from clogging on any model.</p></div>
       <div class="feat"><div class="ic">🔀</div><h3 data-i18n="f_workflow_t">Workflow Builder</h3><p data-i18n="f_workflow_d">Plan work as plain-language nodes on a drag-drop canvas. The Director analyzes your flow and tells you which skills, tools, permissions and agents it needs — so anyone can plan work and let the team figure out how to run it.</p></div>
       <div class="feat"><div class="ic">🛡️</div><h3 data-i18n="f_security_t">Spatialized security</h3><p data-i18n="f_security_d">When an agent needs a tool you haven't granted, it physically walks to the Security Center and waits. You Allow / ✓✓ Forever / Deny. Granted tools run silently and never leave the desk.</p></div>
       <div class="feat"><div class="ic">📁</div><h3 data-i18n="f_projects_t">Real projects</h3><p data-i18n="f_projects_d">Register real folders as projects; the Director creates and routes work into them. Each assignee's Claude session lives inside the directory and is resumable by you — one window per project.</p></div>
@@ -125,7 +125,7 @@
     <p class="eyebrow" data-i18n="upd_eyebrow">Always improving</p>
     <h2 class="title" data-i18n="upd_title">Updated constantly</h2>
     <p class="sub" data-i18n="upd_sub" style="margin:0 auto 18px;max-width:620px">BagIdea Office ships real updates all the time — bug fixes, new features and polish. Every office gets a one-click update notice.</p>
-    <p style="font-size:15px;margin:0 0 18px"><span data-i18n="upd_latest">Latest</span>: <b id="latestVer" style="color:var(--accent,#5ec8ff)">v0.8.0</b></p>
+    <p style="font-size:15px;margin:0 0 18px"><span data-i18n="upd_latest">Latest</span>: <b id="latestVer" style="color:var(--accent,#5ec8ff)">v0.9.41</b></p>
     <a class="btn ghost" href="https://github.com/bagidea/bagidea-office/blob/main/CHANGELOG.md" target="_blank" rel="noopener" data-i18n="upd_cta">See what's new →</a>
   </div>
 </section>
@@ -342,6 +342,12 @@
 <script>
   const topBtn = document.querySelector(".toplink");
   addEventListener("scroll", () => topBtn.classList.toggle("show", scrollY > 600));
+  // Keep the "Latest" version self-current from the repo's VERSION file so it
+  // can never silently go stale. Falls back to the hard-coded value on any error.
+  fetch("https://raw.githubusercontent.com/bagidea/bagidea-office/main/VERSION", { cache: "no-cache" })
+    .then((r) => (r.ok ? r.text() : Promise.reject()))
+    .then((t) => { const v = t.trim(); const el = document.getElementById("latestVer"); if (v && el) el.textContent = "v" + v.replace(/^v/, ""); })
+    .catch(() => {});
 </script>
 </body>
 </html>

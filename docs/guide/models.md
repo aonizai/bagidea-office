@@ -45,11 +45,15 @@ until it turns ✅ (the system "tests the key + fetches the model list" automati
 | Provider | Recommended model | Endpoint (global) | Get a key |
 |---|---|---|---|
 | **Claude** (default) | opus / sonnet / haiku | — (uses your login/plan) | claude.ai or ANTHROPIC_API_KEY |
-| **GLM** (Z.AI) | `glm-4.6` | `https://api.z.ai/api/anthropic` | z.ai (has a key-based coding plan) |
+| **GLM** (Z.AI) | `glm-5.2[1m]` / `glm-5.2` | `https://api.z.ai/api/anthropic` | z.ai (has a key-based coding plan) |
 | **DeepSeek** | `deepseek-v4-pro` / `-flash` | `https://api.deepseek.com/anthropic` | platform.deepseek.com |
 | **Qwen** (Alibaba) | `qwen3-coder-plus` | `https://dashscope-intl.aliyuncs.com/apps/anthropic` | Alibaba Model Studio |
 | **MiniMax** | `MiniMax-M3` | `https://api.minimax.io/anthropic` | platform.minimax.io |
-| **Kimi** (Moonshot) | `kimi-k2.5` | `https://api.moonshot.ai/anthropic` | platform.moonshot.ai |
+| **Kimi** (Moonshot) | `kimi-k2.6` | `https://api.moonshot.ai/anthropic` | platform.moonshot.ai |
+| **Kimi Code** (coding plan) | `kimi-for-coding` | `https://api.kimi.com/coding` | kimi.com/code (separate `sk-kimi-…` key) |
+
+> **GLM tip:** GLM-5.2's full **1M-token context** is unlocked only by the `glm-5.2[1m]` model id — plain `glm-5.2` serves ~200k. The picker lists `[1m]` first for that reason.
+> **Kimi vs Kimi Code:** these are two different products — **Kimi** (Moonshot) uses your general `platform.moonshot.ai` API key; **Kimi Code** is the separate kimi.com/code coding subscription with its own `sk-kimi-…` key and a single `kimi-for-coding` model. Add whichever you pay for.
 
 ### 🔵 Via the built-in proxy (OpenAI-compatible) — no LiteLLM/Python to install
 

@@ -48,9 +48,27 @@ actually exists — managers get fewer tools, hands-on roles get more). You can 
 
 ## Skills — the ability library
 
-⚙ → SKILLS: every office ships with **10 base skill sets** (office-ops, deep-research,
-office-control, plugin-builder, code-review, doc-writer, debug-detective,
-data-wrangler, project-kickoff, diagram-maker) — assign them to anyone in the edit screen. You can also write
+⚙ → SKILLS: every office ships with **15 builtin skill packs** — assign them to anyone in the edit screen:
+
+| Skill | What it gives the agent |
+|---|---|
+| **deep-research** | multi-source web research + synthesis |
+| **web-automation** | drive a real browser (see [web-automation.md](web-automation.md)) |
+| **office-control** | run the office itself (hire, schedule, delegate…) |
+| **office-ops** | scheduled tasks, calendar, notes, org |
+| **plugin-builder** | scaffold, build, deploy & install a plugin |
+| **code-review** | review a diff / repo for bugs & quality |
+| **doc-writer** | write clear docs, READMEs, guides *(default)* |
+| **debug-detective** | root-cause a failure methodically |
+| **data-wrangler** | clean, join, reshape data |
+| **project-kickoff** | turn an idea into a scaffolded project |
+| **diagram-maker** | author diagrams (Mermaid, etc.) |
+| **archive-search** | recall from the office's memory *(default)* |
+| **build-workflow** | design a Workflow Builder flow |
+| **file-media-toolkit** | read/convert PDF·xlsx·docx·pptx, build slides, transcribe video, edit images *(default — see [ai-features.md](ai-features.md))* |
+| **schedule-via-office-job** | book timed / recurring work in the office scheduler *(default)* |
+
+The four marked *(default)* are carried by **every** agent automatically. You can also write
 your own skills (e.g. "how to deploy the company website") and assign them to any agent —
 they'll travel with every new session of that agent
 

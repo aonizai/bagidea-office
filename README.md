@@ -51,6 +51,7 @@ the office truly comes alive.
 ### 🆕 Recently shipped
 BagIdea Office is updated **constantly** — every office gets a 🔄 banner and one-click `bagidea update`. The latest:
 
+- **v0.9.41 — 🖼️ the wallpaper stops vanishing + agents schedule timed work for real:** two long-standing annoyances, fixed. **The wallpaper no longer disappears (Windows).** It used to vanish "for no reason" and never come back until a restart — the #1 recurring complaint. Root cause, proven with a live parent-probe and a real Explorer restart: Windows destroys and recreates the hidden `WorkerW` behind your icons on ordinary events (changing/slideshow-rotating the wallpaper, a resolution/DPI/monitor change, an Explorer or DWM restart, lock screen / RDP, exiting a fullscreen game), taking our embedded world down with it and leaving Godot a windowless zombie. The shell now runs a **world supervisor**: lose the desktop parent → re-embed into a fresh WorkerW; window destroyed → relaunch and re-pin — automatically, within ~2 s, no restart. It gates on *parent loss* (never on visibility), so **Win+D and display-sleep are untouched** (the regression that reverted two earlier attempts can't recur). And **agents now schedule "do it later" work through the office — and it actually runs.** "In an hour", "tomorrow 9am", "every 30 minutes" used to quietly never happen (the scheduling skill taught the wrong request shape, so the daemon rejected it, and agents fell back to session-bound timers that die when the session closes). The skill now teaches the real `POST /jobs` schema, ships in the builtin library for everyone, and every teammate carries it — so timed and recurring work is booked in the office's own scheduler and fires for real. Plus: the **executive / CEO room is reserved** for the CEO and the Director — no other teammate wanders in.
 - **v0.9.40 — 🛠️ install anywhere + always-current model lists + media that renders:** the one-shot installer now works on Windows boxes **without winget** (Git and Node download directly; the prebuilt shell needs no build at all) — and the docs make that installer the primary path, with `npx bagidea` just an optional wrapper around it. The 🧠 brain picker's **model lists are always current** now — one backend catalog is the single source of truth plus a **↻ refresh** button, so no more stale `glm-4.6` long after `glm-5.2` shipped. Chat **previews media at any absolute path, including paths with spaces** (screenshots and Thai filenames render again). Plus hardened **plugin loading** (a JS-broken plugin is rejected up front instead of silently half-loading), an **Ollama local-model guide**, and a simpler brain-overload policy — a temporarily overloaded provider is retried hard rather than auto-switched to Claude.
 - **v0.9.1–0.9.12 — 🐧 Linux (experimental) + a lot of polish:** an experimental **Linux** build — one-line **apt** installer; on **X11/Xorg** it attaches as the live desktop wallpaper, on **Wayland** it falls back to a fullscreen window pinned below. Plus accurate **per-model context windows** (Claude / DeepSeek V4 / Gemini 2.5 / GPT‑4.1 = **1M**) with the model picker **pre-selecting each provider's newest model**, a **Kimi Code** provider, **work auto-resumes after a rate-limit or a restart**, attached **images readable by any model** (vision OCR), **gender-aware agent voices**, a rock-solid **plugin install / uninstall** (confirm + live hub↔panel sync + overwrite-or-new on reinstall) with **📌 pin** for favourites, and a **voice hotkey** that can't wedge. A fresh office now installs **empty** (add plugins from the Hub).
 - **v0.9.0 — 🧠 More brains + safer delegation + agent-built workflows:** **18 model providers** built in now — added **Groq, Cerebras, xAI (Grok), Mistral, Together, Fireworks** (via the proxy), **local Ollama / LM Studio that need no API key**, and **Kimi (Moonshot)** direct — and the pickers fetch each provider's **live model list** so new models always show. Plus an opt-in **verification loop** (a reviewer double-checks delegated work before it reaches you), **approve/reject project proposals right in the chat or feed**, **agents that build workflows** (and a **🪄 Draft with Director** button), **protected built-in skills** with searchable Skill/Tool pickers, a **redesigned neon chat-head**, and a `bagidea brains` CLI.
@@ -92,7 +93,7 @@ until you opt an agent in.
 
 **Two ways agents reach a model:**
 
-- 🟢 **Direct (Anthropic-compatible)** — Claude, **GLM** (Z.AI), **DeepSeek**, **Qwen** (Alibaba), **MiniMax**, **Kimi** (Moonshot). The CLI talks straight to them; nothing in between.
+- 🟢 **Direct (Anthropic-compatible)** — Claude, **GLM** (Z.AI), **DeepSeek**, **Qwen** (Alibaba), **MiniMax**, **Kimi** (Moonshot), and **Kimi Code** (the kimi.com coding plan). The CLI talks straight to them; nothing in between.
 - 🔵 **Via the built-in proxy (OpenAI-compatible)** — **OpenAI**, **Gemini**, **OpenRouter**, **NVIDIA build**, **Groq**, **Cerebras**, **xAI (Grok)**, **Mistral**, **Together AI**, **Fireworks**, and **your own custom providers**. A **zero-dependency proxy is baked into the daemon** and translates Anthropic ↔ OpenAI on the fly — **no LiteLLM, no Python** (already have a LiteLLM gateway? point a custom provider at it).
 - 💻 **Local, no API key** — **Ollama** and **LM Studio**: just run the server and Connect; the office routes to `localhost`. Free, offline, private.
 
@@ -200,10 +201,11 @@ Sponsorship is a **recurring monthly subscription handled entirely by GitHub Spo
 ## What it does
 
 ### 🖥️ Live wallpaper world (Layer 1 — Godot 4)
-- Renders **behind your desktop icons** (WorkerW technique, same as Wallpaper Engine)
+- Renders **behind your desktop icons** (WorkerW technique, same as Wallpaper Engine) — and **stays there**: a **world supervisor** re-embeds (or relaunches and re-pins) the world within ~2 s whenever Windows tears the desktop `WorkerW` down (wallpaper change, resolution/monitor change, Explorer/DWM restart, lock/RDP, exiting a fullscreen game), so the wallpaper no longer "vanishes for no reason". It watches for *parent loss*, never visibility, so **Win+D and display-sleep are left alone**
 - HD-2D look: 3D office + billboarded pixel-art sprites lit by the scene, sky-driven image-based lighting, SSR-polished reflective floors, a cinematic tilt-shift focus pass (breathing vignette, edge desaturation, anamorphic bars), film grain, native-res MSAA
 - **A swappable 3×3 room grid (jigsaw)**: every room is an identical cell, so any room fits any slot — rearrange the whole floor from the Office Editor and the furniture, agent anchors and navigation all move with it. Rooms include Executive (CEO command console), Operations (6 desks, monitors facing their seats), Lobby, Cafeteria, Server, Meeting (seats face the table), Recreation, and two Dormitories (offline agents walk to a bunk and sleep). A wandering **office cat 🐱** and a self-kicking football ⚽ follow the Recreation room, and a couple of **dogs 🐕** hang out in the Cafeteria — when you swap those rooms, the pets follow
 - A **countryside** around the office: 4,200 blades of wind-swaying grass, low-poly mountains and trees, drifting cartoon clouds (a near layer actually crosses the camera frame), bird flocks, daytime pollen motes and fireflies at night
+- **Ambient life & rare events**: idle agents nap in a bunk or watch the rec-room TV, a football gets self-kicked around, birds wheel overhead — and once in a while a **server-room incident 💥🔥** breaks out and the nearest agent rushes over to put it out (a rare comedic emergency, not a real failure)
 - Agents **walk** between zones on an A* waypoint graph with 4-direction animated spritesheets; facing follows movement
 - **Real-time day/night cycle** — sun, sky color, ambient and reflections follow your machine's clock (sunset ~17:00, night by 18:00); manual override from the overlay (🌗) for golden-hour screenshots
 - A **roofline digital clock** with a phase icon (sun ☀ / low sun 🌇 / crescent moon 🌙) next to the brand billboard
@@ -218,7 +220,8 @@ Sponsorship is a **recurring monthly subscription handled entirely by GitHub Spo
 ### 🧩 Extensibility & customization (2026-06)
 - **Plugins**: a real extension host — a plugin folder adds UI panels, server routes, and **commands agents can drive**, with `ctx` access to the office (registry, feed, broadcast, `runClaude`, private storage). Ships with the 🎵 **Music Player** built in (locked, pinned to the top of the list); the 🧮 **Calculator** and more are installable from the 🧩 Hub or any GitHub repo (`bagidea plugin install <url>`). Start from the official **[template](https://github.com/bagidea/bagidea-office-template)** (a Hello-World plugin + a `CLAUDE.md` so an agent can build one), or read the worked examples — the [calculator](https://github.com/bagidea/bagidea-office-calculator-plugin) and [music-player](https://github.com/bagidea/bagidea-office-music-player-plugin) repos. Full spec: [the guide](docs/guide/plugins.md)
 - **🎨 Office Editor**: rearrange the **room grid** (click two rooms to swap), place furniture / walls / decor on a top-down grid, and **import your own models (.glb/.gltf/.fbx) and images** — spawned on top of the world, atmosphere intact
-- **Agent skill library**: every office ships with 11 builtin capability packs (office-ops, deep-research, office-control, plugin-builder, code-review, doc-writer, debug-detective, data-wrangler, project-kickoff, diagram-maker, archive-search) you can assign from the editor — plus Hermes-style auto-learned skills that grow at runtime. Skills are delivered **natively & on demand** (Claude Code progressive disclosure) so a skill's instructions load only when it's actually relevant, never bloating every prompt
+- **Agent skill library**: every office ships with **15 builtin capability packs** you can assign from the editor — deep-research, web-automation, office-control, office-ops, plugin-builder, code-review, doc-writer, debug-detective, data-wrangler, project-kickoff, diagram-maker, archive-search, build-workflow, **file-media-toolkit**, and **schedule-via-office-job** — plus Hermes-style auto-learned skills that grow at runtime. Four of them (**file-media-toolkit, archive-search, doc-writer, schedule-via-office-job**) are carried by *every* agent by default. Skills are delivered **natively & on demand** (Claude Code progressive disclosure) so a skill's instructions load only when it's actually relevant, never bloating every prompt
+- **📄 File & Media Toolkit** (built into every agent): the office can actually *work with your files*, not just talk about them. Any agent can **read and convert PDFs**, turn **Excel / Word / PowerPoint** into data or the other way around (via LibreOffice), **author documents and slide decks** (via `pandoc`), **transcribe a YouTube link or a local video** (via `yt-dlp` + `ffmpeg`), edit and convert images (ImageMagick), and slice JSON (`jq`) — so "summarize this PDF", "make a deck from these notes", or "get me the transcript of that video" are one message, no setup. It degrades gracefully: whichever helper binaries are present are used, and the agent tells you if one is missing
 - **🌐 Multi-language UI — 14 languages**: English default + ไทย/中文/Español/हिन्दी/العربية/Português/Русский/日本語/Deutsch/Français/한국어/Indonesia/Tiếng Việt. Now **ships fully pre-translated** — switching is instant and works even **without a Gemini key**; picker in settings (office-wide, per-machine default)
 - **🌍 Official website** in [`web/`](web/) — landing page + browsable docs, deployable to any static host
 
@@ -495,7 +498,7 @@ node daemon\server.js
 ⚙ → AGENTS → **Hire a new agent**: pick one of 12 faces, an aura, a job title,
 then either write the system prompt yourself or type a one-line brief
 (any language) and hit **✨ Draft** — a real Claude call writes the persona.
-Assign skills (pick from the **9 builtin capability packs** or your own) and
+Assign skills (pick from the **15 builtin capability packs** or your own) and
 tools with chips. Everything is editable later; deleting an agent warps them out
 of the office. `main` and `ceo` are protected. The office caps at **18 staff**
 (the CEO isn't counted) — sub-agent 👻 ghosts cover parallel load beyond that.
@@ -565,6 +568,9 @@ bagidea stats                     dashboard: runs / cost / busiest / uptime
 bagidea ask "<message>"           ask the Director and WAIT for the final answer
 bagidea chat <agent> "<msg>"      fire-and-forget to a specific agent
 bagidea agents | projects         list staff / projects with live status
+bagidea brains                    per-agent model/provider + context status
+bagidea jobs                      list scheduled / recurring jobs
+bagidea editor                    open the 3D Office Editor
 bagidea open "<project>"          open a project window (same as ▶)
 bagidea proposals                 team project pitches awaiting a verdict
 bagidea proposal show <id>        read a pitch in full
@@ -575,6 +581,7 @@ bagidea lang [code]               show / set the office language (14 languages)
 bagidea say "<text>" | voices     speak via TTS / list voice presets
 bagidea image "<prompt>"          generate an image into the office
 bagidea channels | keys           channel + API-key status
+bagidea key set <NAME> <value>    store an API key in the vault (env-injected)
 bagidea feed                      live office event stream in your terminal
 bagidea startup [on|off]          launch the office with Windows (show/set)
 bagidea update                    update to the latest version + relaunch
@@ -720,7 +727,7 @@ this makes them employable"*).
 - [x] **Plugins** (host + music player + SDK), **Office Editor** (place/import), **i18n**, official **website**
 - [x] **Swappable 3×3 room grid** — rearrange the floor; furniture, anchors, nav and pets follow
 - [x] **Plugin ecosystem** — core vs installed plugins, 🧮 Calculator, GitHub install, official template + example repos
-- [x] **14-language UI**, **builtin agent skill library** (9 packs), open-source clone+build installer, `bagidea restart`
+- [x] **14-language UI**, **builtin agent skill library** (15 packs), open-source clone+build installer, `bagidea restart`
 - [x] **Social groups** (3–4 agents) → plugin-oriented proposals with approve/reject notes; **main-only calls** with assigned voices
 - [ ] Wake word; channel round-trip reports (delegate results back to the channel)
 - [x] macOS wallpaper backend (beta)

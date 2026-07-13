@@ -19,6 +19,12 @@ Pick an agent + type the task (or press 🎤 to speak it) + choose a time:
 - Each job has its own thread — every run is reviewable in history 🧵
 - Pause temporarily / delete from the list
 
+> 💬 **You don't have to open this tab.** Just tell the Director in plain language —
+> *"brief me every morning at 8"*, *"check the prices again in an hour"*, *"remind the team every 30 minutes"* —
+> and the office **books the job in this scheduler for you** (it runs whether or not your chat session is still
+> open). List them anytime with `bagidea jobs`. Agents use the office's own scheduler for this, not a
+> session-bound timer that would die when the run ends.
+
 ## 📅 CALENDAR — calendar + reminders with heart
 
 Add an appointment: name + date/time + how many minutes before to remind

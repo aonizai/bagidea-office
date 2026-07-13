@@ -28,8 +28,11 @@ Talk to the office
 
 Team and work
   bagidea agents                List of staff + voices + tools
+  bagidea brains                Per-agent model + provider connect + context status
   bagidea projects              List of projects + who is working on them
   bagidea open "<project>"      Open a project window (= ▶)
+  bagidea jobs                  Scheduled / recurring agent jobs
+  bagidea editor                Open the 3D Office Editor
   bagidea memory <agent>        Read an agent's memory notebook
   bagidea office                Read OFFICE.md (shared info)
 
@@ -50,7 +53,9 @@ AI features (use main API keys)
   bagidea voices                    List of voice presets
   bagidea image "<prompt>"          Generate an AI image → returns a path
   bagidea keys                      View configured keys (values not shown)
-  bagidea channels                  Status of Telegram / Discord / LINE
+  bagidea key set <NAME> <value>    Store an API key in the vault (env-injected)
+  bagidea key rm <NAME> | test [NAME]   Remove a key / test one works
+  bagidea channels                  Status of Telegram · Discord · LINE · Slack · WhatsApp · Messenger
 
 Maintenance
   bagidea fixmic                Reset a stuck Windows mic panel
