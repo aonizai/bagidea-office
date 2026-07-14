@@ -117,6 +117,26 @@ automatic for **every model**:
 You can tune the context window per provider in the registry at `providerConfig.<p>.contextWindow`
 (and the budget used to decide on compaction at `providerConfig.<p>.contextBudget`)
 
+## 🛟 Fallback brain — survive a provider outage (opt-in)
+
+Providers go down. GLM/Z.AI in particular throws `529 · overloaded` under load, and
+while it's down any agent on that brain just sits there erroring. Set an **office-wide
+fallback brain** and the office will re-run that task on the fallback instead:
+
+- Go to **Settings → CONNECT → 🛟 สมองสำรอง** and pick any **connected** provider (plus
+  an optional model). That's it — it applies to every agent.
+- It's **off by default**. With no fallback set, nothing changes: an overloaded brain
+  just retries hard, exactly as before.
+- It fires **only** when the overload is *sustained* (repeated `5xx`), never on a one-off
+  blip, and **only** onto a provider that's actually connected — so a task can't be
+  rerouted into a second dead brain. It never loops back onto the down brain or fails
+  over twice for the same task.
+- Only server overload/unavailability (`5xx`) triggers it. Bad auth (`401/403`) still
+  fast-fails with a clear message; rate/usage limits (`429`) still pause-and-resume.
+
+The failed-over run keeps the original task and still reports back to whoever delegated
+it, with a one-line note that it switched brains and why.
+
 ## 📊 Monitoring
 
 - 🏷 **Every message shows the model used** + a bar for **what % of context is used** (e.g. `gpt-4o · 40k/128k`)

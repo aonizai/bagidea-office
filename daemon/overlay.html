@@ -2794,6 +2794,32 @@
         renderConnectTab();
       };
     }
+    // 🛟 Office-wide emergency fallback brain (opt-in). Only providers that are actually
+    // connected are offered, so failover can never be pointed at a dead brain. Claude is
+    // always usable (login/plan or key); the rest must show connected.
+    const fbProv = modalCard.querySelector("#fbProv");
+    const fbModel = modalCard.querySelector("#fbModel");
+    if (fbProv && fbModel) {
+      const LBL = { claude: "Claude · Anthropic", glm: "GLM · Z.AI", deepseek: "DeepSeek",
+        qwen: "Qwen", minimax: "MiniMax", moonshot: "Kimi · Moonshot", kimicode: "Kimi Code",
+        openai: "OpenAI", gemini: "Gemini", openrouter: "OpenRouter", nvidia: "NVIDIA",
+        groq: "Groq", cerebras: "Cerebras", xai: "xAI · Grok", mistral: "Mistral",
+        together: "Together AI", fireworks: "Fireworks AI", ollama: "Ollama · local",
+        lmstudio: "LM Studio · local" };
+      const conn = Object.keys(pcAll).filter((id) => pcAll[id] && pcAll[id].connected && id !== "claude");
+      const opts = ["claude"].concat(conn);
+      // Keep the stored choice visible even if it's momentarily disconnected.
+      if (regAll.fallbackProvider && !opts.includes(regAll.fallbackProvider)) opts.push(regAll.fallbackProvider);
+      fbProv.innerHTML = `<option value="none">— ${tr("ไม่มี (ปิด)")} —</option>` +
+        opts.map((id) => `<option value="${id}">${(LBL[id] || id).replace(/</g, "&lt;")}</option>`).join("");
+      fbProv.value = regAll.fallbackProvider || "none";
+      fbModel.value = regAll.fallbackModel || "";
+      fbModel.style.display = fbProv.value === "none" ? "none" : "";
+      const saveFb = () => api("/registry/fallback",
+        { provider: fbProv.value, model: fbProv.value === "none" ? "" : fbModel.value.trim() });
+      fbProv.onchange = () => { fbModel.style.display = fbProv.value === "none" ? "none" : ""; saveFb(); };
+      fbModel.onchange = saveFb;
+    }
     // All sections filled — put the scrollbar back where the owner had it.
     modalCard.scrollTop = _wasScroll;
   }
@@ -2941,7 +2967,13 @@
             <button class="sparkle" id="addKey">＋</button>
           </div></div>
         <div class="field"><label>🧠 MODELS / PROVIDERS — สมองของ agent (วาง key แล้วกด Connect · ตั้ง provider ต่อ agent ในหน้า AGENTS)</label>
-          <div id="provbox"></div></div>`;
+          <div id="provbox"></div></div>
+        <div class="field"><label>🛟 สมองสำรอง (ทั้งออฟฟิศ) — ถ้าสมองของ agent ไหน overload ต่อเนื่อง จะสลับงานมารันบนตัวนี้ชั่วคราวอัตโนมัติ</label>
+          <div class="assistrow" style="gap:6px;flex-wrap:wrap">
+            <select id="fbProv" style="flex:1 1 150px;margin:0"></select>
+            <input id="fbModel" autocomplete="off" maxlength="60" placeholder="โมเดล (เว้นว่าง = ดีฟอลต์)" style="flex:1 1 150px;margin:0">
+          </div>
+          <div style="font-size:10.5px;color:var(--dim);margin-top:4px">ดีฟอลต์ = ปิด (ไม่มี) · เลือกได้เฉพาะ provider ที่เชื่อมต่อแล้ว · ใช้เฉพาะตอนสมองหลักล่มจริง (5xx) หลาย ๆ ครั้งติดกัน</div></div>`;
     } else if (tab === "channels") {
       bodyHtml = `<div style="font-size:11px;color:var(--dim);margin-bottom:10px">
           📡 คุยกับออฟฟิศจากภายนอกผ่าน Director (main) — เปิดช่องทางที่ต้องการ แล้วสั่งงานจากมือถือได้เลย<br>

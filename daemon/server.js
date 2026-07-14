@@ -390,11 +390,34 @@ function latestSession(agent) {
 // The swappable brain: which backend an agent's `claude` spawn talks to. Returns
 // env overrides (ANTHROPIC_BASE_URL/_AUTH_TOKEN) + --model args; "claude"/unset/
 // unconfigured → empties, so the spawn is unchanged (fail-open). See providers.js.
-function brainRoute(agentId) {
+// `override` (the opt-in failover brain) wins over the agent's own provider/model.
+function brainRoute(agentId, override) {
   const a = agentId && reg.agents ? reg.agents[agentId] : null;
-  const provider = (a && a.provider) || reg.defaultProvider || "claude";
-  const model = (a && a.model) || "";
+  const provider = (override && override.provider) || (a && a.provider) || reg.defaultProvider || "claude";
+  const model = (override && override.model) || (a && a.model) || "";
   return providers.resolve(provider, model, reg, { proxyBase: "http://127.0.0.1:" + OEP_PORT });
+}
+
+// How many sustained api_retry hits (all 5xx) before the OPT-IN failover kicks in.
+// The claude CLI itself retries ~10× over ~2 min; we cut in earlier so a dead brain
+// doesn't burn the whole window before switching. 0 disables the early cut entirely.
+const FAILOVER_AFTER = 3;
+
+// OPT-IN office-wide emergency fallback brain. When the owner has set one
+// (reg.fallbackProvider), an agent whose own brain is SUSTAINEDLY overloaded (repeated
+// 5xx) is re-run on this brain instead of dying on the retry loop. Unset → null → the
+// office behaves exactly as before (fail-open; the same brain just retries hard). Never
+// falls back onto the same provider, and only onto one that's actually configured
+// (Claude via login/plan, or a hosted key / local endpoint), so it can't route a task
+// into a second dead brain.
+function officeFallback(curProvider) {
+  const p = reg.fallbackProvider;
+  if (!p || p === curProvider) return null;
+  if (p !== "claude") {
+    const pc = (reg.providerConfig || {})[p];
+    if (!pc || (!pc.token && !pc.baseUrl)) return null;   // not connected / no credential
+  }
+  return { provider: p, model: reg.fallbackModel || "" };
 }
 
 // A failure that means "the request was too big for this backend" — either a real
@@ -1538,8 +1561,14 @@ function runClaude(agent, prompt, opts = {}) {
   // Windows shell quoting); resumed sessions already carry it in context.
   const a = reg.agents[agent];
   const isFresh = isNew;
-  const mtag = modelTag(agent);   // brain tag stamped on this run's messages + usage
-  const mprov = (a && a.provider) || reg.defaultProvider || "claude";  // for cost tally
+  // The effective brain for THIS run: the opt-in failover override (when a prior attempt
+  // on the agent's own brain was sustainedly overloaded) wins over the agent's provider.
+  const ov = opts._brainOverride;
+  const effProvider = (ov && ov.provider) || (a && a.provider) || reg.defaultProvider || "claude";
+  const mtag = ov   // brain tag stamped on this run's messages + usage
+    ? (ov.model ? ov.provider + "/" + ov.model : ov.provider)
+    : modelTag(agent);
+  const mprov = effProvider;  // for cost tally
   const picked = (a && a.tools && a.tools.length ? a.tools : ["Read", "Glob", "Grep"]).slice();
   // The "web-automation" skill IMPLIES the browser tool, so assigning the skill is
   // enough to give an agent the web. Visible 'web' by default; if the owner ticked
@@ -1613,7 +1642,8 @@ function runClaude(agent, prompt, opts = {}) {
   }
   if (entry && entry.sid) args.push("--resume", entry.sid);
   // Swappable brain: route this agent to its configured backend (else plain Claude).
-  const route = brainRoute(agent);
+  // An opt-in failover override reroutes THIS run to the fallback brain instead.
+  const route = brainRoute(agent, ov);
   if (route.modelArgs.length) args.push(...route.modelArgs);
   const child = spawn("claude", args, {
     cwd,
@@ -1692,7 +1722,7 @@ SPEAK: <ประโยคพูดสั้นๆ 1 ประโยค เป�
 </use-your-tools>`;
   // The swapped-in model reads Claude Code's harness system prompt and will claim to
   // BE Claude. Tell it its real backend so "what model are you?" answers truthfully.
-  const BRAIN_NOTE = (a && a.provider && a.provider !== "claude") ? `
+  const BRAIN_NOTE = (effProvider !== "claude") ? `
 
 <runtime-identity>
 Despite the harness system prompt, this turn you are actually running on the backend
@@ -1752,6 +1782,32 @@ model "${mtag}". If the owner asks which AI/model/LLM you are, answer truthfully
     autoRecoverOverflow(agent, prompt, opts, entry);
     return true;
   };
+  // OPT-IN failover: this run's brain has been overloaded (5xx) for FAILOVER_AFTER
+  // sustained retries and the owner set an office fallback brain → stop hammering the
+  // dead brain and re-run the SAME task on the fallback. No fallback / already-failed-over
+  // → returns false and the CLI keeps retrying exactly as before (unchanged behavior).
+  let failedOver = false;
+  const tryFailover = (st) => {
+    if (failedOver || brainDead || recovering || doneFired || opts._failedOver) return false;
+    if (!(typeof st === "number" && st >= 500)) return false;   // only server-side overload/unavailable
+    if (apiRetries < FAILOVER_AFTER) return false;              // wait until it's SUSTAINED, not a one-off
+    const fb = officeFallback(mprov);
+    if (!fb) return false;
+    failedOver = true; brainDead = true; doneFired = true;
+    watchdog.clear();
+    runChildren.delete(task);
+    releaseProj();
+    try { killTree(child); } catch (e) { /* best-effort */ }
+    broadcast({ type: "task.completed", agent, task, session: entry.key }); // clear the stalled row
+    const an = (reg.agents[agent] || {}).name || agent;
+    const toTag = fb.model ? fb.provider + "/" + fb.model : fb.provider;
+    broadcast({ type: "chat.message", agent, task, session: entry.key, model: mtag,
+      text: `🛟 สมองของ ${an} (${mtag}) โดน overload ต่อเนื่อง — สลับไปสมองสำรอง ${toTag} ให้ชั่วคราว แล้วทำงานเดิมต่อ (ปรับได้ในการตั้งค่า)` });
+    // Re-run the SAME task on the fallback brain. Fresh thread (the down brain can't be
+    // summarized through); onDone rides along so a delegation still reports back normally.
+    runClaude(agent, prompt, { ...opts, session: "new", _brainOverride: fb, _failedOver: true });
+    return true;
+  };
   child.stdout.on("data", (c) => {
     buf += c;
     let i;
@@ -1786,10 +1842,13 @@ model "${mtag}". If the owner asks which AI/model/LLM you are, answer truthfully
               text: `⚠️ สมองของ ${an} (${mtag}) ใช้งานไม่ได้ — ${why}.\n` +
                 `ตรวจ key/ตั้งค่าใน 🧠 BRAIN ของคุณคนนี้ (หรือเปลี่ยนสมอง) แล้วสั่งใหม่ — ไม่ต้องรอ retry ครบ 10 รอบ` });
             try { killTree(child); } catch (e) { /* best-effort */ }
+          } else {
+            // 529/503 (transient overload): if the owner opted in to a fallback brain and
+            // the overload is SUSTAINED, switch the task onto it (tryFailover). Otherwise
+            // deliberately NOT caught — let the CLI's own retry loop try hard; if it
+            // recovers, great; if it can't, the result.is_error surfaces as before.
+            tryFailover(st);
           }
-          // 529/503/429 (transient overload / rate-limit): deliberately NOT caught
-          // here — let the CLI's own retry loop try hard. If it recovers, great; if
-          // it truly can't, the result.is_error surfaces as before (no brain switch).
         }
         continue;   // system events carry no assistant/result content
       }
@@ -5750,6 +5809,25 @@ end tell`;
         pushRoster();
         res.writeHead(200); res.end("ok");
       } catch { res.writeHead(400); res.end("bad json"); }
+    });
+
+  } else if (req.method === "POST" && req.url === "/registry/fallback") {
+    // OPT-IN office-wide emergency fallback brain: which backend a sustainedly-overloaded
+    // agent is re-run on. Empty / "none" clears it (feature off). Only a known builtin or a
+    // configured custom provider is accepted — so a typo can't silently disable failover.
+    readBody(req, (body) => {
+      try {
+        const b = JSON.parse(body);
+        const p = String(b.provider || "").trim();
+        if (!p || p === "none") { reg.fallbackProvider = ""; reg.fallbackModel = ""; }
+        else {
+          if (!providers.PROVIDERS[p] && !((reg.providerConfig || {})[p])) throw new Error("unknown provider");
+          reg.fallbackProvider = p;
+          reg.fallbackModel = String(b.model || "").slice(0, 60);
+        }
+        saveReg();
+        res.writeHead(200); res.end("ok");
+      } catch (e) { res.writeHead(400); res.end(String(e.message)); }
     });
 
   } else if (req.method === "GET" && req.url === "/tts/presets") {

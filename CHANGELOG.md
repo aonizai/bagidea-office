@@ -4,6 +4,36 @@ All notable changes to BagIdea Office. A **release** is a deliberate `VERSION`
 bump on `main` (see [RELEASING.md](RELEASING.md)) — that's what triggers the
 in-app 🔄 update banner. Versions follow [semver](https://semver.org).
 
+## [0.9.43] — An opt-in fallback brain: agents survive a provider outage
+
+**Added**
+- **🛟 Office-wide fallback brain (opt-in).** When a teammate's brain gets
+  *sustainedly* overloaded — repeated `5xx` from the provider (GLM/Z.AI's `529`
+  under load is the classic) — the office can now **re-run that same task on a
+  fallback brain you chose**, instead of leaving it to die on the retry loop.
+  Set it once in **Settings → CONNECT → 🛟 สมองสำรอง** (pick any *connected*
+  provider + an optional model). The failed-over run keeps the original task and
+  still reports back to whoever delegated it; a one-line note tells you it
+  switched and why.
+- This is the *right* version of the v0.9.39 auto-failover we deliberately
+  reverted in v0.9.40. The revert's objection was "not everyone has a Claude
+  brain, and a transient blip shouldn't burn a fallback." Both are addressed:
+  it is **off by default** (no fallback set → behavior is byte-for-byte the same
+  as before — the same brain just retries hard), it only fires after the
+  overload is **sustained** (not a one-off), it only routes to a provider that's
+  **actually connected**, and it **never** loops back onto the down brain or
+  fails over twice for one task.
+
+**Notes**
+- Only server-side overload/unavailability (`5xx`) triggers failover. Bad auth
+  (`401/403`) and a dead endpoint still fast-fail with a clear message as before;
+  rate/usage limits (`429`) still pause-and-resume — none of those switch brains.
+
+**Known issue (still under investigation)**
+- The macOS "stuck on the boot logo" render bug from v0.9.42 is **not** fixed
+  here — it's waiting on the boot-log console output from an affected Mac to pin
+  shim-vs-renderer before the fix ships.
+
 ## [0.9.42] — Docs & website overhaul; a cross-platform ready-flag fix
 
 **Documentation**
