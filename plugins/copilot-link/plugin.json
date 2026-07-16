@@ -1,0 +1,14 @@
+{
+  "id": "copilot-link",
+  "name": "🧠 Copilot Link",
+  "version": "0.1.0",
+  "description": "Bridge to the JAVIS Crypto Copilot analysis engine. Reads decision snapshots (reports/latest-decision.json), runs fresh analyses via Bash, and surfaces the Copilot risk gate to office agents. File-based bridge — no HTTP/dependency.",
+  "commands": [
+    { "name": "decision",     "args": "",                  "desc": "Read the latest Copilot decision snapshot: GO/NO_GO, grade, entry/stop/target, risk gate status, decision_id. Advisory only." },
+    { "name": "report",       "args": "",                  "desc": "Read the latest Copilot status summary (reports/latest.json: status, grade, blockers, warnings)." },
+    { "name": "run-analysis", "args": "<symbol>",          "desc": "Trigger a fresh Copilot review for a symbol (spawns python -m trading_partner review), then return the new decision. e.g. run-analysis BTCUSDT" },
+    { "name": "health",       "args": "",                  "desc": "Check whether Copilot is installed, reports exist, and how stale the data is." }
+  ],
+  "needsKeys": [],
+  "enabled": true
+}

@@ -130,6 +130,10 @@ function loadReg() {
   if (reg.heartbeatMin === undefined) reg.heartbeatMin = 60; // Director check-in
   if (reg.socialMin === undefined) reg.socialMin = 120;      // agents socialize (economical default)
   if (reg.proposalMin === undefined) reg.proposalMin = 120;  // min gap between CEO pitches
+  // Cost budgets (0 = unlimited). When set, the office warns at 80%/100% of
+  // the daily or monthly cap; pausing new non-Director work at 100%.
+  if (reg.dailyBudgetUsd === undefined) reg.dailyBudgetUsd = 0;
+  if (reg.monthlyBudgetUsd === undefined) reg.monthlyBudgetUsd = 0;
   saveReg();
 }
 function saveReg() { fs.writeFileSync(REGISTRY, JSON.stringify(reg, null, 2)); }
@@ -497,7 +501,7 @@ const CTX_WINDOW = { claude: 1000000, glm: 200000, deepseek: 1000000, qwen: 2560
 // stripped id → family substring. Keep ids lowercase except where the API is case-exact.
 const MODEL_CTX = {
   // Claude — 1M is standard on the 4.6/4.8 generation; Haiku stays 200k.
-  "claude-opus-4-8": 1000000, "claude-sonnet-4-6": 1000000, "claude-haiku-4-5": 200000,
+  "claude-fable-5": 1000000, "claude-opus-4-8": 1000000, "claude-sonnet-4-6": 1000000, "claude-haiku-4-5": 200000,
   "opus": 1000000, "sonnet": 1000000, "haiku": 200000,
   // DeepSeek — v4-pro / v4-flash both 1M (output up to 384k).
   "deepseek-v4-pro": 1000000, "deepseek-v4-flash": 1000000,
@@ -922,6 +926,9 @@ function memoryNote(agent, taskText, projId) {
 }
 
 // ---- 📊 office stats: per-day run counts + spend, for the dashboard.
+// Schema per day: { runs, done, failed, cost, agents: {id: runCount},
+//   durations: {id: {sum, count, max}}, outcomes: {id: {done, failed}} }
+// (durations/outcomes are newer — older days simply lack them.)
 const STATS = path.join(__dirname, "stats.json");
 let stats = loadJson(STATS, {});
 function statBump(field, agent, cost) {
@@ -930,9 +937,98 @@ function statBump(field, agent, cost) {
   if (field) d[field] = (d[field] || 0) + 1;
   if (agent && field === "runs") d.agents[agent] = (d.agents[agent] || 0) + 1;
   if (cost) d.cost = Math.round((d.cost + cost) * 10000) / 10000;
+  scheduleStatWrite();
+  if (cost) checkBudget();
+}
+function scheduleStatWrite() {
   clearTimeout(statBump._t);
   statBump._t = setTimeout(() =>
     fs.writeFile(STATS, JSON.stringify(stats, null, 1), () => {}), 1500);
+}
+// Cost-budget guard. Returns the current spend vs configured caps so callers
+// (statBump/statFinish) can fire a single broadcast when a threshold is newly
+// crossed. Daily/monthly caps are 0 = unlimited. Thresholds: 80% warn, 100%
+// over. Tracks the last-warned level so each crossing fires once, not per run.
+function budgetState() {
+  const now = new Date();
+  const dayKey = now.toISOString().slice(0, 10);
+  const monthKey = now.toISOString().slice(0, 7);   // YYYY-MM
+  const todayCost = (stats[dayKey] && stats[dayKey].cost) || 0;
+  let monthCost = 0;
+  for (const k of Object.keys(stats)) if (k.slice(0, 7) === monthKey) monthCost += stats[k].cost || 0;
+  const daily = { budget: Number(reg.dailyBudgetUsd) || 0, spent: todayCost };
+  const monthly = { budget: Number(reg.monthlyBudgetUsd) || 0, spent: monthCost };
+  for (const b of [daily, monthly]) b.pct = b.budget > 0 ? b.spent / b.budget : 0;
+  return { daily, monthly };
+}
+let lastBudgetWarn = "";   // "d80" / "d100" / "m80" / "m100" / "" — last level broadcast
+function checkBudget() {
+  if (!reg || ((!reg.dailyBudgetUsd) && (!reg.monthlyBudgetUsd))) return;  // no caps set
+  const st = budgetState();
+  // Pick the most severe freshly-crossed threshold. Daily takes precedence
+  // (it resets sooner, so it's the louder signal).
+  const levels = [];
+  if (st.daily.budget) {
+    if (st.daily.pct >= 1) levels.push("d100");
+    else if (st.daily.pct >= 0.8) levels.push("d80");
+  }
+  if (st.monthly.budget) {
+    if (st.monthly.pct >= 1) levels.push("m100");
+    else if (st.monthly.pct >= 0.8) levels.push("m80");
+  }
+  const top = levels[levels.length - 1] || "";
+  if (top && top !== lastBudgetWarn) {
+    lastBudgetWarn = top;
+    const which = top[0] === "d" ? "daily" : "monthly";
+    const over = top.endsWith("100");
+    const b = which === "daily" ? st.daily : st.monthly;
+    broadcast({
+      type: "budget.warning", which, over,
+      spent: Math.round(b.spent * 100) / 100, budget: b.budget,
+      pct: Math.round(b.pct * 100),
+      text: over
+        ? `🚨 ใช้จ่าย${which === "daily" ? "วันนี้" : "เดือนนี้"}เกินงบแล้ว ($${b.spent.toFixed(2)} / $${b.budget.toFixed(2)}) — งานใหม่ที่ไม่ใช่ของ Director จะถูกพักชั่วคราว`
+        : `⚠️ ใช้จ่าย${which === "daily" ? "วันนี้" : "เดือนนี้"}ใกล้เต็มงบแล้ว (${Math.round(b.pct * 100)}% ของ $${b.budget.toFixed(2)})`,
+    });
+  } else if (!top) {
+    lastBudgetWarn = "";   // spend dropped below all thresholds (e.g. new day/month)
+  }
+}
+// Should a NEW non-Director run be allowed to start? False when over budget.
+function budgetAllowsNewWork() {
+  if (!reg || ((!reg.dailyBudgetUsd) && (!reg.monthlyBudgetUsd))) return true;
+  const st = budgetState();
+  if (st.daily.budget && st.daily.pct >= 1) return false;
+  if (st.monthly.budget && st.monthly.pct >= 1) return false;
+  return true;
+}
+// Per-task start timestamps keyed by task id, so a run's wall-clock duration
+// can be attributed back to its agent when the result arrives. (task ids are
+// unique per run, so re-arms from failover/compaction simply overwrite.)
+const taskStarts = new Map();
+// Finalize a run: counts it done/failed AND records duration + per-agent
+// outcome in one pass. Replaces statBump("done"|"failed", …) at the result
+// event so the agent is known (statBump's done/failed calls pass agent=null).
+function statFinish(task, agent, ok, cost) {
+  const day = new Date().toISOString().slice(0, 10);
+  const d = (stats[day] = stats[day] || { runs: 0, done: 0, failed: 0, cost: 0, agents: {} });
+  d[ok ? "done" : "failed"] = (d[ok ? "done" : "failed"] || 0) + 1;
+  if (cost) d.cost = Math.round((d.cost + cost) * 10000) / 10000;
+  if (agent) {
+    d.outcomes = d.outcomes || {};
+    const o = (d.outcomes[agent] = d.outcomes[agent] || { done: 0, failed: 0 });
+    o[ok ? "done" : "failed"] += 1;
+  }
+  const s = taskStarts.get(task);
+  if (s) {
+    taskStarts.delete(task);
+    const ms = Date.now() - s.t0;
+    d.durations = d.durations || {};
+    const du = (d.durations[s.agent] = d.durations[s.agent] || { sum: 0, count: 0, max: 0 });
+    du.sum += ms; du.count += 1; if (ms > du.max) du.max = ms;
+  }
+  scheduleStatWrite();
+  if (cost) checkBudget();
 }
 
 // Rough per-use cost ESTIMATES for the secondary tools (USD). Unlike Claude,
@@ -953,9 +1049,7 @@ function auxCost(provider, usd) {
   const d = (stats[day] = stats[day] || { runs: 0, done: 0, failed: 0, cost: 0, agents: {} });
   d.aux = d.aux || { gemini: 0, openai: 0 };
   d.aux[provider] = Math.round(((d.aux[provider] || 0) + usd) * 1e6) / 1e6;
-  clearTimeout(statBump._t);
-  statBump._t = setTimeout(() =>
-    fs.writeFile(STATS, JSON.stringify(stats, null, 1), () => {}), 1500);
+  scheduleStatWrite();
 }
 
 // Swapped-in brains don't return a real bill, so estimate from token usage. Rough
@@ -974,9 +1068,7 @@ function brainBump(provider, inTok, outTok) {
   b.in += inTok || 0; b.out += outTok || 0; b.runs += 1;
   const pr = BRAIN_PRICES[provider] || [0, 0];
   b.cost = Math.round((b.cost + (inTok || 0) / 1e6 * pr[0] + (outTok || 0) / 1e6 * pr[1]) * 1e6) / 1e6;
-  clearTimeout(statBump._t);
-  statBump._t = setTimeout(() =>
-    fs.writeFile(STATS, JSON.stringify(stats, null, 1), () => {}), 1500);
+  scheduleStatWrite();
 }
 
 let jobs = loadJson(JOBS, []);    // {id, agent, prompt, mode, at, time, daily, everyMin, enabled, lastRun, lastDay, done, sessionKey, running}
@@ -1323,6 +1415,20 @@ setInterval(sweepProjects, 5000);
 const agentBusy = new Set();
 const jobQueue = [];
 function dispatchJob(job) {
+  // A meeting job gathers several agents into a runDiscussion — it doesn't
+  // occupy the single-agent run slot, so it's dispatched on its own track.
+  if (job.mode === "meeting") { dispatchMeeting(job); return; }
+  // A workflow job hands a saved workflow to the Director on a schedule. It
+  // runs through the Director queue (ceoFlow) so it can fan out via DELEGATE/
+  // SUB like a manual /workflows/run — no single-agent slot needed.
+  if (job.mode === "workflow") { dispatchWorkflow(job); return; }
+  // Over-budget guard: when a daily/monthly cap is breached, scheduled jobs
+  // (which run unattended) are held back. The Director/CEO stay runnable so
+  // the owner can still issue commands and adjust the budget.
+  if (job.agent !== "main" && job.agent !== "ceo" && !budgetAllowsNewWork()) {
+    if (!jobQueue.includes(job)) jobQueue.push(job);   // re-tried after budget resets
+    return;
+  }
   if (agentBusy.has(job.agent) || agentBusy.size >= 2) {
     if (!jobQueue.includes(job)) jobQueue.push(job);
     return;
@@ -1353,18 +1459,98 @@ function dispatchJob(job) {
   });
 }
 
+// A scheduled meeting (e.g. a daily standup). Runs runDiscussion over the
+// configured agent list with the job's topic, then marks lastDay so jobDue
+// doesn't re-fire it today. Meetings are always recurring, so the job stays.
+async function dispatchMeeting(job) {
+  // Resolve participants: the job's agent list, filtered to live roster
+  // members (an agent may have been removed since the job was created). The
+  // Director ('main') leads if present; otherwise the first valid agent.
+  const team = (job.agents && job.agents.length ? job.agents : [])
+    .filter((id) => reg.agents[id] && id !== "ceo");
+  if (!team.length) {
+    // No valid participants — record the attempt and skip silently.
+    job.lastDay = new Date().toDateString();
+    job.lastRun = Date.now();
+    saveJobs();
+    return;
+  }
+  job.lastRun = Date.now();
+  job.running = true;
+  job.lastDay = new Date().toDateString();   // claim today up-front (re-armed by jobDue next day)
+  saveJobs();
+  broadcast({ type: "job.started", agent: team[0], title: String(job.topic || "Meeting").slice(0, 60), job: job.id });
+  broadcast({ type: "jobs.changed" }, false);
+  try {
+    await runDiscussion(team, job.topic || "Standup", Number(job.rounds) || 1, false);
+  } catch (e) {
+    console.error("[meeting job]", job.id, e.message || e);
+  }
+  job.running = false;
+  saveJobs();
+  broadcast({ type: "jobs.changed" }, false);
+}
+
+// A scheduled workflow run: load the saved workflow JSON and hand it to the
+// Director as an order (same path as POST /workflows/run). Recurring, so the
+// job stays and is re-armed by jobDue the next day.
+async function dispatchWorkflow(job) {
+  let wf = null;
+  try {
+    wf = JSON.parse(fs.readFileSync(path.join(WORKSPACE, "workflows", job.workflowId + ".json"), "utf8"));
+  } catch {
+    // Workflow was deleted after the job was scheduled — record + disable.
+    job.lastDay = new Date().toDateString();
+    job.lastRun = Date.now();
+    job.running = false;
+    job.enabled = false;   // avoid re-trying a missing workflow every tick
+    saveJobs();
+    broadcast({ type: "jobs.changed" }, false);
+    return;
+  }
+  job.lastRun = Date.now();
+  job.running = true;
+  job.lastDay = new Date().toDateString();
+  saveJobs();
+  broadcast({ type: "job.started", agent: "main", title: String(wf.name || "Workflow").slice(0, 60), job: job.id });
+  broadcast({ type: "jobs.changed" }, false);
+  try {
+    await new Promise((resolve) => {
+      queueDirectorTurn((release) => {
+        ceoFlow(
+          "Execute this workflow now. Do each step in order. When a node has SEVERAL " +
+          "OUTGOING arrows, those branches run in PARALLEL — emit one `SUB: <branch>` " +
+          "line per branch (real ghost clones). A node with several incoming arrows " +
+          "waits for all branches, then continues. Report the final result.\n\n" +
+          workflowToText(wf),
+          undefined, undefined,
+          { logPrompt: "🔀⏰ [workflow ตั้งเวลา] " + (wf.name || ""),
+            onDone: () => { release(); resolve(); } });
+      });
+    });
+  } catch (e) {
+    console.error("[workflow job]", job.id, e.message || e);
+  }
+  job.running = false;
+  saveJobs();
+  broadcast({ type: "jobs.changed" }, false);
+}
+
 function jobDue(job, now) {
   if (job.enabled === false || job.done) return false;
   if (job.mode === "every")
     return !job.lastRun || now - job.lastRun >= (job.everyMin || 10) * 60000;
-  if (job.mode === "at") {
+  // A meeting or workflow job fires on the same daily-time logic as an 'at'
+  // daily order: standups and recurring automations are inherently recurring.
+  if (job.mode === "at" || job.mode === "meeting" || job.mode === "workflow") {
     if (job.daily && job.time) {
       const [h, m] = job.time.split(":").map(Number);
       const today = new Date(); today.setHours(h, m, 0, 0);
       const dayKey = new Date().toDateString();
       return now >= today.getTime() && job.lastDay !== dayKey;
     }
-    return job.at && now >= job.at && !job.lastRun;
+    if (job.mode === "at") return job.at && now >= job.at && !job.lastRun;
+    return false;
   }
   return false;
 }
@@ -1554,6 +1740,7 @@ function runClaude(agent, prompt, opts = {}) {
     // The overlay's NOW-WORKING strip needs to SAY what the work is.
     title: String(opts.logPrompt || prompt).replace(/\s+/g, " ").slice(0, 90) });
   statBump("runs", agent);
+  taskStarts.set(task, { t0: Date.now(), agent });   // for per-agent duration + outcome
   // Track resumable work as ACTIVE so a restart (or a limit) can continue it later.
   if (opts.resumable) pauseActive(agent, opts.resumePrompt || prompt, projId, entry.key, opts._tries);
 
@@ -1935,6 +2122,7 @@ model "${mtag}". If the owner asks which AI/model/LLM you are, answer truthfully
         }
         if (m.is_error && maybeRecover(typeof m.result === "string" ? m.result : "")) {
           statBump("failed", null, Number(m.total_cost_usd) || 0);
+          taskStarts.delete(task);   // recovery re-arms taskStarts on its own start
           continue;   // the fresh-thread recovery run owns the callback now
         }
         // Context-usage meter: input tokens this turn vs the backend's window, stamped
@@ -1949,7 +2137,7 @@ model "${mtag}". If the owner asks which AI/model/LLM you are, answer truthfully
         }
         broadcast({ type: m.is_error ? "task.failed" : "task.completed",
           agent, task, session: entry.key, model: mtag, usage });
-        statBump(m.is_error ? "failed" : "done", null, Number(m.total_cost_usd) || 0);
+        statFinish(task, agent, !m.is_error, Number(m.total_cost_usd) || 0);
         if (!m.is_error && subTasks.length) {
           doneFired = true;  // the synthesis run inherits the callback
           releaseProj();
@@ -1970,6 +2158,7 @@ model "${mtag}". If the owner asks which AI/model/LLM you are, answer truthfully
   child.on("error", (e) => {
     broadcast({ type: "task.failed", agent, task });
     broadcast({ type: "chat.message", agent, task, text: "adapter error: " + e.message });
+    statFinish(task, agent, false, 0);   // adapter crashed — count it as failed for KPI
     fireDone("", false);
   });
   child.on("close", () => {
@@ -2067,6 +2256,54 @@ function teamList() {
     return `- ${id}: ${a.name}, ${a.role} · 🧠 ${brainOf(a)}`; })
     .join("\n") || "(no other staff yet)";
   return _teamListCache;
+}
+
+// Smart routing: pick the best non-Director agent for a prompt by scoring how
+// well the prompt's words overlap each agent's declared skills/role/persona.
+// Deterministic + cheap (no LLM call). Returns {id, score} or null when no
+// agent clearly fits — in which case the caller should fall back to the
+// Director. "Clearly fits" = top score beats the runner-up by a margin so we
+// don't hijack work on a coin-flip.
+const _skillText = {};   // cache: skill id -> lowercased name+description text
+function skillSearchText(id) {
+  if (_skillText[id]) return _skillText[id];
+  const s = (SKILL_LIBRARY || {})[id] || {};
+  return (_skillText[id] = `${s.name || ""} ${s.description || ""}`.toLowerCase());
+}
+function routeAgent(prompt) {
+  const p = String(prompt || "").toLowerCase();
+  if (!p.trim()) return null;
+  const words = p.split(/[^a-z0-9ก-ฮ]+/).filter((w) => w.length > 1);
+  if (!words.length) return null;
+  const scored = [];
+  for (const id of Object.keys(reg.agents)) {
+    if (id === "ceo" || id === "main") continue;   // routing never picks the Director
+    const a = reg.agents[id];
+    if (!a) continue;
+    // Build this agent's matchable corpus: role, name, persona, and the
+    // name+description of every assigned skill.
+    const corpus = [
+      a.role || "", a.name || "", a.prompt || "", a.persona || "",
+      ...(a.skills || []).map(skillSearchText),
+    ].join(" ").toLowerCase();
+    // Score = number of distinct prompt words found in the corpus. A small
+    // bonus per distinct skill match so a specialist edges out a generalist.
+    let hits = 0;
+    for (const w of words) if (corpus.includes(w)) hits += 1;
+    if (a.skills && a.skills.length) hits += Math.min(a.skills.length, 2) * 0.5;
+    if (hits > 0) scored.push({ id, score: hits, busy: agentBusy.has(id) });
+  }
+  if (!scored.length) return null;
+  scored.sort((a, b) => b.score - a.score);
+  const top = scored[0], second = scored[1];
+  // Prefer a free agent: if the top match is busy but a near-equal scorer is
+  // free, hand it to the free one (within 1 point). Otherwise keep the top.
+  let pick = top;
+  if (top.busy && second && (top.score - second.score) <= 1 && !second.busy) pick = second;
+  // Require a clear winner (margin ≥1, or a lone candidate) so vague prompts
+  // go to the Director instead of a random teammate.
+  if (scored.length > 1 && (top.score - (second ? second.score : 0)) < 1 && top.score < 2) return null;
+  return { id: pick.id, score: pick.score, busy: pick.busy };
 }
 
 // The Director can delegate from ANY conversation — talking to him directly
@@ -3633,18 +3870,28 @@ const server = http.createServer((req, res) => {
         }
         // CEO orders route through the Director; talking to the Director
         // directly gives him the same dispatch power. New threads adopt the
-        // requested project workspace.
-        const task = agent === "ceo"
+        // requested project workspace. "auto" asks the daemon to pick the
+        // best-fit teammate from their skills/persona; if none clearly fits
+        // it falls back to the Director (who can still delegate).
+        let resolvedAgent = agent;
+        let autoNote = "";
+        if (agent === "auto") {
+          const route = routeAgent(prompt);
+          if (route) { resolvedAgent = route.id; autoNote = `🔀 (ส่งต่อให้ ${reg.agents[route.id].name || route.id} อัตโนมัติ) `; }
+          else { resolvedAgent = "main"; autoNote = "🔀 (ไม่พบผู้เชี่ยวชาญเจาะจง — ส่งให้ Director) "; }
+        }
+        const logP = voice ? "🎤 " : "";
+        const task = resolvedAgent === "ceo"
           ? ceoFlow(prompt, session, project,
-              { logPrompt: voice ? "🎤👑 (สั่งด้วยเสียง) " + origPrompt : origPrompt,
+              { logPrompt: (voice ? "🎤👑 (สั่งด้วยเสียง) " : "") + origPrompt,
                 relay: true,  // mirror the CEO conversation to connected channels
                 onDone: wait ? (t, ok) => waited && waited(t, ok) : undefined })
-          : agent === "main"
-            ? runClaude("main", prompt + directorNote(),
-                { session, project, logPrompt: origPrompt,
+          : resolvedAgent === "main"
+            ? runClaude("main", (autoNote || "") + prompt + directorNote(),
+                { session, project, logPrompt: autoNote + logP + origPrompt,
                   filterText: makeDelegateFilter(0, session),
                   onDone: wait ? (t, ok) => waited && waited(t, ok) : undefined })
-            : runClaude(agent, prompt, { session, project, logPrompt: origPrompt,
+            : runClaude(resolvedAgent, prompt, { session, project, logPrompt: autoNote + logP + origPrompt,
                 resumable: true, resumePrompt: origPrompt,  // a member's direct task auto-resumes
                 onDone: wait ? (t, ok) => waited && waited(t, ok) : undefined });
         if (!wait) {
@@ -4386,10 +4633,74 @@ end tell`;
     res.end(JSON.stringify({ jobs }));
 
   } else if (req.method === "POST" && req.url === "/jobs") {
-    // Create a standing work order: now / at (one-shot or daily) / every N.
+    // Create a standing work order: now / at (one-shot or daily) / every N /
+    // meeting (a scheduled runDiscussion, e.g. a daily standup).
     readBody(req, (body) => {
       try {
         const p = JSON.parse(body);
+        if (p.mode === "workflow") {
+          // A scheduled workflow run: needs a saved workflow id + a daily time.
+          const wfId = String(p.workflowId || "").replace(/[^\w-]/g, "");
+          if (!wfId) throw new Error("no workflowId");
+          // Verify the workflow exists (user or example) before scheduling.
+          let wfExists = false;
+          try { fs.accessSync(path.join(WORKSPACE, "workflows", wfId + ".json")); wfExists = true; } catch {}
+          if (!wfExists && wfId.startsWith("example-")) {
+            try {
+              for (const f of fs.readdirSync(path.join(__dirname, "workflow-examples")))
+                if (f.endsWith(".json") && JSON.parse(fs.readFileSync(path.join(__dirname, "workflow-examples", f), "utf8")).id === wfId) { wfExists = true; break; }
+            } catch {}
+          }
+          if (!wfExists) throw new Error("workflow not found");
+          if (!p.time) throw new Error("workflow needs a time");
+          let wfName = wfId;
+          try { wfName = (JSON.parse(fs.readFileSync(
+            wfId.startsWith("example-") ? path.join(__dirname, "workflow-examples") : path.join(WORKSPACE, "workflows"),
+            "utf8")).name) || wfId; } catch {}
+          const job = {
+            id: "j" + Date.now(),
+            agent: "main",             // workflows run through the Director
+            prompt: "🔀 " + String(wfName).slice(0, 80),
+            workflowId: wfId,
+            mode: "workflow",
+            time: String(p.time).slice(0, 5),
+            daily: true,
+            enabled: true,
+            created: Date.now(),
+          };
+          jobs.push(job);
+          saveJobs();
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ id: job.id }));
+          return;
+        }
+        if (p.mode === "meeting") {
+          // A meeting job: needs a topic + at least one non-ceo agent + a time.
+          const topic = String(p.topic || p.prompt || "").slice(0, 400);
+          if (!topic) throw new Error("no topic");
+          const agents = (Array.isArray(p.agents) ? p.agents : [])
+            .filter((id) => reg.agents[id] && id !== "ceo");
+          if (!agents.length) throw new Error("no valid agents");
+          if (!p.time) throw new Error("meeting needs a time");
+          const job = {
+            id: "j" + Date.now(),
+            agent: agents[0],      // nominal owner (for face display in the jobs list)
+            prompt: topic,         // mirror so the generic list renderer works
+            topic,
+            agents,
+            rounds: Math.min(4, Math.max(1, Number(p.rounds) || 1)),
+            mode: "meeting",
+            time: String(p.time).slice(0, 5),
+            daily: true,           // meetings are always recurring (jobDue relies on this)
+            enabled: true,
+            created: Date.now(),
+          };
+          jobs.push(job);
+          saveJobs();
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ id: job.id }));
+          return;
+        }
         if (!p.agent || !reg.agents[p.agent] || p.agent === "ceo") throw new Error("bad agent");
         if (!p.prompt) throw new Error("no prompt");
         const job = {
@@ -5143,14 +5454,47 @@ end tell`;
 
   } else if (req.method === "GET" && req.url === "/stats") {
     // 📊 dashboard: last 7 days of run stats + live system facts.
+    // Each day is enriched with derived per-agent KPI fields (successRate,
+    // avgDurationSec) computed from the raw durations/outcomes buckets.
     const days = [];
+    const kpiRoll = {};   // 7-day per-agent roll-up for the KPI panel
     for (let i = 6; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
-      days.push({ day: d, ...(stats[d] || { runs: 0, done: 0, failed: 0, cost: 0, agents: {} }) });
+      const dKey = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+      const raw = stats[dKey] || { runs: 0, done: 0, failed: 0, cost: 0, agents: {} };
+      const out = raw.outcomes || {};
+      const dur = raw.durations || {};
+      const perAgent = {};
+      const ids = new Set([...Object.keys(raw.agents || {}), ...Object.keys(out), ...Object.keys(dur)]);
+      for (const id of ids) {
+        const o = out[id] || { done: 0, failed: 0 };
+        const tot = o.done + o.failed;
+        const du = dur[id] || { sum: 0, count: 0 };
+        perAgent[id] = {
+          runs: raw.agents[id] || 0,
+          done: o.done, failed: o.failed,
+          successRate: tot ? Math.round((o.done / tot) * 1000) / 10 : null,
+          avgDurationSec: du.count ? Math.round((du.sum / du.count) / 1000) : null,
+        };
+        const r = (kpiRoll[id] = kpiRoll[id] || { runs: 0, done: 0, failed: 0, durSum: 0, durCount: 0 });
+        r.runs += raw.agents[id] || 0; r.done += o.done; r.failed += o.failed;
+        r.durSum += du.sum; r.durCount += du.count;
+      }
+      days.push({
+        day: dKey, runs: raw.runs, done: raw.done, failed: raw.failed, cost: raw.cost,
+        agents: raw.agents, aux: raw.aux, brains: raw.brains, perAgent,
+      });
     }
+    // 7-day per-agent KPI summary (sorted by run count desc).
+    const kpi = Object.entries(kpiRoll)
+      .map(([id, r]) => ({
+        id, runs: r.runs, done: r.done, failed: r.failed,
+        successRate: (r.done + r.failed) ? Math.round((r.done / (r.done + r.failed)) * 1000) / 10 : null,
+        avgDurationSec: r.durCount ? Math.round((r.durSum / r.durCount) / 1000) : null,
+      }))
+      .sort((a, b) => b.runs - a.runs);
     res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({
-      days,
+      days, kpi,
       uptimeSec: Math.floor(process.uptime()),
       clients: wsClients.size,
       pendingPerms: pendingPerms.size,
@@ -5161,6 +5505,73 @@ end tell`;
       features: featuresMap(),
       projects: projectStatus().map((p) => ({ name: p.name, ai: p.ai, open: p.open })),
     }));
+
+  } else if (req.method === "GET" && req.url.split("?")[0] === "/stats/kpi") {
+    // 📊 per-agent KPI over a configurable window (default 7 days). Used by the
+    // AGENTS settings tab badges and the weekly review meeting. Optionally
+    // filter to a single agent with ?agent=<id>.
+    const q = new URL(req.url, "http://x").searchParams;
+    const days = Math.min(90, Math.max(1, Number(q.get("days")) || 7));
+    const only = q.get("agent");
+    const roll = {};
+    let costTotal = 0;
+    for (let i = 0; i < days; i++) {
+      const dKey = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+      const raw = stats[dKey];
+      if (!raw) continue;
+      costTotal += raw.cost || 0;
+      const out = raw.outcomes || {};
+      const dur = raw.durations || {};
+      const ids = new Set([...Object.keys(raw.agents || {}), ...Object.keys(out), ...Object.keys(dur)]);
+      for (const id of ids) {
+        if (only && id !== only) continue;
+        const o = out[id] || { done: 0, failed: 0 };
+        const du = dur[id] || { sum: 0, count: 0 };
+        const r = (roll[id] = roll[id] || { runs: 0, done: 0, failed: 0, durSum: 0, durCount: 0, days: 0 });
+        r.runs += raw.agents[id] || 0; r.done += o.done; r.failed += o.failed;
+        r.durSum += du.sum; r.durCount += du.count; r.days += 1;
+      }
+    }
+    const kpi = Object.entries(roll)
+      .map(([id, r]) => ({
+        id, name: (reg.agents[id] && reg.agents[id].name) || id,
+        runs: r.runs, done: r.done, failed: r.failed,
+        successRate: (r.done + r.failed) ? Math.round((r.done / (r.done + r.failed)) * 1000) / 10 : null,
+        avgDurationSec: r.durCount ? Math.round((r.durSum / r.durCount) / 1000) : null,
+        activeDays: r.days,
+      }))
+      .sort((a, b) => b.runs - a.runs);
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ days, costTotal: Math.round(costTotal * 10000) / 10000, kpi }));
+
+  } else if (req.method === "GET" && req.url === "/stats/budget") {
+    // 💰 current spend vs configured caps. status: "off" (no caps) | "ok" |
+    // "warn" (≥80%) | "over" (≥100%). over=true means new non-Director work
+    // is being held back by budgetAllowsNewWork().
+    const st = budgetState();
+    const status = (!st.daily.budget && !st.monthly.budget) ? "off"
+      : ((st.daily.budget && st.daily.pct >= 1) || (st.monthly.budget && st.monthly.pct >= 1)) ? "over"
+      : ((st.daily.budget && st.daily.pct >= 0.8) || (st.monthly.budget && st.monthly.pct >= 0.8)) ? "warn"
+      : "ok";
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ daily: st.daily, monthly: st.monthly, status, over: !budgetAllowsNewWork() }));
+
+  } else if (req.method === "POST" && req.url === "/registry/budget") {
+    // Set (or clear, with 0) the daily/monthly cost caps.
+    readBody(req, (body) => {
+      try {
+        const p = JSON.parse(body);
+        if (p.dailyBudgetUsd !== undefined)
+          reg.dailyBudgetUsd = Math.max(0, Math.round(Number(p.dailyBudgetUsd) * 100) / 100);
+        if (p.monthlyBudgetUsd !== undefined)
+          reg.monthlyBudgetUsd = Math.max(0, Math.round(Number(p.monthlyBudgetUsd) * 100) / 100);
+        saveReg();
+        lastBudgetWarn = "";   // re-evaluate thresholds against the new caps
+        checkBudget();
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ dailyBudgetUsd: reg.dailyBudgetUsd, monthlyBudgetUsd: reg.monthlyBudgetUsd }));
+      } catch (e) { res.writeHead(400); res.end(String(e.message)); }
+    });
 
   } else if (req.method === "GET" && req.url === "/channels/status") {
     res.writeHead(200, { "content-type": "application/json" });

@@ -154,7 +154,7 @@ module.exports = function initChannels(ctx) {
     const sendNext = (i) => {
       if (i >= parts.length) return;
       jreq("POST", "api.telegram.org", `/bot${token}/sendMessage`, null,
-        { chat_id: chatId, text: parts[i] }, () => sendNext(i + 1));
+        { chat_id: chatId, text: parts[i], parse_mode: "HTML", disable_web_page_preview: true }, () => sendNext(i + 1));
     };
     sendNext(0);
   }

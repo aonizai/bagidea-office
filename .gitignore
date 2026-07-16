@@ -76,10 +76,14 @@ ENGLISH.md
 /Warrix.png
 /preview.jpg
 
-# A fresh install ships with NO bundled plugins — the office starts empty and the
-# owner adds what they want from the Plugins Hub (each its own GitHub clone). Nothing
-# under plugins/ is tracked.
-plugins/*
+# Plugins: track CODE (*.js, plugin.json, panel.html, README) so the trading desk
+# (binance, copilot-link) syncs via git — but NEVER track secrets/runtime state.
+# The config.json under data/ holds API keys; orders.json/positions.json are runtime.
+plugins/*/data/config.json
+plugins/*/data/orders.json
+plugins/*/data/positions.json
+plugins/*/data/*.log
+plugins/**/node_modules/
 daemon/layout.json
 daemon/i18n/
 dist/

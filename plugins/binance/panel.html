@@ -1,0 +1,192 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>📈 Binance Trader</title>
+<style>
+  body{margin:0;padding:14px;background:#0c1322;color:#dbe7ff;
+    font-family:system-ui,"Segoe UI","Leelawadee UI",Tahoma,"Noto Sans Thai",sans-serif;font-size:14px}
+  h2{margin:0 0 4px;font-size:16px;color:#5ec8ff}
+  .sub{color:#7f93b8;font-size:12px;margin:0 0 12px}
+  button{background:#16223a;color:#5ec8ff;border:1px solid #2a3f66;border-radius:6px;
+    padding:7px 12px;cursor:pointer;margin:0 6px 8px 0;font:inherit}
+  button:hover{background:#1d2e4e}
+  button.danger{color:#ffb054;border-color:#5a4424}
+  button.primary{color:#06121f;background:#5ec8ff;border-color:#5ec8ff;font-weight:700}
+  input{background:#101a2e;color:#dbe7ff;border:1px solid #2a3f66;border-radius:6px;
+    padding:7px 8px;width:100%;box-sizing:border-box;margin:0 0 8px;font:inherit}
+  input[type=password]{letter-spacing:0.2em}
+  pre{background:#080d18;border:1px solid #1c2a45;border-radius:8px;padding:10px;
+    white-space:pre-wrap;word-break:break-word;min-height:160px;max-height:50vh;overflow:auto;font-size:12px}
+  .lbl{color:#7f93b8;font-size:12px;margin:10px 0 3px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
+  .testnet{background:rgba(74,222,128,0.15);color:#4ade80;border:1px solid rgba(74,222,128,0.3)}
+  .mainnet{background:rgba(255,116,104,0.15);color:#ff7468;border:1px solid rgba(255,116,104,0.3)}
+  .warn{background:rgba(255,176,84,0.1);color:#ffb054;border:1px solid rgba(255,176,84,0.3);border-radius:8px;padding:8px 10px;font-size:12px;margin:8px 0}
+  details{margin:8px 0;border:1px solid #1c2a45;border-radius:8px;padding:0}
+  summary{padding:8px 10px;cursor:pointer;color:#7f93b8;font-size:13px}
+</style></head><body>
+<h2>📈 Binance Trader</h2>
+<p class="sub">ออฟฟิศเทรดเดอร์ — ดูราคา ยอดเงิน และสถานะบน Binance Futures</p>
+
+<div id="envBadge"></div>
+
+<div class="row" style="margin:8px 0">
+  <button onclick="cmd('status')">🔌 Status</button>
+  <button onclick="cmd('balance')">💰 Balance</button>
+  <button onclick="cmd('positions')">📊 Positions</button>
+  <button onclick="cmd('audit')">📜 Audit</button>
+</div>
+
+<div class="lbl">ดูราคาสัญลักษณ์</div>
+<div class="row">
+  <input id="sym" placeholder="เช่น BTCUSDT" style="flex:1;min-width:120px">
+  <button onclick="cmd('price', val('sym'))">💲 Price</button>
+  <button onclick="cmd('ticker', val('sym'))">📈 24h Ticker</button>
+</div>
+
+<details>
+  <summary>🎯 สั่งเทรด (ต้องเปิด Trade ก่อน)</summary>
+  <div style="padding:8px 12px">
+    <div id="tradeLock" class="warn" style="margin:4px 0 8px">
+      🔒 การเทรดยังปิดอยู่ — เปิด <b>tradeEnabled</b> ด้านล่างก่อน
+    </div>
+    <div class="lbl">สั่ง order (MARKET หรือ LIMIT)</div>
+    <div class="row" style="gap:6px">
+      <input id="oSym" placeholder="BTCUSDT" style="flex:1;min-width:90px">
+      <select id="oSide" style="width:80px"><option value="BUY">BUY</option><option value="SELL">SELL</option></select>
+      <input id="oQty" placeholder="qty" type="number" step="0.0001" style="width:90px">
+    </div>
+    <input id="oPrice" placeholder="ราคา LIMIT (เว้นว่าง = MARKET)" type="number" step="0.01">
+    <div class="row">
+      <button class="primary" onclick="placeOrder()">📤 ส่ง Order</button>
+      <button class="danger" onclick="cmd('close', val('oSym'))">🛑 ปิดสถานะ</button>
+    </div>
+    <div class="lbl">ตั้ง Stop-loss / Take-profit</div>
+    <div class="row" style="gap:6px">
+      <input id="slSym" placeholder="BTCUSDT" style="flex:1;min-width:90px">
+      <input id="slPrice" placeholder="trigger price" type="number" step="0.01" style="width:120px">
+      <button onclick="cmd('stoploss', val('slSym')+' '+val('slPrice'))">⚙️ ตั้ง Stop</button>
+    </div>
+  </div>
+</details>
+
+<div class="warn">
+  ⚠️ <b>Guards</b>: Testnet-only · max $10/order · 5 เหรียญ (BTC/ETH/BNB/SOL/XRP) · audit log ทุกคำสั่ง<br>
+  API key เก็บใน <code>plugins/binance/data/config.json</code> ในเครื่องเท่านั้น ไม่ส่งออกออฟฟิศ
+</div>
+
+<details>
+  <summary>⚙️ ตั้งค่า API Key + Environment</summary>
+  <div style="padding:8px 12px">
+    <div class="lbl">Binance API Key</div>
+    <input id="apiKey" type="password" placeholder="วาง API key ที่สร้างจาก demo.binance.com">
+    <div class="lbl">API Secret</div>
+    <input id="apiSecret" type="password" placeholder="วาง secret (จะไม่แสดงอีก)">
+    <div class="row" style="margin:6px 0">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#7f93b8">
+        <input id="testnet" type="checkbox" checked style="width:auto"> ใช้ Testnet (demo-fapi.binance.com) — เงินปลอม
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#ffb054;margin-left:14px">
+        <input id="tradeEnabled" type="checkbox" style="width:auto"> 🔓 เปิดการเทรด (order/close/stoploss)
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#f87171;margin-left:14px">
+        <input id="autoTrade" type="checkbox" style="width:auto"> 🤖 เปิด auto-trade (เทรดอัตโนมัติตามกฎ)
+      </label>
+    </div>
+    <div class="lbl">ขนาด order สูงสุด (USD) — cap ต่อ order</div>
+    <input id="maxOrderUsd" type="number" min="1" step="1" value="10" placeholder="10">
+    <div class="lbl">Leverage สูงสุด (x) — cap</div>
+    <input id="maxLeverage" type="number" min="1" max="125" step="1" value="5" placeholder="5">
+    <button class="primary" onclick="saveKeys()">💾 บันทึก Key</button>
+    <button class="danger" onclick="clearKeys()">🗑️ ล้าง Key</button>
+  </div>
+</details>
+
+<div class="lbl">ผลลัพธ์</div>
+<pre id="out">พร้อม — กดปุ่มด้านบนหรือสั่งผ่าน agent ("curl .../plugin/binance/cmd -d '{\"cmd\":\"price\",\"args\":\"BTCUSDT\"}'")</pre>
+
+<script>
+const out = document.getElementById("out");
+function val(id) { return document.getElementById(id).value.trim(); }
+async function cmd(c, a) {
+  out.textContent = "⏳ " + c + (a ? " " + a : "") + " ...";
+  try {
+    const r = await fetch("/plugin/binance/cmd", { method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cmd: c, args: a || "" }) });
+    const j = await r.json();
+    out.textContent = JSON.stringify(j, null, 2);
+    if (c === "status") renderEnv(j);
+  } catch (e) { out.textContent = "ERROR: " + e.message; }
+}
+async function saveKeys() {
+  const k = val("apiKey"), s = val("apiSecret");
+  // Allow saving when toggling tradeEnabled/cap even without new keys.
+  const body = { cmd: "setkeys" };
+  if (k) body.apiKey = k;
+  if (s) body.apiSecret = s;
+  body.testnet = document.getElementById("testnet").checked;
+  body.tradeEnabled = document.getElementById("tradeEnabled").checked;
+  body.autoTrade = document.getElementById("autoTrade").checked;
+  body.maxOrderUsd = Number(document.getElementById("maxOrderUsd").value) || 10;
+  body.maxLeverage = Number(document.getElementById("maxLeverage").value) || 5;
+  const r = await fetch("/plugin/binance/cmd", { method: "POST",
+    headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json();
+  out.textContent = j.ok ? "✅ บันทึกแล้ว — " + (j.testnet ? "TESTNET" : "MAINNET")
+      + " · key:" + (j.hasKey ? "✓" : "—") + " secret:" + (j.hasSecret ? "✓" : "—")
+      + " · เทรด:" + (j.tradeEnabled ? "🔓เปิด" : "🔒ปิด")
+      + " · auto:" + (j.autoTrade ? "🤖เปิด" : "🔒ปิด")
+      + " · cap $" + j.maxOrderUsd + " · max lev " + j.maxLeverage + "x"
+    : "ERROR: " + JSON.stringify(j);
+  if (j.ok) renderEnv(j);
+  // Clear the password fields so the secret never lingers in the DOM.
+  document.getElementById("apiKey").value = "";
+  document.getElementById("apiSecret").value = "";
+}
+async function clearKeys() {
+  if (!confirm("ล้าง API key/secret ออกจาก plugin?")) return;
+  const r = await fetch("/plugin/binance/cmd", { method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ cmd: "setkeys", apiKey: "", apiSecret: "" }) });
+  out.textContent = "🗑️ ล้างแล้ว — " + JSON.stringify(await r.json());
+}
+// Build the order arg string from the panel inputs and send it.
+async function placeOrder() {
+  const sym = val("oSym"), side = document.getElementById("oSide").value, qty = val("oQty"), price = val("oPrice");
+  if (!sym || !qty) { out.textContent = "ใส่ symbol + qty ก่อน"; return; }
+  const args = price ? `${sym} ${side} ${qty} @${price}` : `${sym} ${side} ${qty}`;
+  if (!confirm(`ยืนยันส่ง order ${side} ${qty} ${sym}${price ? " @" + price : ""} บน testnet?`)) return;
+  cmd("order", args);
+}
+function renderEnv(s) {
+  const b = document.getElementById("envBadge");
+  // Reflect the trade lock state in the order section header.
+  const lock = document.getElementById("tradeLock");
+  if (lock) {
+    const enabled = s && s.tradeEnabled;
+    lock.style.display = enabled ? "none" : "";
+  }
+  // Sync the toggles with stored config when status reports it.
+  if (s) {
+    const te = document.getElementById("tradeEnabled");
+    if (te && typeof s.tradeEnabled === "boolean") te.checked = s.tradeEnabled;
+    const mx = document.getElementById("maxOrderUsd");
+    if (mx && typeof s.maxOrderUsd === "number") mx.value = s.maxOrderUsd;
+    const tn = document.getElementById("testnet");
+    if (tn && typeof s.testnet === "boolean") tn.checked = s.testnet;
+    const at = document.getElementById("autoTrade");
+    if (at && typeof s.autoTrade === "boolean") at.checked = s.autoTrade;
+    const ml = document.getElementById("maxLeverage");
+    if (ml && typeof s.maxLeverage === "number") ml.value = s.maxLeverage;
+  }
+  if (s && s.environment) {
+    const isTest = s.environment === "TESTNET";
+    b.innerHTML = `<span class="badge ${isTest ? "testnet" : "mainnet"}">${isTest ? "🧪 TESTNET" : "⚠️ MAINNET (เงินจริง!)"}</span>`
+      + (s.hasKey ? ' <span class="badge testnet">🔑 key ✓</span>' : ' <span class="badge mainnet">🔑 ยังไม่มี key</span>')
+      + (s.tradeEnabled ? ' <span class="badge mainnet">🔓 เทรดเปิด</span>' : ' <span class="badge testnet">🔒 เทรดปิด</span>')
+      + (s.autoTrade ? ' <span class="badge mainnet">🤖 auto เปิด</span>' : '');
+  }
+}
+// Show environment on load.
+cmd("status");
+</script></body></html>

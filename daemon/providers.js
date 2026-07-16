@@ -26,7 +26,7 @@ const PROVIDERS = {
   claude: {
     label: "Claude · Anthropic", format: "anthropic", direct: true, baseUrl: null,
     models: ["", "opus", "sonnet", "haiku",
-             "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
+             "claude-fable-5", "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
   },
   glm: {
     label: "GLM · Z.AI", format: "anthropic", direct: true,

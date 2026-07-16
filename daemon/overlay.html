@@ -822,6 +822,37 @@
   .switch .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #8294ab; transition: left 0.15s, background 0.15s; }
   .switch.on .knob { background: rgba(94,200,255,0.4); }
   .switch.on .knob::after { left: 18px; background: var(--accent); }
+  /* ---------- command palette (Ctrl+K) ---------- */
+  #palette {
+    position: fixed; inset: 0; z-index: 99999; display: none;
+    align-items: flex-start; justify-content: center; padding-top: 12vh;
+    background: rgba(2,6,14,0.55); backdrop-filter: blur(2px); font: inherit;
+  }
+  #palette.open { display: flex; animation: chipIn 0.16s ease both; }
+  #paletteCard {
+    width: min(520px, 94vw); max-height: 70vh; display: flex; flex-direction: column;
+    background: linear-gradient(160deg, #15203a 0%, #0c1322 70%);
+    border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 60px rgba(0,0,0,0.6);
+    overflow: hidden; animation: popIn 0.22s cubic-bezier(.2,1.3,.4,1) both;
+  }
+  #paletteSearch {
+    width: 100%; box-sizing: border-box; padding: 14px 16px; font-size: 14px; color: var(--text);
+    background: transparent; border: none; border-bottom: 1px solid var(--line); outline: none;
+  }
+  #paletteSearch::placeholder { color: var(--dim); }
+  #paletteList { overflow-y: auto; padding: 6px; flex: 1; }
+  .pal-group { font-size: 10px; letter-spacing: 1.5px; color: var(--dim); padding: 8px 10px 3px; text-transform: uppercase; }
+  .pal-row {
+    display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px;
+    cursor: pointer; color: var(--text); font-size: 12.5px;
+  }
+  .pal-row .pal-ic { font-size: 15px; width: 20px; text-align: center; flex: none; }
+  .pal-row .pal-label { flex: 1; }
+  .pal-row .pal-hint { font-size: 10px; color: var(--dim); }
+  .pal-row.sel { background: rgba(94,200,255,0.13); }
+  .pal-row:hover { background: rgba(94,200,255,0.08); }
+  #paletteFoot { font-size: 10px; color: var(--dim); padding: 7px 12px; border-top: 1px solid var(--line); display: flex; gap: 14px; }
+  #paletteFoot kbd { background: rgba(255,255,255,0.08); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; font-size: 9.5px; }
   /* top-down map */
   #mapWrap { position: relative; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
   #mapWrap img { width: 100%; display: block; filter: saturate(1.15); }
@@ -1286,12 +1317,14 @@
     return NPCS[phash(id) % 10];
   }
   function roleOf(id) {
+    if (id === "auto") return "Smart Routing";
     if (ROSTER[id] && ROSTER[id].role) return ROSTER[id].role;
     if (id === "main") return "Director";
     if (id === "ceo") return "Chairman";
     return ROLES[phash(id) % 6];
   }
   function nameOf(id) {
+    if (id === "auto") return "Auto";
     return (ROSTER[id] && ROSTER[id].name) || id[0].toUpperCase() + id.slice(1);
   }
   // CSS sprite crops from the 256x512 sheet (cell 64): face (14,14,36,36)
@@ -1352,6 +1385,25 @@
       const w = (x) => (x === "ceo" ? 0 : x === "main" ? 1 : 2);
       return w(a) - w(b) || order.indexOf(a) - order.indexOf(b);
     });
+    // Smart-routing seat: a virtual "Auto" target that lets the daemon pick
+    // the best-fit teammate per message. Sits right after the CEO so it's a
+    // glance away. Not a real roster member — no dot, no ID card.
+    {
+      const seat = document.createElement("div");
+      seat.className = "seat autoSeat" + (target === "auto" ? " active" : "");
+      const f = document.createElement("div");
+      f.className = "face"; f.textContent = "🔀";
+      f.style.display = "flex"; f.style.alignItems = "center"; f.style.justifyContent = "center";
+      f.style.fontSize = "18px"; f.style.background = "rgba(94,200,255,0.12)";
+      const nm = document.createElement("div");
+      nm.className = "nm"; nm.textContent = "Auto";
+      const cr = document.createElement("div");
+      cr.className = "crown"; cr.textContent = "🔀"; cr.style.fontSize = "11px";
+      seat.append(f, nm, cr);
+      seat.title = "ส่งต่อให้ agent ที่เหมาะกับงานอัตโนมัติ (ถ้าไม่ชัดจะตกไป Director)";
+      seat.onclick = () => setTarget("auto");
+      railEl.appendChild(seat);
+    }
     for (const id of ids) {
       const seat = document.createElement("div");
       seat.className = "seat" + (id === target ? " active" : "")
@@ -2288,6 +2340,13 @@
     // Decided elsewhere (🗂 TASKS, the feed, another window) → settle the inline cards here.
     else if (ev.type === "proposal.approved") markProposalResolved(ev.proposal, true);
     else if (ev.type === "proposal.rejected") markProposalResolved(ev.proposal, false);
+    else if (ev.type === "budget.warning") {
+      // A cost threshold was crossed (≥80% warn or ≥100% over). Surface it as
+      // a feed alert + a chip so it's hard to miss, but don't spam: the daemon
+      // only fires once per freshly-crossed level.
+      addFeed("ceo", ev.text || "💰 แจ้งเตือนงบประมาณ", "", "alert");
+      addChip(ev.text || "💰 แจ้งเตือนงบประมาณ");
+    }
     else if (ev.type === "memory.learned")
       addFeed(ev.agent, "🧠 จดความจำใหม่ " + ev.count + " ข้อ", "");
     else if (ev.type === "plugin.intent" && ev.repo) {
@@ -2820,6 +2879,36 @@
       fbProv.onchange = () => { fbModel.style.display = fbProv.value === "none" ? "none" : ""; saveFb(); };
       fbModel.onchange = saveFb;
     }
+    // 💰 Cost budget fields: load current caps + spend, save on click.
+    const budBox = modalCard.querySelector("#budBox");
+    if (budBox) {
+      const renderBud = async () => {
+        const b = await fetch("/stats/budget").then((x) => x.json()).catch(() => null);
+        if (!b) return;
+        const dIn = modalCard.querySelector("#budDaily"), mIn = modalCard.querySelector("#budMonthly");
+        if (dIn && document.activeElement !== dIn) dIn.value = b.daily.budget || 0;
+        if (mIn && document.activeElement !== mIn) mIn.value = b.monthly.budget || 0;
+        const stEl = modalCard.querySelector("#budStatus");
+        if (stEl) {
+          const fmt = (x) => "$" + Number(x).toFixed(2);
+          const line = (lbl, b2) => b2.budget > 0
+            ? `${lbl}: ${fmt(b2.spent)} / ${fmt(b2.budget)} (${Math.round(b2.pct * 100)}%)`
+            : `${lbl}: ${fmt(b2.spent)} (ไม่จำกัด)`;
+          const col = b.status === "over" ? "#f87171" : b.status === "warn" ? "#ffb054" : "var(--dim)";
+          const tag = b.status === "over" ? " 🚨 เกินงบ — งานใหม่ถูกพัก" : b.status === "warn" ? " ⚠️ ใกล้เต็ม" : "";
+          stEl.style.color = col;
+          stEl.textContent = line("วันนี้", b.daily) + " · " + line("เดือนนี้", b.monthly) + tag;
+        }
+      };
+      renderBud();
+      modalCard.querySelector("#budSave").onclick = async () => {
+        const daily = Number(modalCard.querySelector("#budDaily").value) || 0;
+        const monthly = Number(modalCard.querySelector("#budMonthly").value) || 0;
+        await api("/registry/budget", { dailyBudgetUsd: daily, monthlyBudgetUsd: monthly });
+        addChip(daily || monthly ? `💰 ตั้งงบแล้ว — $${daily}/วัน · $${monthly}/เดือน` : "💰 ปิดจำกัดงบแล้ว");
+        renderBud();
+      };
+    }
     // All sections filled — put the scrollbar back where the owner had it.
     modalCard.scrollTop = _wasScroll;
   }
@@ -2973,7 +3062,15 @@
             <select id="fbProv" style="flex:1 1 150px;margin:0"></select>
             <input id="fbModel" autocomplete="off" maxlength="60" placeholder="โมเดล (เว้นว่าง = ดีฟอลต์)" style="flex:1 1 150px;margin:0">
           </div>
-          <div style="font-size:10.5px;color:var(--dim);margin-top:4px">ดีฟอลต์ = ปิด (ไม่มี) · เลือกได้เฉพาะ provider ที่เชื่อมต่อแล้ว · ใช้เฉพาะตอนสมองหลักล่มจริง (5xx) หลาย ๆ ครั้งติดกัน</div></div>`;
+          <div style="font-size:10.5px;color:var(--dim);margin-top:4px">ดีฟอลต์ = ปิด (ไม่มี) · เลือกได้เฉพาะ provider ที่เชื่อมต่อแล้ว · ใช้เฉพาะตอนสมองหลักล่มจริง (5xx) หลาย ๆ ครั้งติดกัน</div></div>
+        <div class="field"><label>💰 งบประมาณต้นทุน — ตั้งเพดานรายวัน/รายเดือน (0 = ไม่จำกัด) · เมื่อใช้ใกล้เต็มจะแจ้งเตือน · เกินงบจะพักงานใหม่ที่ไม่ใช่ของ Director</label>
+          <div id="budBox" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+            <div><span style="font-size:11px;color:var(--dim)">รายวัน ($)</span><br><input id="budDaily" type="number" min="0" step="0.5" style="width:110px"></div>
+            <div><span style="font-size:11px;color:var(--dim)">รายเดือน ($)</span><br><input id="budMonthly" type="number" min="0" step="1" style="width:110px"></div>
+            <button class="sparkle" id="budSave" style="height:35px">💾 บันทึก</button>
+          </div>
+          <div id="budStatus" style="font-size:11px;color:var(--dim);margin-top:6px">loading…</div>
+        </div>`;
     } else if (tab === "channels") {
       bodyHtml = `<div style="font-size:11px;color:var(--dim);margin-bottom:10px">
           📡 คุยกับออฟฟิศจากภายนอกผ่าน Director (main) — เปิดช่องทางที่ต้องการ แล้วสั่งงานจากมือถือได้เลย<br>
@@ -3001,6 +3098,23 @@
         const w = (x) => (x === "ceo" ? 0 : x === "main" ? 1 : 2);
         return w(a) - w(b) || rosterOrder.indexOf(a) - rosterOrder.indexOf(b);
       });
+      // Fetch 7-day KPI once so each agent row can show a small performance
+      // badge (runs + success rate). CEO has no runs, so it gets no badge.
+      const kpiMap = {};
+      fetch("/stats/kpi?days=7").then((x) => x.json()).then((r) => {
+        for (const k of (r.kpi || [])) kpiMap[k.id] = k;
+        // Patch any rows already rendered before the fetch resolved.
+        for (const id of rosterIds) {
+          const badge = list.querySelector(`[data-kpi="${id}"]`);
+          if (badge && kpiMap[id]) badge.innerHTML = kpiBadgeHtml(kpiMap[id]);
+        }
+      }).catch(() => {});
+      const kpiBadgeHtml = (k) => {
+        const rate = k.successRate;
+        const col = rate == null ? "var(--dim)" : rate >= 80 ? "#4ade80" : rate >= 50 ? "#ffb054" : "#f87171";
+        const rateStr = rate == null ? "" : ` · <span style="color:${col}">${rate}%✓</span>`;
+        return `<span style="font-size:10.5px;color:var(--dim)">📈 ${k.runs} งาน${rateStr}</span>`;
+      };
       for (const id of rosterIds) {
         const a = ROSTER[id];
         const row = document.createElement("div");
@@ -3016,10 +3130,11 @@
           const _brainTitle = `${_prov}${a.model ? " / " + a.model : ""}`;
           _brainHtml = `<span class="brain" title="${_brainTitle}">🧠 ${_brain}</span>`;
         }
+        const _kpiHtml = (id !== "ceo") ? `<span data-kpi="${id}">${kpiMap[id] ? kpiBadgeHtml(kpiMap[id]) : ""}</span>` : "";
         row.insertAdjacentHTML("beforeend",
           `<div class="meta"><b>${a.name}</b><span>${a.role} · ${id}` +
           ` · 🎯${(a.skills || []).length} · 🔧${(a.tools || []).length}</span>` +
-          _brainHtml + `</div>` +
+          _brainHtml + _kpiHtml + `</div>` +
           (a.protected ? `<span class="lock" title="Core agent — cannot be deleted">🔒</span>` : ""));
         row.onclick = () => openEditor(id);
         list.appendChild(row);
@@ -4146,10 +4261,18 @@
       `<div class="dbar" title="${d.day}: ${d.runs} งาน (✓${d.done} ✗${d.failed})">
         <i style="height:${Math.round((d.runs / maxRuns) * 46) + 3}px"></i>
         <span>${d.day.slice(8)}</span></div>`).join("");
-    const agentRows = Object.entries(today.agents || {}).sort((a, b) => b[1] - a[1]).slice(0, 8)
-      .map(([id, n]) => `<div class="arow" style="cursor:default;padding:5px 9px">
-        <div class="meta"><b>${nameOf(id)}</b></div>
-        <span style="color:var(--accent);font-weight:700">${n} งาน</span></div>`).join("") ||
+    const agentRows = Object.entries(today.perAgent || today.agents || {})
+        .sort((a, b) => ((b[1] && b[1].runs) || b[1]) - ((a[1] && a[1].runs) || a[1])).slice(0, 8)
+      .map(([id, v]) => {
+        const n = (v && v.runs) || v || 0;
+        const rate = v && v.successRate;       // null until outcomes are recorded
+        const dur = v && v.avgDurationSec;      // null until durations are recorded
+        const rateStr = rate == null ? "" : ` · <span style="color:${rate >= 80 ? "#4ade80" : rate >= 50 ? "#ffb054" : "#f87171"}">${rate}%✓</span>`;
+        const durStr = dur == null ? "" : ` · <span style="color:var(--dim)">${dur >= 60 ? Math.floor(dur / 60) + "น" + (dur % 60) + "s" : dur + "s"}</span>`;
+        return `<div class="arow" style="cursor:default;padding:5px 9px">
+          <div class="meta"><b>${nameOf(id)}</b></div>
+          <span style="color:var(--accent);font-weight:700">${n} งาน${rateStr}${durStr}</span></div>`;
+      }).join("") ||
       `<div style="color:var(--dim);font-size:11px">วันนี้ยังไม่มีงาน</div>`;
     const ch = Object.entries(s.channels).filter(([, v]) => v !== "off")
       .map(([k, v]) => `${k} <span style="color:${v === "on" ? "#4ade80" : "#ffb054"}">●</span>`)
@@ -4184,6 +4307,17 @@
       <div class="field" style="margin-top:10px"><label>📈 งาน 7 วันล่าสุด</label>
         <div class="dchart">${bars}</div></div>
       <div class="field" style="margin-top:8px"><label>🏆 ใครขยันสุดวันนี้</label>${agentRows}</div>
+      ${(() => {
+        // 📊 7-day per-agent KPI roll-up (success rate + avg duration).
+        const kpi = (s.kpi || []).filter((r) => r.runs > 0).slice(0, 6);
+        if (!kpi.length) return "";
+        const fmtDur = (d) => d == null ? "—" : d >= 60 ? Math.floor(d / 60) + "น" + (d % 60) + "s" : d + "s";
+        const rateCol = (r) => r == null ? "—" : `<span style="color:${r >= 80 ? "#4ade80" : r >= 50 ? "#ffb054" : "#f87171"}">${r}%</span>`;
+        const rows = kpi.map((r) => `<div class="arow" style="cursor:default;padding:4px 9px">
+          <div class="meta"><b>${nameOf(r.id)}</b> <small style="color:var(--dim)">${r.runs} งาน · ${r.done}✓ ${r.failed}✗</small></div>
+          <span style="font-size:11px">${rateCol(r.successRate)} · <span style="color:var(--dim)">${fmtDur(r.avgDurationSec)}</span></span></div>`).join("");
+        return `<div class="field" style="margin-top:8px"><label>📊 สรุป 7 วัน (สำเร็จ · เฉลี่ยเวลา/งาน)</label>${rows}</div>`;
+      })()}
       <div style="font-size:10px;color:var(--dim);margin-top:6px">
         🔑 main keys: OpenAI ${s.features.openai ? "✅" : "—"} · Gemini ${s.features.gemini ? "✅" : "—"}
         · perms ค้าง ${s.pendingPerms}</div>`;
@@ -4236,6 +4370,8 @@
             <div class="chk on" data-m="now">⚡ ทำทันที</div>
             <div class="chk" data-m="at">🕐 ตามเวลา</div>
             <div class="chk" data-m="every">🔁 ทุกๆ N นาที</div>
+            <div class="chk" data-m="meeting">🤝 ประชุมประจำวัน</div>
+            <div class="chk" data-m="workflow">🔀 รัน Workflow ตามเวลา</div>
           </div>
           <div id="jWhen" style="margin-top:6px"></div>
           <button class="bigbtn" id="jAdd" style="margin-top:8px">📋 สั่งงาน</button>
@@ -4594,26 +4730,129 @@
       }
       let mode = "now";
       const when = modalCard.querySelector("#jWhen");
-      const renderWhen = () => {
-        when.innerHTML = mode === "at"
-          ? `<input id="jAt" type="datetime-local" style="width:100%">
-             <div class="chk" id="jDaily" style="margin-top:6px;display:inline-block">🔁 ทำซ้ำทุกวัน เวลานี้</div>`
-          : mode === "every"
-            ? `<input id="jEvery" type="number" min="5" value="30" style="width:110px"> นาที (ขั้นต่ำ 5)`
-            : `<span style="font-size:11px;color:var(--dim)">เริ่มทำทันทีที่กดสั่ง</span>`;
-        const dl = when.querySelector("#jDaily");
-        if (dl) dl.onclick = () => dl.classList.toggle("on");
+      const renderWhen = async () => {
+        if (mode === "at") {
+          when.innerHTML = `<input id="jAt" type="datetime-local" style="width:100%">
+             <div class="chk" id="jDaily" style="margin-top:6px;display:inline-block">🔁 ทำซ้ำทุกวัน เวลานี้</div>`;
+          const dl = when.querySelector("#jDaily");
+          if (dl) dl.onclick = () => dl.classList.toggle("on");
+        } else if (mode === "every") {
+          when.innerHTML = `<input id="jEvery" type="number" min="5" value="30" style="width:110px"> นาที (ขั้นต่ำ 5)`;
+        } else if (mode === "meeting") {
+          // A scheduled meeting (standup-style). Pick a template, participants
+          // + a daily time; the daemon runs a runDiscussion at that time daily.
+          const agentOpts = Object.keys(ROSTER).filter((x) => x !== "ceo")
+            .map((id) => `<label class="chk" data-mid="${id}" style="margin:2px">${nameOf(id)}</label>`).join("");
+          when.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+              <span style="font-size:11px;color:var(--dim)">📋 รูปแบบ</span>
+              <select id="jTmpl" style="flex:1;min-width:140px">
+                <option value="standup">🤝 Standup — ทำอะไร / จะทำ / ติดขัด</option>
+                <option value="retro">🔙 Retro — ดี / ไม่ดี / ปรับปรุง</option>
+                <option value="kpi">📊 KPI Review — สรุปผลงานรายสัปดาห์</option>
+                <option value="brainstorm">💡 Brainstorm — หาไอเดีย</option>
+              </select>
+            </div>
+            <div style="font-size:11px;color:var(--dim);margin-bottom:4px">👥 ผู้เข้าประชุม (แตะเพื่อเลือก)</div>
+            <div class="checks" id="jMem" style="margin-bottom:8px">${agentOpts}</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-size:11px;color:var(--dim)">⏰ ทุกวันเวลา</span>
+              <input id="jTime" type="time" value="09:00" style="width:96px">
+              <span style="font-size:11px;color:var(--dim)">· รอบ</span>
+              <input id="jRounds" type="number" min="1" max="4" value="1" style="width:60px">
+            </div>`;
+          // Topic presets: the KPI template seeds a richer prompt so the team
+          // reviews its own 7-day performance numbers during the meeting.
+          const tmplSel = when.querySelector("#jTmpl");
+          const tmplToTopic = {
+            standup: "Standup: ทำอะไรไป / จะทำอะไร / มีอะไรติดขัด",
+            retro: "Retro: สัปดาห์นี้อะไรทำได้ดี / ไม่ดี / จะปรับปรุง",
+            kpi: "KPI Review: แต่ละคนสรุปงานสำเร็จ/ล้มเหลวของสัปดาห์ สิ่งที่เรียนรู้ และเป้าหมายสัปดาห์หน้า",
+            brainstorm: "Brainstorm: หาไอเดียใหม่ๆ ยังไม่ตัดสินใจ แค่สร้าง",
+          };
+          const updateTopic = () => {
+            const ph = modalCard.querySelector("#jPrompt");
+            if (ph && (!ph.value.trim() || Object.values(tmplToTopic).includes(ph.value.trim())))
+              ph.value = tmplToTopic[tmplSel.value] || tmplToTopic.standup;
+          };
+          tmplSel.onchange = updateTopic;
+          // Click an agent chip to toggle membership; pre-select 'main' + up to
+          // 2 others so a fresh standup is useful immediately.
+          const mem = when.querySelector("#jMem");
+          const presel = Object.keys(ROSTER).filter((x) => x !== "ceo").slice(0, 3);
+          mem.querySelectorAll(".chk").forEach((c) => {
+            if (presel.includes(c.dataset.mid)) c.classList.add("on");
+            c.onclick = () => c.classList.toggle("on");
+          });
+          updateTopic();   // seed the default standup topic into the prompt box
+        } else if (mode === "workflow") {
+          // A scheduled workflow: pick one of the saved workflows + a daily time.
+          const wfs = await fetch("/workflows").then((x) => x.json()).catch(() => []);
+          const opts = (wfs || []).map((w) =>
+            `<option value="${w.id}">${w.example ? "📘 " : "🔀 "}${(w.name || w.id).replace(/</g, "&lt;")} (${w.nodes || 0} ขั้น)</option>`).join("");
+          when.innerHTML = `
+            <div style="font-size:11px;color:var(--dim);margin-bottom:4px">🔀 Workflow ที่จะรัน</div>
+            <select id="jWf" style="width:100%;margin-bottom:8px">${opts || "<option>(ยังไม่มี workflow — สร้างในเมนู Workflows ก่อน)</option>"}</select>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-size:11px;color:var(--dim)">⏰ ทุกวันเวลา</span>
+              <input id="jTime" type="time" value="09:00" style="width:96px">
+            </div>`;
+        } else {
+          when.innerHTML = `<span style="font-size:11px;color:var(--dim)">เริ่มทำทันทีที่กดสั่ง</span>`;
+        }
       };
       renderWhen();
       modalCard.querySelectorAll("#jMode .chk").forEach((c) => (c.onclick = () => {
         mode = c.dataset.m;
         modalCard.querySelectorAll("#jMode .chk").forEach((x) => x.classList.toggle("on", x === c));
+        // In meeting/workflow mode the single-agent selector + free-text prompt
+        // are irrelevant (participants come from the chips / the workflow file).
+        const hideSel = mode === "meeting" || mode === "workflow";
+        sel.style.display = hideSel ? "none" : "";
+        const promptRow = modalCard.querySelector("#jPrompt");
+        if (promptRow) {
+          const pr = promptRow.closest(".assistrow");
+          if (pr) pr.style.display = mode === "workflow" ? "none" : "";
+          promptRow.placeholder = mode === "meeting"
+            ? "หัวข้อประชุม (ไม่ใส่ก็ได้ — จะใช้ standup มาตรฐาน)…"
+            : "สั่งงานที่นี่… เช่น สรุปข่าว AI เช้านี้ให้หน่อย";
+        }
+        const addBtn = modalCard.querySelector("#jAdd");
+        if (addBtn) addBtn.textContent =
+          mode === "meeting" ? "🤝 ตั้งประชุมประจำวัน" :
+          mode === "workflow" ? "🔀 ตั้งรัน Workflow" : "📋 สั่งงาน";
         renderWhen();
       }));
       wireMic(modalCard.querySelector("#jMic"), modalCard.querySelector("#jPrompt"));
       modalCard.querySelector("#jAdd").onclick = async () => {
         const prompt = modalCard.querySelector("#jPrompt").value.trim();
-        if (!prompt) return;
+        if (!prompt && mode !== "meeting" && mode !== "workflow") return;
+        if (mode === "meeting") {
+          const members = [...when.querySelectorAll("#jMem .chk.on")].map((c) => c.dataset.mid);
+          if (!members.length) { addChip("เลือกผู้เข้าประชุมอย่างน้อย 1 คน"); return; }
+          const p = {
+            mode: "meeting",
+            topic: prompt || "Standup: ทำอะไรไป / จะทำอะไร / มีอะไรติดขัด",
+            agents: members,
+            time: when.querySelector("#jTime").value || "09:00",
+            rounds: Number(when.querySelector("#jRounds").value) || 1,
+          };
+          await api("/jobs", p);
+          openOps("jobs");
+          return;
+        }
+        if (mode === "workflow") {
+          const wfSel = when.querySelector("#jWf");
+          const wfId = wfSel && wfSel.value;
+          if (!wfId) { addChip("เลือก workflow ก่อน"); return; }
+          await api("/jobs", {
+            mode: "workflow",
+            workflowId: wfId,
+            time: when.querySelector("#jTime").value || "09:00",
+          });
+          openOps("jobs");
+          return;
+        }
         const p = { agent: sel.value, prompt, mode };
         if (mode === "at") {
           const v = when.querySelector("#jAt").value;
@@ -4640,15 +4879,21 @@
         const refreshJobs = () => openOps("jobs");
         const view = () => {
           row.style.display = ""; row.innerHTML = "";
+          const isMeeting = j.mode === "meeting";
+          const isWorkflow = j.mode === "workflow";
           const f = document.createElement("div"); f.className = "face"; face(f, j.agent, 30);
           row.appendChild(f);
-          const desc = j.running ? `🔴 กำลังทำงานนี้อยู่…`
+          const desc = j.running ? `🔴 กำลัง${isMeeting ? "ประชุม" : isWorkflow ? "รัน workflow" : "ทำงานนี้"}อยู่…`
+            : isMeeting ? `🤝 ประชุมทุกวัน ${j.time} · ${(j.agents || []).map(nameOf).join(", ")}`
+            : isWorkflow ? `🔀 รัน workflow ทุกวัน ${j.time}`
             : j.mode === "every" ? `🔁 ทุก ${j.everyMin} นาที`
             : j.mode === "at" && j.daily ? `🔁 ทุกวัน ${j.time}`
             : j.mode === "at" ? `🕐 ${new Date(j.at).toLocaleString()}`
             : "⚡ ทันที";
+          const title = (j.topic || j.prompt || "").slice(0, 56).replace(/</g, "&lt;");
+          const prefix = isMeeting ? "🤝 " : isWorkflow ? "🔀 " : "";
           row.insertAdjacentHTML("beforeend",
-            `<div class="meta"><b>${j.prompt.slice(0, 56).replace(/</g, "&lt;")}</b>
+            `<div class="meta"><b>${prefix}${title}</b>
                <span>${nameOf(j.agent)} · ${desc}${j.enabled === false ? " · ⏸ พัก" : ""}${(!j.running && j.lastRun) ? " · ล่าสุด " + new Date(j.lastRun).toLocaleTimeString() : ""}</span></div>` +
             (j.running ? "" :
               `<div class="winbtn" title="แก้ไข">✎</div>
@@ -5351,6 +5596,164 @@
       document.body.appendChild(ov);
     });
   }
+
+  // ---------- ⌘ command palette (Ctrl+K / Cmd+K) ----------
+  // A fuzzy command launcher that surfaces the office's main actions and every
+  // agent ("talk to X"). Lives in its own overlay (#palette) so it works even
+  // in feed mode and never collides with #modal.
+  function paletteCommands() {
+    // Static commands — wired to existing opener/toggle functions. The agent
+    // list is appended dynamically below so hires show up immediately.
+    const cmds = [
+      { ic: "⚙", group: "นำทาง", label: "ตั้งค่าออฟฟิศ", hint: "Settings", run: () => openSettings("agents") },
+      { ic: "📋", group: "นำทาง", label: "งานตั้งเวลา / โปรเจค", hint: "Tasks & projects", run: () => openOps("jobs") },
+      { ic: "📊", group: "นำทาง", label: "แดชบอร์ดสถิติ", hint: "Stats dashboard", run: () => openOps("dash") },
+      { ic: "📅", group: "นำทาง", label: "ปฏิทิน / นัดหมาย", hint: "Calendar", run: () => openOps("cal") },
+      { ic: "📝", group: "นำทาง", label: "โน้ตออฟฟิศ", hint: "Notes", run: () => openOps("notes") },
+      { ic: "🗺️", group: "นำทาง", label: "แผนผังออฟฟิศ", hint: "Office map", run: () => openMap() },
+      { ic: "🧩", group: "นำทาง", label: "ปลั๊กอิน", hint: "Plugins", run: () => openPlugins() },
+      { ic: "🏗️", group: "นำทาง", label: "แต่งเลย์เอาต์ออฟฟิศ", hint: "3D editor", run: () => openEditor3d() },
+      { ic: "💬", group: "นำทาง", label: "เริ่มประชุม", hint: "Discussion", run: () => openDiscuss() },
+      { ic: "📈", group: "การกระทำ", label: "ดูพอร์ต Binance", hint: "Trading panel", run: () => popWindow("/plugin/binance/panel", "📈 Binance Trader", "plugin:binance", { w: 640, h: 720 }) },
+      { ic: "🎤", group: "การกระทำ", label: "พูดกับออฟฟิศ (Push-to-talk)", hint: "Voice", run: () => { if (typeof pttToggle === "function") pttToggle(); } },
+      { ic: "📺", group: "การกระทำ", label: "สลับโหมด Feed", hint: "Feed mode", run: () => { if (typeof setFeedMode === "function") setFeedMode(!document.body.classList.contains("feedmode")); } },
+      { ic: "🌐", group: "การกระทำ", label: "เปลี่ยนภาษา", hint: "Language", run: () => { renderLangMenu(); const m = document.getElementById("langMenu"); if (m) m.classList.toggle("open"); } },
+    ];
+    // Dynamic "talk to X" entries from the live roster.
+    const agentCmds = Object.keys(ROSTER || {}).map((id) => ({
+      ic: "💬", group: "คุยกับ agent", label: `คุยกับ ${nameOf(id)}`,
+      hint: roleOf(id) || id, run: () => setTarget(id),
+    }));
+    return cmds.concat(agentCmds);
+  }
+
+  let palSeq = 0;   // render token: only the newest openPalette() owns the DOM
+  function openPalette() {
+    const seq = ++palSeq;
+    // Reuse a single #palette node (rebuilt each open) so memory stays flat.
+    let pal = document.getElementById("palette");
+    if (pal) pal.remove();
+    pal = document.createElement("div");
+    pal.id = "palette";
+    pal.innerHTML =
+      `<div id="paletteCard">
+         <input id="paletteSearch" type="text" placeholder="พิมพ์คำสั่งหรือชื่อ agent…   (Ctrl+K)" autocomplete="off" />
+         <div id="paletteList"></div>
+         <div id="paletteFoot">
+           <span><kbd>↑</kbd><kbd>↓</kbd> เลือก</span>
+           <span><kbd>↵</kbd> ทำงาน</span>
+           <span><kbd>Esc</kbd> ปิด</span>
+         </div>
+       </div>`;
+    document.body.appendChild(pal);
+    pal.classList.add("open");
+
+    const all = paletteCommands();
+    let filtered = all.slice();
+    let sel = 0;
+    const list = pal.querySelector("#paletteList");
+    const search = pal.querySelector("#paletteSearch");
+    search.focus();
+
+    const norm = (s) => String(s || "").toLowerCase();
+    // Simple subsequence fuzzy match: every query char must appear in order.
+    const fuzzy = (q, text) => {
+      q = norm(q); text = norm(text);
+      if (!q) return true;
+      let i = 0;
+      for (const c of text) if (c === q[i]) { i++; if (i >= q.length) return true; }
+      return false;
+    };
+
+    function render() {
+      if (seq !== palSeq) return;
+      // Group filtered commands, preserving the registry order within a group.
+      const groups = {};
+      const order = [];
+      for (const c of filtered) {
+        if (!groups[c.group]) { groups[c.group] = []; order.push(c.group); }
+        groups[c.group].push(c);
+      }
+      let html = "";
+      let flat = [];
+      for (const g of order) {
+        html += `<div class="pal-group">${g}</div>`;
+        for (const c of groups[g]) {
+          const idx = flat.length;
+          flat.push(c);
+          html += `<div class="pal-row ${idx === sel ? "sel" : ""}" data-i="${idx}">
+            <span class="pal-ic">${c.ic}</span>
+            <span class="pal-label">${c.label}</span>
+            <span class="pal-hint">${c.hint || ""}</span></div>`;
+        }
+      }
+      if (!flat.length) html = `<div class="pal-group" style="padding:14px 10px;color:var(--dim)">— ไม่พบคำสั่ง —</div>`;
+      list.innerHTML = html;
+      filtered._flat = flat;   // stash for click handling + selection bounds
+      // Keep the selected row scrolled into view.
+      const row = list.querySelector(".pal-row.sel");
+      if (row) row.scrollIntoView({ block: "nearest" });
+    }
+
+    function applyFilter() {
+      const q = search.value.trim();
+      filtered = all.filter((c) => !q || fuzzy(q, c.label) || fuzzy(q, c.group) || fuzzy(q, c.hint || ""));
+      sel = 0;
+      render();
+    }
+
+    function runSel() {
+      const flat = filtered._flat || [];
+      const c = flat[sel];
+      if (!c) return;
+      close();
+      try { uiSnd("click"); } catch {}
+      if (typeof c.run === "function") c.run();
+    }
+
+    function close() {
+      if (seq !== palSeq) return;
+      palSeq++;   // invalidate any in-flight render
+      window.removeEventListener("keydown", onKey, true);
+      pal.remove();
+    }
+
+    function onKey(e) {
+      if (seq !== palSeq) return;
+      const flat = filtered._flat || [];
+      if (e.key === "Escape") { e.preventDefault(); close(); }
+      else if (e.key === "ArrowDown") {
+        e.preventDefault(); if (flat.length) { sel = (sel + 1) % flat.length; render(); }
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault(); if (flat.length) { sel = (sel - 1 + flat.length) % flat.length; render(); }
+      } else if (e.key === "Enter") { e.preventDefault(); runSel(); }
+    }
+
+    search.addEventListener("input", applyFilter);
+    list.addEventListener("mouseover", (e) => {
+      const row = e.target.closest(".pal-row"); if (!row) return;
+      sel = Number(row.dataset.i); render();
+    });
+    list.addEventListener("click", (e) => {
+      const row = e.target.closest(".pal-row"); if (!row) return;
+      sel = Number(row.dataset.i); runSel();
+    });
+    pal.addEventListener("click", (e) => { if (e.target === pal) close(); });
+    // Capture-phase so we win over any later global handlers while the palette is up.
+    window.addEventListener("keydown", onKey, true);
+
+    applyFilter();   // initial render
+  }
+
+  // Global hotkey: Ctrl+K (Win/Linux) or Cmd+K (mac). Ignored while typing in
+  // the native PTT/F6 path is irrelevant — those are shell-level, not JS. We
+  // also avoid opening it if a confirm dialog (z-index 99999) is already up.
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
+      e.preventDefault();
+      openPalette();
+    }
+  });
 
   // Sub-agent (ghost) events: parent's face, spectral naming — never a rail
   // seat, never a roster entry. Live view appends when watching that session.

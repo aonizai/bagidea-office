@@ -1,0 +1,32 @@
+{
+  "id": "binance",
+  "name": "📈 Binance Trader",
+  "version": "0.6.0",
+  "description": "Crypto trading desk on Binance Futures testnet: market data (klines/funding), account (balance/positions/orders), execution (order/close/stop/leverage/cancel), income/PnL, monitoring loop with alerts, and a guarded auto-trade engine. v0.6 adds a read-only /plugin/binance/snapshot route + token-gated /pause kill-switch for the Copilot dashboard bridge. Testnet-only with per-order USD cap + leverage cap + daily loss limit + audit log.",
+  "panel": "panel.html",
+  "window": { "w": 680, "h": 820, "resizable": true },
+  "commands": [
+    { "name": "status",      "args": "",                  "desc": "Check connection: testnet/mainnet, base URL, keys set, trading + autoTrade enabled?" },
+    { "name": "price",       "args": "<symbol>",          "desc": "Current price for a symbol, e.g. price BTCUSDT (public, no key)" },
+    { "name": "ticker",      "args": "<symbol>",          "desc": "24h ticker (change%, high, low, volume) for a symbol (public, no key)" },
+    { "name": "klines",      "args": "<symbol> [interval] [limit]", "desc": "Candlestick history for TA. e.g. klines BTCUSDT 1h 100. Public, no key" },
+    { "name": "funding",     "args": "<symbol>",          "desc": "Mark price + funding rate (premiumIndex). e.g. funding BTCUSDT. Public" },
+    { "name": "balance",     "args": "",                  "desc": "Futures account balances (testnet — requires API key)" },
+    { "name": "positions",   "args": "",                  "desc": "Open futures positions with unrealized PnL + leverage (requires key)" },
+    { "name": "openorders",  "args": "[symbol]",          "desc": "Currently resting (unfilled) orders (requires key)" },
+    { "name": "order",       "args": "<symbol> <BUY|SELL> <qty> [@price]", "desc": "Place a testnet order (MANUAL). MARKET if no price, LIMIT if @price. e.g. order BTCUSDT BUY 0.001" },
+    { "name": "autotrade",   "args": "<symbol> <BUY|SELL> <qty> <grade A|B|C> <stopPrice> [@entryPrice]", "desc": "Gated auto-execution: runs autoTradeGuard (autoTrade on + cap + daily loss + grade + no-averaging) then places order + mandatory stop. e.g. autotrade BTCUSDT BUY 0.001 B 59000 @60000" },
+    { "name": "close",       "args": "<symbol>",          "desc": "Flatten any open position on a symbol at market (close BTCUSDT)" },
+    { "name": "stoploss",    "args": "<symbol> <triggerPrice>", "desc": "STOP-MARKET that closes the position if price crosses the trigger. Auto-detects side (also take-profit)" },
+    { "name": "leverage",    "args": "<symbol> <lev>",    "desc": "Set initial leverage (guarded by maxLeverage cap). e.g. leverage BTCUSDT 3" },
+    { "name": "cancel",      "args": "<orderId> <symbol>", "desc": "Cancel a resting order" },
+    { "name": "trades",      "args": "<symbol> [limit]",  "desc": "Recent fill history (userTrades). e.g. trades BTCUSDT 50" },
+    { "name": "income",      "args": "[type] [limit]",    "desc": "Funding/realized PnL since start of today. type: REALIZED_PNL|FUNDING_FEE|COMMISSION. Paginated" },
+    { "name": "scan",            "args": "",                  "desc": "Scan the whole watchlist for market-structure opportunities (HH/HL/LH/LL fractals + pullback gate, 15m entry + 1h context). Returns ranked signals with entry/stop/target + grade A/B/C + structure/pullback fields. Advisory — does not trade." },
+    { "name": "positions-manage", "args": "[status|close <sym>|target <sym> <price>|trail <sym> <pct>]", "desc": "Manage tracked positions + auto-exit. status = see active; close = manual exit; target/trail = update params. The monitor loop auto-exits on target/trail/time-stop." },
+    { "name": "pause",       "args": "[on|off] [reason]", "desc": "Toggle the trading kill-switch (blocks order + autotrade). Bare pause = toggle. Also reachable as POST /plugin/binance/pause from the dashboard (token-gated)." },
+    { "name": "audit",       "args": "",                  "desc": "Show recent order history (last 20 from the audit log)" }
+  ],
+  "needsKeys": ["BINANCE_API_KEY", "BINANCE_API_SECRET"],
+  "enabled": true
+}
