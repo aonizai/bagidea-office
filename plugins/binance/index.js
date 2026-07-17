@@ -1147,6 +1147,18 @@ module.exports = (ctx) => {
               removePos(tp.symbol);
               audit({ cmd: "exit", symbol: tp.symbol, kind: "stop-or-manual", entry: tp.entry, exitPrice: tp.maxFavorable });
               ctx.broadcast({ type: "trade.exit", plugin: "binance", symbol: tp.symbol, kind: "stop" });
+              // Alert on close: this path (stop hit / external close) previously only hit the
+              // dashboard and skipped Telegram — the gap behind "no phone alert on exit".
+              const xmsg = tgAlert({
+                kind: "close", title: `${tp.symbol} · Position Closed`,
+                rows: [
+                  { label: "Side", value: (tp.side === "BUY" || tp.side === "LONG") ? "LONG" : "SHORT" },
+                  { label: "Entry", value: "$" + fmtPrice(tp.entry) },
+                ],
+                footer: "ปิดที่ exchange (stop/manual) · testnet",
+              });
+              ctx.feed(xmsg.replace(/<[^>]+>/g, ""), "blitz");
+              try { ctx.relay(xmsg); } catch {}
               continue;
             }
             const isLong = tp.side === "BUY" || tp.side === "LONG";
@@ -1167,6 +1179,7 @@ module.exports = (ctx) => {
                 const beRes = await placeStopAlgo(tp.symbol, stopSide, bePrice);
                 if (!beRes.ok) {
                   ctx.feed(`⚠️ ${tp.symbol} BE stop วางไม่ติด (คง stop เดิมไว้) — retry รอบหน้า`, "blitz");
+                  if (!tp._beFailLogged) { tp._beFailLogged = true; try { console.log(`[BE-FAIL] ${tp.symbol} side=${stopSide} trigger=${Number(bePrice).toFixed(2)} status=${beRes.status} resp=${JSON.stringify(beRes.resp)}`); } catch {} }
                 } else {
                   try { await cancelStopAlgos(tp.symbol, beRes.algoId); } catch {}
                   tp.breakevenMoved = true;
