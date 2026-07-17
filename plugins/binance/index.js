@@ -1082,6 +1082,7 @@ module.exports = (ctx) => {
     if (monitorTimer) clearInterval(monitorTimer);
     const ms = cfg().monitorMs;
     if (!ms || !cfg().apiKey) return;   // off or no key
+    const beInFlight = new Set();   // per-symbol BE-transition lock (no naked interleave)
     monitorTimer = setInterval(async () => {
       const c = cfg();
       if (!c.apiKey) return;
@@ -1170,18 +1171,36 @@ module.exports = (ctx) => {
             if (!c.scalping && tr3.riskPct != null) {
               const r = currentR(tp, mark);
               // 1. Breakeven: move the exchange STOP_MARKET to entry+buffer at +1R (once).
-              if (!tp.breakevenMoved && tr3.breakevenTriggerR > 0 && r >= tr3.breakevenTriggerR) {
+              if (!tp.breakevenMoved && tr3.breakevenTriggerR > 0 && r >= tr3.breakevenTriggerR && !beInFlight.has(tp.symbol)) {
+                beInFlight.add(tp.symbol);
+                try {
                 const stopSide = isLong ? "SELL" : "BUY";
                 const buf = tr3.breakevenBuffer || 0.001;   // tiny buffer above entry to cover fees
                 const bePrice = isLong ? tp.entry * (1 + buf) : tp.entry * (1 - buf);
-                // Place the breakeven stop FIRST via the Algo Order API, then cancel the wider
-                // original — never a gap without a resting stop. If it fails, keep the old stop.
+                // closePosition stops can't coexist on the same symbol/direction (demo-fapi -4130),
+                // so cancel the existing stop FIRST, then place the breakeven stop. If placement
+                // fails, re-place the ORIGINAL so the position is never left unprotected.
+                try { await cancelStopAlgos(tp.symbol); } catch {}
                 const beRes = await placeStopAlgo(tp.symbol, stopSide, bePrice);
                 if (!beRes.ok) {
-                  ctx.feed(`⚠️ ${tp.symbol} BE stop วางไม่ติด (คง stop เดิมไว้) — retry รอบหน้า`, "blitz");
                   if (!tp._beFailLogged) { tp._beFailLogged = true; try { console.log(`[BE-FAIL] ${tp.symbol} side=${stopSide} trigger=${Number(bePrice).toFixed(2)} status=${beRes.status} resp=${JSON.stringify(beRes.resp)}`); } catch {} }
+                  // Re-place the original stop. A -4130 here means the original was never cancelled →
+                  // the position is STILL protected (not naked), so don't cry wolf.
+                  const canRestore = typeof tp.stop === "number" && isFinite(tp.stop);
+                  const restore = canRestore ? await placeStopAlgo(tp.symbol, stopSide, tp.stop) : { ok: false, resp: { code: 0 } };
+                  const stillProtected = restore.ok || (restore.resp && restore.resp.code === -4130);
+                  if (!tp._beAlerted) {
+                    tp._beAlerted = true;
+                    if (stillProtected) {
+                      ctx.feed(`⚠️ ${tp.symbol} BE stop วางไม่ติด — stop เดิมยังคุ้มครองอยู่ (retry รอบหน้า)`, "blitz");
+                    } else {
+                      const emsg = `🚨 ${tp.symbol} BE ล้ม + stop เดิมหลุด — position อาจไม่มี stop, ตรวจด่วน`;
+                      ctx.feed(emsg, "compass");
+                      try { ctx.relay(emsg); } catch {}
+                    }
+                  }
                 } else {
-                  try { await cancelStopAlgos(tp.symbol, beRes.algoId); } catch {}
+                  tp._beFailLogged = false; tp._beAlerted = false;
                   tp.breakevenMoved = true;
                   tp.stop = bePrice;
                   const beMsg = `🛡️ ${tp.symbol} ย้าย SL → breakeven ($${fmtPrice(bePrice)}) @ +${r.toFixed(1)}R`;
@@ -1189,6 +1208,7 @@ module.exports = (ctx) => {
                   ctx.feed(beMsg, "blitz");
                   try { ctx.relay(beMsg); } catch {}
                 }
+                } finally { beInFlight.delete(tp.symbol); }
               }
               // 2. Partial TP: close partialTpPct% at +partialTpR (once).
               if (!tp.partialTaken && tr3.partialTpR > 0 && tr3.partialTpPct > 0 && r >= tr3.partialTpR) {
