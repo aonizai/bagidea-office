@@ -3292,6 +3292,10 @@ const plugins = require("./plugins")({
   runClaude: (agent, prompt, opts) => runClaude(agent || "main", prompt, opts || {}),
   // post a visible line to the office feed (shows in the overlay stream).
   feed: (text, agent) => broadcast({ type: "chat.message", agent: agent || "main", text: String(text) }),
+  // push an alert line to every connected channel (Telegram/Discord/...).
+  // Lets a plugin (e.g. binance alerts) reach the owner's phone directly,
+  // without spawning a full Director turn like ceoFlow does.
+  relay: (text) => { try { channels.relay(text); } catch (e) { console.log("[plugin.relay]", e.message); } },
   log: (s) => console.log(s),
 });
 
@@ -3734,7 +3738,114 @@ function serveMedia(res, full, req) {
   });
 }
 
+// ── Optional UI PIN gate ──────────────────────────────────────────────
+// If reg.uiPin is set (via ⚙ Settings → CONNECT), every non-static request
+// must carry x-bagidea-pin matching it. Static HTML/assets stay open so the
+// lock screen itself can load. Default (no reg.uiPin) = wide open, preserving
+// existing localhost behavior. The PIN is hashed once with a fixed salt; we
+// only store the hash in registry.json, never the cleartext.
+const PIN_SALT = "bagidea-office/ui-pin/v1";
+function pinHash(pin) {
+  try { return require("crypto").createHash("sha256").update(PIN_SALT + ":" + String(pin)).digest("hex"); }
+  catch { return String(pin); }
+}
+function regPinHash() { return reg && reg.uiPin ? String(reg.uiPin) : ""; }
+function uiPinActive() { return !!regPinHash(); }
+function uiPinOk(req) {
+  const stored = regPinHash();
+  if (!stored) return true;             // not configured → open (default)
+  // Header works for fetch(). For WebSocket upgrades (browser WS can't set
+  // arbitrary headers) and for raw curl/SSH scripts, accept ?pin= on the query
+  // string too. Same hash comparison either way.
+  const hdr = req.headers["x-bagidea-pin"];
+  if (hdr && (String(hdr) === stored || pinHash(hdr) === stored)) return true;
+  try {
+    const qp = new URL(req.url, "http://x").searchParams.get("pin");
+    if (qp && (String(qp) === stored || pinHash(qp) === stored)) return true;
+  } catch {}
+  return false;
+}
+// Routes that bypass the PIN gate.
+//  • PIN_STATIC_RE: the HTML pages (so the lock screen loads), shared JS, and
+//    static brand/sfx/char assets. Media/uploads/plugin assets are NOT here —
+//    they may carry sensitive content (uploaded docs, maps…).
+//  • PIN_INGRESS_RE: machine-to-machine ingress that the daemon itself relies
+//    on and that cannot carry a PIN header — agent hooks (Claude Code CLI),
+//    the permission broker long-poll, and external channel webhooks. These
+//    are authenticated by the LAN bind / webhook secrets, NOT by the UI PIN.
+//    NOTE: this is "trusted ingress" only — /plugin/binance/cmd and any
+//    money-moving / mutation route are deliberately NOT here; the owner
+//    reaches those through the unlocked UI (browser PIN header) or adds the
+//    PIN header to their own curl/SSH commands.
+// We strip the query string first and use plain startsWith() checks — clearer
+// than a giant regex and avoids the "prefix vs exact match" trap that bit us
+// in the first cut (sfx/, proxy/ weren't matching as prefixes).
+const PIN_STATIC_PREFIXES = [
+  "/brand/", "/sfx/", "/char/",   // directory-style asset prefixes
+];
+const PIN_STATIC_EXACT = [
+  "/", "/index.html", "/win", "/winlang.js", "/watch",
+  "/workflow", "/toolshub", "/pluginshub",   // HTML pages — exact match only
+];
+const PIN_INGRESS_PREFIXES = [
+  "/proxy/",   // sub-routes under /proxy/<provider>
+  "/channels/telegram/webhook", "/channels/line/webhook",
+  "/channels/slack/webhook", "/channels/whatsapp/webhook", "/channels/messenger/webhook",
+];
+const PIN_INGRESS_EXACT = [
+  "/event", "/perm/request", "/perm/respond", "/claude/auth", "/claude/login",
+];
+function pinPathOf(url) {
+  try { return new URL(url, "http://x").pathname; } catch { return url.split("?")[0]; }
+}
+function pinStatic(url) {
+  const p = pinPathOf(url);
+  if (PIN_STATIC_EXACT.includes(p)) return true;
+  return PIN_STATIC_PREFIXES.some((pre) => p.startsWith(pre));
+}
+function pinIngress(url) {
+  const p = pinPathOf(url);
+  if (PIN_INGRESS_EXACT.includes(p)) return true;
+  return PIN_INGRESS_PREFIXES.some((pre) => p === pre || p.startsWith(pre));
+}
+
 const server = http.createServer((req, res) => {
+  // PIN gate runs FIRST. /auth/* are handled here before the whitelist so they
+  // are reachable even when a PIN is set (the lock screen needs them).
+  const u = req.url.split("?")[0];
+  if (req.method === "GET" && u === "/auth/check") {
+    res.writeHead(200, { "content-type": "application/json" });
+    return res.end(JSON.stringify({ locked: uiPinActive() }));
+  }
+  if (req.method === "POST" && u === "/auth/verify") {
+    readBody(req, (body) => {
+      let pin = "";
+      try { pin = (JSON.parse(body) || {}).pin || ""; } catch {}
+      const ok = !!pinHash(pin) && pinHash(pin) === regPinHash();
+      res.writeHead(ok ? 200 : 401, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok }));
+    });
+    return;
+  }
+  // PIN gate: if configured and this isn't a whitelisted static / trusted-ingress
+  // path, require it (header or ?pin=).
+  if (uiPinActive() && !pinStatic(req.url) && !pinIngress(req.url) && !uiPinOk(req)) {
+    res.writeHead(401, { "content-type": "application/json" });
+    return res.end(JSON.stringify({ error: "pin required", locked: true }));
+  }
+  // If the PIN came in via ?pin=, strip it from req.url so the rest of the
+  // route chain (most of which does exact `req.url === "/foo"` matching) isn't
+  // confused by the extra query param. Other query params are preserved. This
+  // only runs when a PIN is configured, so default (no PIN) behavior is untouched.
+  if (uiPinActive() && typeof req.url === "string" && req.url.includes("?pin=")) {
+    try {
+      const u = new URL(req.url, "http://x");
+      u.searchParams.delete("pin");
+      req.url = u.pathname + (u.search ? "?" + u.searchParams.toString() : "");
+      if (req.url === "") req.url = "/";
+    } catch {}
+  }
+
   if (req.method === "GET" && (req.url.split("?")[0] === "/" || req.url.split("?")[0] === "/index.html")) {
     res.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
@@ -4711,7 +4822,7 @@ end tell`;
           at: Number(p.at) || 0,
           time: String(p.time || "").slice(0, 5),
           daily: !!p.daily,
-          everyMin: Math.max(5, Number(p.everyMin) || 10),  // floor: 5 min
+          everyMin: Math.max(1, Number(p.everyMin) || 10),  // floor: 1 min (scalping needs tight polling)
           enabled: true,
           created: Date.now(),
         };
@@ -4735,7 +4846,7 @@ end tell`;
           if (p.enabled !== undefined) job.enabled = !!p.enabled;
           if (typeof p.prompt === "string" && p.prompt.trim()) job.prompt = p.prompt.slice(0, 4000);
           if (p.agent && reg.agents[p.agent] && p.agent !== "ceo") job.agent = p.agent;
-          if (p.everyMin !== undefined) job.everyMin = Math.max(5, Number(p.everyMin) || 10);
+          if (p.everyMin !== undefined) job.everyMin = Math.max(1, Number(p.everyMin) || 10);
           if (typeof p.time === "string") job.time = p.time.slice(0, 5);
           if (p.daily !== undefined) job.daily = !!p.daily;
           if (p.at !== undefined) job.at = Number(p.at) || 0;
@@ -5571,6 +5682,34 @@ end tell`;
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ dailyBudgetUsd: reg.dailyBudgetUsd, monthlyBudgetUsd: reg.monthlyBudgetUsd }));
       } catch (e) { res.writeHead(400); res.end(String(e.message)); }
+    });
+
+  } else if (req.method === "POST" && req.url === "/registry/pin") {
+    // Set or clear the UI PIN gate. Sending an empty/blank `pin` clears it.
+    // Stores only the SHA-256 hash (with a fixed salt), never the cleartext.
+    // Requires the existing UI header AND, if a PIN is already set, the
+    // correct `pin` (current PIN) to change it — so a stranger who reaches the
+    // open localhost port still can't lock the owner out.
+    if (!req.headers["x-bagidea-ui"]) { res.writeHead(403); return res.end("human UI only"); }
+    readBody(req, (body) => {
+      try {
+        const p = JSON.parse(body) || {};
+        const cur = regPinHash();
+        if (cur && pinHash(p.current || "") !== cur) {
+          res.writeHead(401, { "content-type": "application/json" });
+          return res.end(JSON.stringify({ ok: false, error: "current pin mismatch" }));
+        }
+        const next = String(p.pin || "").trim();
+        if (next) {
+          if (next.length < 4) { res.writeHead(400, { "content-type": "application/json" }); return res.end(JSON.stringify({ ok: false, error: "pin too short (min 4)" })); }
+          reg.uiPin = pinHash(next);
+        } else {
+          delete reg.uiPin;
+        }
+        saveReg();
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ ok: true, locked: !!reg.uiPin }));
+      } catch (e) { res.writeHead(400); res.end(String(e && e.message || "bad request")); }
     });
 
   } else if (req.method === "GET" && req.url === "/channels/status") {
@@ -6502,6 +6641,15 @@ function handleLive(req, sock) {
 server.on("upgrade", (req, sock) => {
   if (req.url.startsWith("/live")) return handleLive(req, sock);
   if (!req.url.startsWith("/ws")) return sock.destroy();
+  // 🔐 PIN gate the WS upgrade too — otherwise a PIN-locked overlay still
+  // leaks every broadcast (trade fills, chat, mission state) to anyone on the
+  // LAN who opens a WS. Browsers can't set custom headers on WS, so the overlay
+  // appends ?pin=<sessionPIN> on connect. /live (voice bridge) is exempt: it's
+  // used only from localhost and carries its own agent binding.
+  if (uiPinActive() && !uiPinOk(req)) {
+    sock.write("HTTP/1.1 401 Unauthorized\r\ncontent-length: 0\r\n\r\n");
+    return sock.destroy();
+  }
   const key = req.headers["sec-websocket-key"];
   if (!key) return sock.destroy();
   sock.write(

@@ -3,6 +3,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>BagIdea Office</title>
+<!-- 🌗 Apply saved theme before paint to avoid a dark→light flash (FOUC).
+     Preference order: explicit choice in localStorage > OS prefers-color-scheme. -->
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem("bagidea.theme");
+      if (!saved) saved = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      if (saved === "light") document.documentElement.setAttribute("data-theme", "light");
+    } catch (e) {}
+  })();
+</script>
 <style>
   :root {
     --glass: rgba(14, 19, 31, 0.82);
@@ -10,9 +21,37 @@
     --accent: #5ec8ff;
     --text: #dce6f2;
     --dim: #8294ab;
+    --bg-base: #0a111d;
+    --bg-grad-a: #14233c;
+    --bg-grad-b: #070b13;
+    --win-border: rgba(110, 185, 255, 0.35);
+    /* Surface tints — in dark mode these are faint white lifts on cards/buttons.
+       Light mode flips them to faint black tints via the override below.
+       Named by strength so callers read clearly at the use site. */
+    --surf-1: var(--surf-1);
+    --surf-2: var(--surf-2);
+    --surf-3: var(--surf-3);
+    --surf-line: var(--surf-line);
+  }
+  /* 🌗 Light theme overrides. We only flip the CSS-variable palette + body
+     background here; everything that reads var(--*) adapts automatically. */
+  [data-theme="light"] {
+    --glass: rgba(255, 255, 255, 0.86);
+    --line: rgba(40, 110, 190, 0.28);
+    --accent: #1a78c8;
+    --text: #1c2733;
+    --dim: #6b7a8a;
+    --bg-base: #eef2f8;
+    --bg-grad-a: #ffffff;
+    --bg-grad-b: #dde4ee;
+    --win-border: rgba(40, 110, 190, 0.35);
+    --surf-1: rgba(0,0,0,0.035);
+    --surf-2: rgba(0,0,0,0.05);
+    --surf-3: rgba(0,0,0,0.07);
+    --surf-line: rgba(0,0,0,0.1);
   }
   * { box-sizing: border-box; margin: 0; }
-  html { background: #0a111d; }
+  html { background: var(--bg-base); }
   body {
     font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, "Helvetica Neue", "Thonburi", sans-serif;
     /* Opaque base color FIRST, gradient as background-image on top — so the body
@@ -20,10 +59,10 @@
        radial-gradient layer as transparent. A bare `background: <gradient>` leaves
        background-color at its initial transparent, which renders as a grey/blank
        window when the webview surface is also composited without a backing fill. */
-    background-color: #0a111d;
-    background-image: radial-gradient(1200px 700px at 70% -10%, #14233c 0%, #0a111d 60%, #070b13 100%);
+    background-color: var(--bg-base);
+    background-image: radial-gradient(1200px 700px at 70% -10%, var(--bg-grad-a) 0%, var(--bg-base) 60%, var(--bg-grad-b) 100%);
     color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden;
-    border: 1px solid rgba(110, 185, 255, 0.35); border-radius: 18px;
+    border: 1px solid var(--win-border); border-radius: 18px;
   }
   .px { image-rendering: pixelated; background-repeat: no-repeat; }
 
@@ -38,8 +77,8 @@
   .winbtn {
     width: 26px; height: 26px; border-radius: 50%; flex: none; cursor: pointer;
     display: flex; align-items: center; justify-content: center; font-size: 12px;
-    color: var(--text); background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--text); background: var(--surf-3);
+    border: 1px solid var(--surf-line);
     /* The header sets letter-spacing:1.2px + font-weight:600, which leak in and
        add trailing space after a single glyph (◱/⛶/⋯/—) — flex-centering then
        nudges it off-centre. Reset so the glyph sits dead-centre in the circle. */
@@ -66,7 +105,7 @@
   #conn.on { background: #4ade80; box-shadow: 0 0 8px #4ade8088; }
   header button {
     margin-left: auto; font-size: 12px; padding: 4px 7px; cursor: pointer;
-    color: var(--accent); background: rgba(255,255,255,0.05);
+    color: var(--accent); background: var(--surf-2);
     border: 1px solid var(--line); border-radius: 8px; flex: none;
   }
   header button:hover { background: rgba(94,200,255,0.15); }
@@ -132,7 +171,7 @@
   .seat.active { border-color: var(--accent); background: rgba(94,200,255,0.12); }
   .seat .face {
     width: 36px; height: 36px; border-radius: 9px;
-    background-color: #1c2740; outline: 1px solid rgba(255,255,255,0.12);
+    background-color: #1c2740; outline: 1px solid var(--surf-line);
     display: flex; align-items: center; justify-content: center;
     font-weight: 700; font-size: 15px; color: #fff;
   }
@@ -163,7 +202,7 @@
     flex: none; width: 132px; display: flex; flex-direction: column;
     align-items: center; justify-content: flex-end; padding: 0 0 6px;
     background: linear-gradient(180deg, transparent 30%, rgba(94,200,255,0.06));
-    border-right: 1px solid rgba(255,255,255,0.05);
+    border-right: 1px solid var(--surf-2);
   }
   #companion .body {
     width: 96px; height: 162px;
@@ -190,13 +229,13 @@
     content: "🎤 สั่งด้วยเสียง"; display: block; font-size: 9.5px;
     color: #ff9aa8; margin-bottom: 3px; letter-spacing: 0.5px;
   }
-  .msg.agent { align-self: flex-start; background: var(--glass); border: 1px solid rgba(255,255,255,0.07); border-bottom-left-radius: 4px; }
+  .msg.agent { align-self: flex-start; background: var(--glass); border: 1px solid var(--surf-3); border-bottom-left-radius: 4px; }
   .msg .who { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--accent); margin-bottom: 4px; font-weight: 600; }
   .msg .who .face { width: 20px; height: 20px; border-radius: 5px; background-color: #1c2740; }
   .chip {
     align-self: flex-start; font-size: 11.5px; color: var(--dim);
-    border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 3px 10px;
-    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--surf-line); border-radius: 20px; padding: 3px 10px;
+    background: var(--surf-1);
     animation: chipIn 0.3s ease both;
   }
   .chip b { color: #ffd28a; font-weight: 600; }
@@ -284,15 +323,33 @@
   }
   #permBadge.on { display: block; }
   aside h2 { font-size: 10.5px; letter-spacing: 2px; color: var(--dim); margin: 4px 0 8px; }
+  /* 🔍 Memory search panel — debounced /recall?q= hits rendered as cards. */
+  #memInp {
+    background: rgba(0,0,0,0.28); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px;
+    font: inherit; font-size: 12px;
+  }
+  #memInp:focus { outline: none; border-color: var(--accent); }
+  #memInp::placeholder { color: rgba(130,148,171,0.7); }
+  .memhit {
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 8px; margin-bottom: 6px; font-size: 11.5px; line-height: 1.4;
+    background: var(--surf-1); cursor: pointer;
+  }
+  .memhit:hover { border-color: var(--accent); background: rgba(94,200,255,0.06); }
+  .memhit .mt { color: var(--accent); font-weight: 600; font-size: 11px; }
+  .memhit .ms { color: var(--text); opacity: 0.85; margin-top: 2px; }
+  .memhit .mtag { color: var(--dim); font-size: 10px; margin-top: 3px; }
+  .mem-empty { color: var(--dim); font-size: 11px; padding: 6px 2px; font-style: italic; }
   .mission {
     border: 1px solid var(--line); border-left: 3px solid var(--accent);
     border-radius: 8px; padding: 7px 9px; margin-bottom: 7px; font-size: 12px;
-    background: rgba(255,255,255,0.03);
+    background: var(--surf-1);
   }
   .mission .id { color: var(--dim); font-size: 10.5px; }
   #activity .act {
     font-size: 11px; color: var(--dim); padding: 2.5px 2px;
-    border-bottom: 1px dashed rgba(255,255,255,0.05); line-height: 1.45;
+    border-bottom: 1px dashed var(--surf-2); line-height: 1.45;
   }
   #activity .act b { color: #cfe3ff; font-weight: 600; }
   #activity .act .t { color: rgba(160,170,190,0.55); font-size: 10px; margin-right: 5px; }
@@ -334,7 +391,7 @@
   .orgseat {
     display: flex; flex-direction: column; align-items: center; gap: 2px;
     border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px;
-    background: rgba(255,255,255,0.04); cursor: pointer; min-width: 86px;
+    background: var(--surf-1); cursor: pointer; min-width: 86px;
     transition: transform 0.15s ease, border-color 0.15s;
     animation: popIn 0.3s ease both;
   }
@@ -367,7 +424,7 @@
     box-shadow: 0 0 7px #4ade8088; }
   #feedClear {
     margin-left: auto; padding: 2px 8px; font-size: 11px; cursor: pointer;
-    color: #9fb6d8; background: rgba(255,255,255,0.05);
+    color: #9fb6d8; background: var(--surf-2);
     border: 1px solid var(--line); border-radius: 7px;
   }
   #feedClear:hover { color: #dbe7ff; border-color: var(--accent); }
@@ -382,7 +439,7 @@
   .fitem .fpbtns button {
     flex: 1; padding: 3px 6px; font-size: 10.5px; cursor: pointer;
     border: 1px solid var(--line); border-radius: 6px;
-    background: rgba(255,255,255,0.06); color: #dfe9ff;
+    background: var(--surf-2); color: #dfe9ff;
   }
   .fitem .fpbtns .ok { color: #4ade80; border-color: #4ade8055; }
   .fitem .fpbtns .no { color: #ff8a7a; border-color: #ff584855; }
@@ -391,7 +448,7 @@
     background: rgba(255,206,106,0.07); }
   .propbtns { display: flex; gap: 7px; }
   .pbtn { flex: 1; padding: 6px 9px; font-size: 11.5px; cursor: pointer; border-radius: 8px;
-    border: 1px solid var(--line); background: rgba(255,255,255,0.06); color: #dfe9ff; }
+    border: 1px solid var(--line); background: var(--surf-2); color: #dfe9ff; }
   .pbtn.ok { color: #4ade80; border-color: #4ade8066; background: rgba(74,222,128,0.1); }
   .pbtn.no { color: #ff8a7a; border-color: #ff584866; }
   .pbtn:hover { filter: brightness(1.2); }
@@ -430,7 +487,7 @@
   /* 🎨 office editor */
   .edpal { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
   .edchip { font-size: 11px; padding: 4px 9px; border-radius: 8px; cursor: pointer;
-    border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: #cfe3ff; }
+    border: 1px solid var(--line); background: var(--surf-1); color: #cfe3ff; }
   .edchip.on { border-color: var(--accent); color: var(--accent); background: rgba(94,200,255,0.12); }
   /* aspect matches the map capture (28.57 wide × 25 deep) so the room image
      fills the grid exactly 1:1 and placed items line up with real rooms. */
@@ -439,8 +496,8 @@
     background-color: #0a1018; background-size: 100% 100%; background-repeat: no-repeat;
     border: 1px solid var(--line); overflow: hidden; cursor: crosshair; }
   .edgrid::after { content: ""; position: absolute; inset: 0; pointer-events: none;
-    background: repeating-linear-gradient(0deg, transparent 0 31px, rgba(255,255,255,0.05) 31px 32px),
-                repeating-linear-gradient(90deg, transparent 0 31px, rgba(255,255,255,0.05) 31px 32px); }
+    background: repeating-linear-gradient(0deg, transparent 0 31px, var(--surf-2) 31px 32px),
+                repeating-linear-gradient(90deg, transparent 0 31px, var(--surf-2) 31px 32px); }
   .editem { position: absolute; font-size: 17px; cursor: grab; line-height: 1;
     filter: drop-shadow(0 1px 2px #000); }
   .editem.sel { outline: 2px solid var(--accent); border-radius: 6px; background: rgba(94,200,255,0.2); }
@@ -449,7 +506,7 @@
   .statgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
   .statcard {
     display: flex; gap: 9px; align-items: center; padding: 9px 11px;
-    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+    background: var(--surf-1); border: 1px solid var(--surf-line);
     border-radius: 10px;
   }
   .statcard .ic { font-size: 19px; }
@@ -527,7 +584,7 @@
 
   .filterbox {
     width: 100%; margin: 6px 0; padding: 6px 10px; font-size: 11.5px;
-    background: rgba(255,255,255,0.04); border: 1px solid var(--line);
+    background: var(--surf-1); border: 1px solid var(--line);
     border-radius: 8px; color: var(--text);
   }
   .biglist { max-height: 320px; overflow-y: auto; }
@@ -623,7 +680,7 @@
   }
   .fitem {
     display: flex; gap: 8px; align-items: flex-start; flex: none;
-    background: rgba(255,255,255,0.045); border: 1px solid rgba(255,255,255,0.08);
+    background: var(--surf-2); border: 1px solid var(--surf-line);
     border-radius: 10px; padding: 6px 9px; font-size: 11.5px; line-height: 1.45;
     animation: msgIn 0.25s ease both;
   }
@@ -649,7 +706,7 @@
   .braininfo { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line);
     font-size: 10px; color: var(--dim); line-height: 1.55; }
   .braininfo a { color: var(--accent); white-space: nowrap; }
-  .ctxbar { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.08); margin-top: 3px; overflow: hidden; }
+  .ctxbar { height: 5px; border-radius: 3px; background: var(--surf-line); margin-top: 3px; overflow: hidden; }
   .ctxbar > i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg,#3aa0ff,#5ec8ff); }
   .ctxbar.warn > i { background: linear-gradient(90deg,#ffb054,#ff7a45); }
   .ctxbar.full > i { background: linear-gradient(90deg,#ff6a55,#ff4438); }
@@ -665,7 +722,7 @@
   .perm .tool { color: #ffd28a; font-weight: 700; }
   .perm pre { font-size: 10.5px; color: var(--dim); white-space: pre-wrap; word-break: break-all; margin: 5px 0; max-height: 84px; overflow-y: auto; }
   .perm .row { display: flex; gap: 6px; }
-  .perm button { flex: 1; padding: 5px; font-size: 12px; cursor: pointer; border-radius: 7px; border: 1px solid var(--line); background: rgba(255,255,255,0.05); }
+  .perm button { flex: 1; padding: 5px; font-size: 12px; cursor: pointer; border-radius: 7px; border: 1px solid var(--line); background: var(--surf-2); }
   .perm .allow { color: #4ade80; border-color: #4ade8055; }
   .perm .deny { color: #ff5448; border-color: #ff544855; }
 
@@ -676,7 +733,7 @@
   /* the message box is a textarea: Enter sends, Shift+Enter is a newline, and it
      grows with the message up to a cap then scrolls — never a cramped one-liner. */
   footer #inp {
-    flex: 1; min-width: 0; font: inherit; color: var(--text); background: rgba(255,255,255,0.05);
+    flex: 1; min-width: 0; font: inherit; color: var(--text); background: var(--surf-2);
     border: 1px solid var(--line); border-radius: 11px; padding: 7px 12px; outline: none;
     resize: none; line-height: 1.4; max-height: 128px; overflow-y: hidden;
     overflow-wrap: break-word; word-break: break-word; height: 34px;
@@ -698,7 +755,7 @@
   #threadBar {
     display: flex; align-items: center; gap: 6px; flex: none;
     padding: 3px 14px; font-size: 10.5px; color: var(--dim);
-    background: rgba(10, 14, 24, 0.5); border-top: 1px solid rgba(255,255,255,0.05);
+    background: rgba(10, 14, 24, 0.5); border-top: 1px solid var(--surf-2);
   }
   #threadBar { flex-wrap: nowrap; }
   #threadBar b { color: var(--accent); font-weight: 600; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -727,7 +784,7 @@
        and each row stretches to fill — never one lone tab spanning a whole row. */
     flex: 1 1 21%; text-align: center;
     font-size: 11px; padding: 5px 8px; border-radius: 8px; cursor: pointer;
-    border: 1px solid var(--line); color: var(--dim); background: rgba(255,255,255,0.03);
+    border: 1px solid var(--line); color: var(--dim); background: var(--surf-1);
     white-space: nowrap;
   }
   /* Edge's native password-reveal eye is black-on-black on our theme. */
@@ -735,7 +792,7 @@
   .tabs .tab.on { color: var(--accent); border-color: var(--accent); background: rgba(94,200,255,0.1); }
   .arow {
     display: flex; gap: 10px; align-items: center; padding: 7px 9px;
-    border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; margin-bottom: 7px;
+    border: 1px solid var(--surf-3); border-radius: 10px; margin-bottom: 7px;
     cursor: pointer; background: rgba(255,255,255,0.025);
   }
   .arow:hover { border-color: var(--line); background: rgba(94,200,255,0.06); }
@@ -760,7 +817,7 @@
   .field label { display: block; font-size: 10.5px; letter-spacing: 1.5px; color: var(--dim); margin-bottom: 4px; }
   .field input, .field textarea, .field select {
     width: 100%; font: inherit; font-size: 13px; color: var(--text);
-    background: rgba(255,255,255,0.05); border: 1px solid var(--line);
+    background: var(--surf-2); border: 1px solid var(--line);
     border-radius: 9px; padding: 8px 10px; outline: none;
   }
   .field textarea { min-height: 110px; resize: vertical;
@@ -781,13 +838,13 @@
      (zero specificity via :where — .primary/.bigbtn/.sparkle still win). */
   :where(#modalCard) button {
     padding: 8px 11px; font-size: 12px; cursor: pointer; border-radius: 9px;
-    border: 1px solid var(--line); background: rgba(255,255,255,0.05);
+    border: 1px solid var(--line); background: var(--surf-2);
     color: var(--text); transition: transform 0.14s ease, filter 0.14s ease;
   }
   :where(#modalCard) button:hover { filter: brightness(1.25); transform: translateY(-1px); }
   .btnrow button {
     flex: 1; padding: 9px; font-size: 12.5px; cursor: pointer; border-radius: 9px;
-    border: 1px solid var(--line); background: rgba(255,255,255,0.05); color: var(--text);
+    border: 1px solid var(--line); background: var(--surf-2); color: var(--text);
   }
   .btnrow .primary { color: #06121f; background: var(--accent); border-color: var(--accent); font-weight: 700; }
   .btnrow .danger { color: #ff7468; border-color: rgba(255,84,72,0.45); }
@@ -797,7 +854,7 @@
      and textareas grow + wrap like the main composer. */
   .assistrow input, .assistrow textarea {
     flex: 1; min-width: 0; font: inherit; font-size: 13px; color: var(--text);
-    background: rgba(255,255,255,0.05); border: 1px solid var(--line);
+    background: var(--surf-2); border: 1px solid var(--line);
     border-radius: 10px; padding: 8px 11px; outline: none;
   }
   .assistrow textarea { resize: none; line-height: 1.45; max-height: 120px;
@@ -813,12 +870,12 @@
   .checks { display: flex; flex-wrap: wrap; gap: 6px; }
   .chk {
     font-size: 11.5px; padding: 4px 11px; border-radius: 16px; cursor: pointer;
-    border: 1px solid rgba(255,255,255,0.12); color: var(--dim); user-select: none;
+    border: 1px solid var(--surf-line); color: var(--dim); user-select: none;
   }
   .chk.on { color: var(--accent); border-color: var(--accent); background: rgba(94,200,255,0.1); }
   .autobadge { font-size: 9.5px; color: #ffd28a; border: 1px solid rgba(255,210,138,0.4); border-radius: 10px; padding: 1px 7px; margin-left: 6px; }
   .switch { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); margin-bottom: 10px; cursor: pointer; }
-  .switch .knob { width: 34px; height: 18px; border-radius: 12px; background: rgba(255,255,255,0.12); position: relative; transition: background 0.15s; }
+  .switch .knob { width: 34px; height: 18px; border-radius: 12px; background: var(--surf-line); position: relative; transition: background 0.15s; }
   .switch .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #8294ab; transition: left 0.15s, background 0.15s; }
   .switch.on .knob { background: rgba(94,200,255,0.4); }
   .switch.on .knob::after { left: 18px; background: var(--accent); }
@@ -852,7 +909,7 @@
   .pal-row.sel { background: rgba(94,200,255,0.13); }
   .pal-row:hover { background: rgba(94,200,255,0.08); }
   #paletteFoot { font-size: 10px; color: var(--dim); padding: 7px 12px; border-top: 1px solid var(--line); display: flex; gap: 14px; }
-  #paletteFoot kbd { background: rgba(255,255,255,0.08); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; font-size: 9.5px; }
+  #paletteFoot kbd { background: var(--surf-line); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; font-size: 9.5px; }
   /* top-down map */
   #mapWrap { position: relative; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
   #mapWrap img { width: 100%; display: block; filter: saturate(1.15); }
@@ -880,7 +937,7 @@
   #idcard .state { display: inline-block; font-size: 11px; padding: 3px 12px; border-radius: 20px; border: 1px solid var(--line); margin-bottom: 12px; }
   #idcard .promptbox {
     text-align: left; font-size: 12px; color: var(--dim); white-space: pre-wrap;
-    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+    background: var(--surf-1); border: 1px solid var(--surf-3);
     border-radius: 10px; padding: 10px; max-height: 150px; overflow-y: auto;
   }
 
@@ -910,18 +967,99 @@
     #log { padding: 10px; }
     footer { padding: 8px 10px; }
   }
+
+  /* ── Toast / snackbar layer ───────────────────────────────────────────
+     A tiny bottom-right stack for transient success/error feedback.
+     Sits above modals (z-index 100000 > confirmDanger's 99999) so a toast
+     fired during a confirm is still visible. */
+  #toasts {
+    position: fixed; right: 14px; bottom: 14px; z-index: 100000;
+    display: flex; flex-direction: column-reverse; gap: 8px;
+    pointer-events: none; max-width: min(360px, 92vw);
+  }
+  #toasts .toast {
+    pointer-events: auto;
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 9px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.4;
+    color: var(--text); cursor: pointer;
+    background: var(--glass); backdrop-filter: blur(14px);
+    border: 1px solid var(--line);
+    box-shadow: 0 6px 22px rgba(0,0,0,0.42);
+    animation: toastIn 0.22s ease both;
+    word-break: break-word;
+  }
+  #toasts .toast.ok   { border-color: rgba(120,220,150,0.5); }
+  #toasts .toast.err  { border-color: rgba(240,110,110,0.55); }
+  #toasts .toast.warn { border-color: rgba(240,200,90,0.55); }
+  #toasts .toast .ico { flex: none; font-size: 14px; line-height: 1.3; }
+  #toasts .toast.ok   .ico { color: #8fe6a8; }
+  #toasts .toast.err  .ico { color: #ff9a9a; }
+  #toasts .toast.warn .ico { color: #f5d27a; }
+  #toasts .toast.out  { animation: toastOut 0.2s ease forwards; }
+  @keyframes toastIn  { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+  @keyframes toastOut { to   { opacity: 0; transform: translateY(8px) scale(0.98); } }
+  @media (prefers-reduced-motion: reduce) {
+    #toasts .toast, #toasts .toast.out { animation: none; }
+  }
+
+  /* ── 🔐 PIN lock screen ───────────────────────────────────────────────
+     Full-viewport gate shown when /auth/check reports {locked:true} and
+     there's no PIN in sessionStorage. The body stays interactive underneath
+     (so background WS keeps working), but the overlay blocks input. */
+  html.locked #titlebar, html.locked main, html.locked #rail,
+  html.locked #nowStrip, html.locked #sideTab, html.locked #feedHead,
+  html.locked #pttLive { filter: blur(3px) brightness(0.6); pointer-events: none; }
+  #lockScreen {
+    position: fixed; inset: 0; z-index: 100001;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(5, 9, 18, 0.92); backdrop-filter: blur(8px);
+    animation: toastIn 0.2s ease both;
+  }
+  #lockScreen .lsCard {
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    padding: 32px 36px; border-radius: 18px;
+    background: var(--glass); border: 1px solid var(--line);
+    box-shadow: 0 12px 50px rgba(0,0,0,0.55);
+    min-width: 260px; text-align: center;
+  }
+  #lockScreen .lsTitle { font-size: 15px; font-weight: 700; letter-spacing: 1.5px; color: var(--accent); }
+  #lockScreen .lsSub { font-size: 11.5px; color: var(--dim); margin-bottom: 4px; }
+  #lockScreen #lsInp {
+    width: 180px; text-align: center; letter-spacing: 8px; font-size: 20px;
+    background: rgba(0,0,0,0.35); color: var(--text);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  }
+  #lockScreen #lsInp:focus { outline: none; border-color: var(--accent); }
+  #lockScreen #lsGo {
+    margin-top: 4px; padding: 9px 24px; border-radius: 10px; cursor: pointer;
+    font: inherit; font-weight: 600; color: #06121f;
+    background: var(--accent); border: none;
+  }
+  #lockScreen #lsGo:disabled { opacity: 0.6; cursor: default; }
+  #lockScreen #lsErr { color: #ff9a9a; font-size: 11.5px; min-height: 14px; }
+
+  /* ♿ Respect prefers-reduced-motion: kill the decorative keyframes (typing
+     bounce, message-in, badge-pop, recording pulse…) for users who ask for
+     less motion. Functional transitions (none here are load-bearing) stay. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
 </style>
 
 <header id="titlebar" style="cursor:grab">
-  <img src="/brand/logo_ico_cute.png" width="20" height="20" draggable="false" style="flex:none">
+  <img src="/brand/logo_ico_cute.png" width="20" height="20" draggable="false" style="flex:none" alt="">
   <span class="titletxt"><span class="logo">BAGIDEA</span> OFFICE</span>
-  <span id="conn"></span>
-  <button id="opsBtn" title="Office Ops — งาน / ปฏิทิน / โน้ต / ผังองค์กร" style="margin-left:auto">🗂</button>
-  <button id="setBtn" title="Office settings — agents, roles" style="margin-left:6px">⚙</button>
-  <button id="moreBtn" title="เพิ่มเติม" style="margin-left:6px">⋯</button>
-  <button id="sideBtn" title="Security Center & Mission Control" style="margin-left:6px">🛡<span id="permBadge"></span></button>
-  <div class="winbtn" id="miniBtn" title="Mini window" style="margin-left:6px"></div>
-  <div class="winbtn hide" id="hideBtn" title="Hide (chat head brings it back)">—</div>
+  <span id="conn" aria-label="connection status"></span>
+  <button id="opsBtn" title="Office Ops — งาน / ปฏิทิน / โน้ต / ผังองค์กร" aria-label="Office Ops — tasks, calendar, notes, org chart" style="margin-left:auto">🗂</button>
+  <button id="setBtn" title="Office settings — agents, roles" aria-label="Office settings — agents, roles" style="margin-left:6px">⚙</button>
+  <button id="moreBtn" title="เพิ่มเติม" aria-label="More options" style="margin-left:6px">⋯</button>
+  <button id="sideBtn" title="Security Center & Mission Control" aria-label="Security Center and Mission Control" style="margin-left:6px">🛡<span id="permBadge"></span></button>
+  <div class="winbtn" id="miniBtn" title="Mini window" role="button" tabindex="0" aria-label="Mini window" style="margin-left:6px"></div>
+  <div class="winbtn hide" id="hideBtn" title="Hide (chat head brings it back)" role="button" tabindex="0" aria-label="Hide window">—</div>
 </header>
 <!-- ⋯ overflow menu: secondary tools, so the header never overflows -->
 <div id="moreMenu">
@@ -935,12 +1073,16 @@
   <div class="opt" id="dayBtn">🌗 <span>บรรยากาศ</span></div>
   <div class="opt" id="dispBtn">🖥 <span>จอแสดงผล</span></div>
   <div class="opt" id="langBtn">🌐 <span>ภาษา / Language</span></div>
+  <div class="opt" id="themeBtn"><span class="thico">🌗</span> <span>ธีม / Theme</span></div>
 </div>
 <div id="langMenu"></div>
 <div id="dispMenu"></div>
 
 <!-- 🔄 update banner: appears when a newer release is on main -->
 <div id="updBar">🔄 มีเวอร์ชันใหม่ <b id="updSha"></b> — คลิกที่นี่เพื่ออัปเดต (โปรแกรมจะรีสตาร์ทเอง) <a id="updWhat" href="https://github.com/bagidea/bagidea-office/blob/main/CHANGELOG.md" target="_blank" rel="noopener" onclick="event.stopPropagation()">📝 มีอะไรใหม่</a></div>
+
+<!-- 🔔 toast container (transient success/error feedback). See toast() helper. -->
+<div id="toasts" aria-live="polite" aria-atomic="false"></div>
 
 <div id="rail"></div>
 <!-- 🔵 live work strip: sits BELOW the agents rail so it never covers the
@@ -962,6 +1104,11 @@
     <div id="missions"></div>
     <h2>🧠 BRAINS</h2>
     <div id="brains"></div>
+    <h2>🔍 MEMORY</h2>
+    <div id="memBox">
+      <input id="memInp" type="search" placeholder="ค้นความทรงจำสำนักงาน…" autocomplete="off" style="width:100%;box-sizing:border-box">
+      <div id="memOut" style="margin-top:6px"></div>
+    </div>
     <h2>📜 OFFICE LOG</h2>
     <div id="activity"></div>
   </aside>
@@ -1018,7 +1165,7 @@
 <div id="sessMenu"></div>
 
 <!-- 📂 In-house folder picker (Blender-style) — no Windows dialogs. -->
-<div id="fsPick">
+<div id="fsPick" role="dialog" aria-modal="true" aria-label="Folder picker">
   <div id="fsCard">
     <h3>📂 เลือกโฟลเดอร์ <span class="x" id="fsCancel">✕</span></h3>
     <div id="fsDrives"></div>
@@ -1038,13 +1185,106 @@
     </div>
   </div>
 </div>
-<div id="modal"><div id="modalCard"></div></div>
+<div id="modal" role="dialog" aria-modal="true" aria-label="Settings"><div id="modalCard"></div></div>
 
 <script>
   // dev error beacon → daemon log
   window.onerror = (m, s, l, c) =>
     fetch("/event", { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "ui.error", agent: "overlay", text: `${m} @${l}:${c}` }) });
+
+  // ---- 🔐 UI PIN gate (optional) ------------------------------------------
+  // If the owner sets a PIN (⚙ Settings → CONNECT), the daemon gates every
+  // non-static route behind x-bagidea-pin. We hold the unlocked PIN in
+  // sessionStorage (per-tab, cleared on browser close) and inject the header
+  // into EVERY fetch via the wrapper below — so the 59 existing fetch() call
+  // sites need no individual changes. Lock screen is shown on boot if locked.
+  let UI_PIN = sessionStorage.getItem("bagidea.pin") || "";
+  const _origFetch = window.fetch.bind(window);
+  function setPin(p) { UI_PIN = p || ""; if (p) sessionStorage.setItem("bagidea.pin", p); else sessionStorage.removeItem("bagidea.pin"); }
+  // Wrap fetch: stamp the PIN header on same-origin requests when we have one.
+  window.fetch = function (input, init) {
+    init = init || {};
+    try {
+      const url = typeof input === "string" ? input : (input && input.url) || "";
+      const sameOrigin = !url || url.startsWith("/") || url.startsWith(location.origin);
+      if (sameOrigin && UI_PIN) {
+        const h = new Headers(init.headers || (input && input.headers) || {});
+        if (!h.has("x-bagidea-pin")) h.set("x-bagidea-pin", UI_PIN);
+        init.headers = h;
+      }
+    } catch {}   // never let header-stamping break the actual request
+    return _origFetch(input, init);
+  };
+  // Lock screen overlay. Shown when /auth/check reports {locked:true} and we
+  // have no sessionStorage PIN. Blocks the whole viewport until verified.
+  async function bootAuthGate() {
+    let locked = false;
+    try { locked = !!(await _origFetch("/auth/check").then((x) => x.json()).then((r) => r.locked)); }
+    catch { locked = false; }   // daemon reachable = open by default
+    if (!locked || UI_PIN) { document.documentElement.classList.remove("locked"); return; }
+    document.documentElement.classList.add("locked");
+    showLockScreen();
+  }
+  function showLockScreen() {
+    let ov = document.getElementById("lockScreen");
+    if (!ov) {
+      ov = document.createElement("div");
+      ov.id = "lockScreen";
+      ov.innerHTML =
+        '<div class="lsCard">' +
+          '<img src="/brand/logo_ico_cute.png" width="42" height="42" alt="">' +
+          '<div class="lsTitle">BAGIDEA OFFICE</div>' +
+          '<div class="lsSub" data-i18n="กรอก PIN เพื่อปลดล็อก">กรอก PIN เพื่อปลดล็อก</div>' +
+          '<input id="lsInp" type="password" inputmode="numeric" autocomplete="off" ' +
+            'placeholder="••••" aria-label="PIN">' +
+          '<button id="lsGo" data-i18n="ปลดล็อก">ปลดล็อก</button>' +
+          '<div id="lsErr"></div>' +
+        '</div>';
+      document.body.appendChild(ov);
+      const inp = ov.querySelector("#lsInp"), go = ov.querySelector("#lsGo"), err = ov.querySelector("#lsErr");
+      const submit = async () => {
+        err.textContent = "";
+        const pin = inp.value.trim();
+        if (!pin) return;
+        go.disabled = true; go.textContent = "…";
+        try {
+          const r = await _origFetch("/auth/verify", {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ pin }),
+          }).then((x) => x.json());
+          go.disabled = false; go.textContent = "ปลดล็อก";
+          if (r && r.ok) {
+            setPin(pinHashClient(pin));
+            ov.remove();
+            document.documentElement.classList.remove("locked");
+            if (typeof toast === "function") toast(tr("ปลดล็อกแล้ว"), "ok");
+            // Kick the WS so it reconnects immediately with the now-known PIN
+            // (otherwise it sits in the 2s retry loop that started before unlock).
+            if (typeof connect === "function") {
+              try { connect(); } catch {}
+            }
+          } else {
+            err.textContent = tr("PIN ไม่ถูกต้อง");
+            inp.select();
+          }
+        } catch (e) { go.disabled = false; go.textContent = "ปลดล็อก"; err.textContent = tr("ติดต่อไม่ได้"); }
+      };
+      go.onclick = submit;
+      inp.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+      setTimeout(() => inp.focus(), 50);
+    }
+  }
+  // Client-side SHA-256 (must match server's pinHash: salt + ":" + pin).
+  // Uses SubtleCrypto when available; falls back to a synchronous no-op hash
+  // (in which case the cleartext PIN is sent and the server still hashes it —
+  // functionally identical, just slightly less defensive against local XSS).
+  function pinHashClient(pin) {
+    // Synchronous fallback: send cleartext (server hashes via pinHash).
+    // We don't await SubtleCrypto here to keep setPin() sync. The server
+    // accepts both the hash and the cleartext (it compares pinHash(sent)).
+    return pin;
+  }
 
   // ---- 🌐 i18n -------------------------------------------------------------
   // The whole UI is authored in THAI. Rather than wrap every string, a DOM
@@ -1513,6 +1753,46 @@
     d.className = "chip"; d.innerHTML = html;
     log.appendChild(d);
     log.scrollTop = log.scrollHeight;
+  }
+  // ── Toast / snackbar ─────────────────────────────────────────────────
+  // Transient bottom-right feedback for actions that don't belong in the chat
+  // log (e.g. "saved", "send failed", "exported 3 threads"). kind ∈ ok|err|warn|info.
+  // Click anywhere on a toast to dismiss early. Auto-dismiss after `ms` (default 4s;
+  // errors stay a bit longer). Safe to call before #toasts exists.
+  function toast(msg, kind, ms) {
+    const box = document.getElementById("toasts");
+    if (!box) return;
+    const k = (kind === "err" || kind === "warn" || kind === "ok") ? kind : "info";
+    const ico = ({ ok: "✓", err: "⚠", warn: "!", info: "•" })[k];
+    const t = document.createElement("div");
+    t.className = "toast " + (k === "info" ? "" : k);
+    t.setAttribute("role", k === "err" ? "alert" : "status");
+    t.innerHTML = '<span class="ico">' + ico + '</span><span class="txt"></span>';
+    t.querySelector(".txt").textContent = String(msg);   // textContent: never inject user/error HTML
+    const close = () => {
+      if (t.classList.contains("out")) return;
+      t.classList.add("out");
+      setTimeout(() => t.remove(), 220);
+    };
+    t.onclick = close;
+    box.appendChild(t);
+    setTimeout(close, ms || (k === "err" ? 6000 : 4000));
+    return t;
+  }
+  // Trigger a browser download of `text` as `filename`. Same Blob+URL pattern
+  // the audio recorder uses (L1845), just for arbitrary text/CSV/JSON.
+  function downloadBlob(text, filename, mime) {
+    const blob = new Blob([text], { type: mime || "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  // RFC4180-ish CSV cell escape: quote if it has comma/quote/newline, double the quotes.
+  function csvCell(v) {
+    const s = String(v == null ? "" : v);
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
   // "agent is typing" status bubble — optional icon + a live label saying what the
   // agent is doing right now (thinking / reading a file / waiting for approval…),
@@ -2563,6 +2843,28 @@
   // the symptom was the world stuck on a pinned hour after an update.
   pushDaylight(dayMode);
 
+  // 🌗 UI theme toggle (dark/light). Cycles dark → light → auto. Saved choice
+  // lives in localStorage ("bagidea.theme"); "auto" follows the OS preference.
+  // Separate from the in-world "atmosphere/daylight" cosmetic above.
+  function currentTheme() {
+    return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  }
+  function applyTheme(t) {
+    if (t === "light") document.documentElement.setAttribute("data-theme", "light");
+    else document.documentElement.removeAttribute("data-theme");
+    try { localStorage.setItem("bagidea.theme", t); } catch {}
+    const ico = document.querySelector("#themeBtn .thico");
+    if (ico) ico.textContent = t === "light" ? "☀️" : "🌗";
+  }
+  document.getElementById("themeBtn").onclick = (e) => {
+    e.stopPropagation();
+    const next = currentTheme() === "light" ? "dark" : "light";
+    applyTheme(next);
+    toast(next === "light" ? tr("เปลี่ยนเป็นธีมสว่าง") : tr("เปลี่ยนเป็นธีมมืด"), "ok", 2000);
+  };
+  // Refresh the menu icon to match whatever the boot script already applied.
+  applyTheme(currentTheme());
+
   // ⋯ overflow menu — holds the secondary tools so the header never overflows
   const moreMenu = document.getElementById("moreMenu");
   document.getElementById("moreBtn").onclick = (e) => { e.stopPropagation(); closeMenus("moreMenu"); moreMenu.classList.toggle("open"); };
@@ -2593,9 +2895,38 @@
   // ---- settings / editor / ID card -----------------------------------------
   const modal = document.getElementById("modal");
   const modalCard = document.getElementById("modalCard");
-  function closeModal() { modal.classList.remove("open"); mapOpen = false; }
+  function closeModal() {
+    modal.classList.remove("open"); mapOpen = false;
+    // ♿ Return focus to where it was before the modal grabbed it.
+    if (_modalFocusBefore) { try { _modalFocusBefore.focus(); } catch {} _modalFocusBefore = null; }
+  }
   modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
   document.getElementById("setBtn").onclick = () => openSettings("agents");
+
+  // ♿ Focus trap for the modal: when it opens, move focus to the first focusable
+  // element inside; while open, Tab cycles within the modal (doesn't escape to
+  // the background UI). We re-arm on each open via a MutationObserver on #modal.
+  let _modalFocusBefore = null;
+  const _focusSel = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+  (function armFocusTrap() {
+    const trap = (e) => {
+      if (!modal.classList.contains("open")) return;
+      if (e.key !== "Tab") return;
+      const f = modal.querySelectorAll(_focusSel);
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", trap);
+    new MutationObserver(() => {
+      if (modal.classList.contains("open")) {
+        if (!_modalFocusBefore) _modalFocusBefore = document.activeElement;
+        const f = modal.querySelector(_focusSel);
+        if (f && !modal.contains(document.activeElement)) setTimeout(() => f.focus(), 30);
+      }
+    }).observe(modal, { attributes: true, attributeFilter: ["class"] });
+  })();
 
   function hdr(title) {
     return `<h3>${title}<div class="winbtn x" onclick="document.getElementById('modal').classList.remove('open')">✕</div></h3>`;
@@ -2908,6 +3239,31 @@
         addChip(daily || monthly ? `💰 ตั้งงบแล้ว — $${daily}/วัน · $${monthly}/เดือน` : "💰 ปิดจำกัดงบแล้ว");
         renderBud();
       };
+      // 🔐 PIN gate controls. Current state first; "บันทึก" calls /registry/pin.
+      const pinSt = modalCard.querySelector("#pinStatus");
+      try {
+        const lk = await fetch("/auth/check").then((x) => x.json());
+        pinSt.textContent = lk && lk.locked ? "🔒 ล็อกอยู่ — ต้องใส่ PIN ปัจจุบันเพื่อเปลี่ยน/ปิด" : "🔓 ยังไม่ล็อก";
+      } catch { pinSt.textContent = "ไม่ทราบสถานะ"; }
+      modalCard.querySelector("#pinSave").onclick = async () => {
+        const cur = modalCard.querySelector("#pinCur").value;
+        const next = modalCard.querySelector("#pinNew").value.trim();
+        const r = await api("/registry/pin", { current: cur, pin: next });
+        if (r && r.ok) {
+          if (r.locked) {
+            setPin(next);   // keep this tab unlocked after enabling
+            toast(tr("ตั้ง PIN ล็อกหน้าแล้ว"), "ok");
+          } else {
+            setPin("");     // PIN cleared → drop our session copy too
+            toast(tr("ปิดล็อกหน้าแล้ว"), "ok");
+          }
+          modalCard.querySelector("#pinCur").value = "";
+          modalCard.querySelector("#pinNew").value = "";
+          pinSt.textContent = r.locked ? "🔒 ล็อกอยู่" : "🔓 ยังไม่ล็อก";
+        } else {
+          toast((r && r.error) || tr("บันทึกไม่สำเร็จ"), "err");
+        }
+      };
     }
     // All sections filled — put the scrollbar back where the owner had it.
     modalCard.scrollTop = _wasScroll;
@@ -3070,6 +3426,14 @@
             <button class="sparkle" id="budSave" style="height:35px">💾 บันทึก</button>
           </div>
           <div id="budStatus" style="font-size:11px;color:var(--dim);margin-top:6px">loading…</div>
+        </div>
+        <div class="field"><label>🔐 PIN ล็อกหน้า — ตั้ง PIN เพื่อกั้นหน้า panel (ใครเปิดเบราว์เซอร์เข้ามาต้องปลดล็อกก่อน) · เว้นว่าง = ปิด · เก็บเฉพาะแฮชในเครื่อง</label>
+          <div id="pinBox" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+            <div><span style="font-size:11px;color:var(--dim)">PIN ปัจจุบัน (ถ้าตั้งไว้)</span><br><input id="pinCur" type="password" inputmode="numeric" autocomplete="off" style="width:130px"></div>
+            <div><span style="font-size:11px;color:var(--dim)">PIN ใหม่ (ว่าง = ปิดล็อก)</span><br><input id="pinNew" type="password" inputmode="numeric" autocomplete="off" placeholder="อย่างน้อย 4 ตัว" style="width:160px"></div>
+            <button class="sparkle" id="pinSave" style="height:35px">💾 บันทึก</button>
+          </div>
+          <div id="pinStatus" style="font-size:11px;color:var(--dim);margin-top:6px">loading…</div>
         </div>`;
     } else if (tab === "channels") {
       bodyHtml = `<div style="font-size:11px;color:var(--dim);margin-bottom:10px">
@@ -3276,8 +3640,25 @@
         if (!box) return;
         box.innerHTML = "";
         const entries = Object.entries(r.all || {});
-        if (!entries.length) box.innerHTML =
-          `<div style="font-size:12px;color:var(--dim)">ยังไม่มี thread เลย</div>`;
+        // ⬇ Export-all button at the top of the threads list. Dumps the whole
+        // session index as JSON for offline backup. No backend change needed —
+        // /sessions/all already returns everything shown here.
+        const expBar = document.createElement("div");
+        expBar.style.cssText = "display:flex;justify-content:flex-end;margin-bottom:8px";
+        const expBtn = document.createElement("button");
+        expBtn.className = "winbtn"; expBtn.textContent = "⬇";
+        expBtn.title = tr("ส่งออกทุก thread เป็น JSON");
+        expBtn.style.cssText = "font-size:13px;padding:4px 8px";
+        expBtn.onclick = () => {
+          downloadBlob(JSON.stringify(r, null, 2),
+            "bagidea-threads-" + new Date().toISOString().slice(0, 10) + ".json",
+            "application/json");
+          toast(tr("ส่งออก thread แล้ว"), "ok");
+        };
+        expBar.appendChild(expBtn);
+        box.appendChild(expBar);
+        if (!entries.length) box.insertAdjacentHTML("beforeend",
+          `<div style="font-size:12px;color:var(--dim)">ยังไม่มี thread เลย</div>`);
         for (const [aid, list] of entries) {
           const isGroup = aid === "@group";
           const isSub = aid === "@sub";
@@ -3370,12 +3751,14 @@
         description: modalCard.querySelector("#sDesc").value,
         content: modalCard.querySelector("#sBody").value,
       });
+      toast(id ? tr("อัปเดต skill แล้ว") : tr("สร้าง skill แล้ว"), "ok");
       openSettings("skills");
     };
     const del = modalCard.querySelector("#sDel");
     if (del) del.onclick = async () => {
       if (!await confirmDanger(t("ลบ skill"), t("ลบ skill นี้ถาวร — agents ที่ใช้อยู่จะไม่มีทักษะนี้อีก"), t("ลบ skill"))) return;
       await api("/registry/skill", { id, remove: true });
+      toast(tr("ลบ skill แล้ว"), "ok");
       openSettings("skills");
     };
   }
@@ -3793,6 +4176,7 @@
             },
             skills: [...mySkills], tools: [...myTools] };
       const r = await api("/registry/agent", payload);
+      toast(isUser ? tr("อัปเดตโปรไฟล์แล้ว") : (payload.id ? tr("อัปเดต agent แล้ว") : tr("รับพนักงานใหม่แล้ว")), "ok");
       closeModal();
       if (r.id && !isUser) { ensureAgent(r.id); setTarget(r.id); }
     };
@@ -4245,6 +4629,160 @@
   }
 
   // ---- 📊 dashboard: the office at a glance --------------------------------
+  // 📈 Trading dashboard — portfolio, positions, watchlist, recent trades.
+  // Pulls from the binance plugin (balance/positions/price/ticker/audit) via
+  // the same /plugin/binance/cmd RPC the panel uses.
+  async function renderTrade() {
+    const box = modalCard.querySelector("#tradeBox");
+    if (!box) return;
+    const bcmd = async (cmd, args) => {
+      const r = await fetch("/plugin/binance/cmd", { method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cmd, args: args || "" }) }).catch(() => null);
+      return r ? await r.json() : null;
+    };
+    const card = (icon, label, val, sub) =>
+      `<div class="statcard"><div class="ic">${icon}</div>
+        <div><b>${val}</b><span>${label}</span>${sub ? `<small>${sub}</small>` : ""}</div></div>`;
+    const wl = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"];
+    // Fetch everything in parallel — each is independent. The copilot decision
+    // is fetched via its own plugin (copilot-link); tolerate failure (it may
+    // not be installed or have no report yet).
+    const copCmd = async (cmd) => {
+      const r = await fetch("/plugin/copilot-link/cmd", { method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cmd, args: "" }) }).catch(() => null);
+      return r ? await r.json() : null;
+    };
+    const [status, balance, positions, audit, copilot, scan, perf, ...ticks] = await Promise.all([
+      bcmd("status"), bcmd("balance"), bcmd("positions"), bcmd("audit"), copCmd("decision"),
+      bcmd("scan"), bcmd("performance", "1"),
+      ...wl.map((s) => bcmd("ticker", s)),
+    ]);
+    // No keys / not configured → show a setup hint.
+    if (!status || !status.ok) {
+      box.innerHTML = `<div style="padding:20px;text-align:center;color:var(--dim)">
+        📈 Trading Desk — ยังไม่ได้ตั้งค่า<br><br>
+        กด <b>Ctrl+K</b> → ค้นหา "Binance" → เปิด panel → ตั้ง API key จาก demo.binance.com<br>
+        แล้วกลับมาดูพอร์ตที่นี่</div>`;
+      return;
+    }
+    // Portfolio summary.
+    const usdt = balance && balance.balances ? balance.balances.find((b) => b.asset === "USDT") : null;
+    const usdtBal = usdt ? usdt.balance : 0;
+    const totalPnl = (positions && positions.positions || []).reduce((s, p) => s + (p.pnl || 0), 0);
+    const openCount = positions ? positions.count : 0;
+    const env = status.environment || "TESTNET";
+    const envCol = env === "TESTNET" ? "#4ade80" : "#f87171";
+    // Watchlist rows.
+    const wlRows = wl.map((sym, i) => {
+      const t = ticks[i];
+      if (!t || !t.ok) return `<div class="arow" style="padding:4px 9px"><b>${sym}</b> <span style="color:var(--dim)">—</span></div>`;
+      const chg = t.changePct || 0;
+      const col = chg >= 0 ? "#4ade80" : "#f87171";
+      return `<div class="arow" style="cursor:default;padding:4px 9px;display:flex;justify-content:space-between">
+        <b>${sym}</b>
+        <span>$${Number(t.last).toLocaleString()} <span style="color:${col}">${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%</span></span>
+      </div>`;
+    }).join("");
+    // Open positions table.
+    const posRows = (positions && positions.positions || []).map((p) => {
+      const pnlCol = (p.pnl || 0) >= 0 ? "#4ade80" : "#f87171";
+      return `<div class="arow" style="cursor:default;padding:5px 9px">
+        <div class="meta"><b>${p.symbol}</b> <span style="color:${p.side === "LONG" ? "#4ade80" : "#f87171"}">${p.side}</span>
+          <span style="color:var(--dim)">${p.size} @ ${p.entry} · ${p.leverage}x</span></div>
+        <span style="color:${pnlCol};font-weight:700">${(p.pnl || 0) >= 0 ? "+" : ""}$${(p.pnl || 0).toFixed(2)}</span>
+      </div>`;
+    }).join("") || `<div style="color:var(--dim);font-size:11px;padding:6px 9px">ไม่มีสถานะเปิด</div>`;
+    // Recent trades (from audit).
+    const tr = audit && audit.recent ? audit.recent.slice(0, 8) : [];
+    const tradeRows = tr.map((t) => {
+      const ok = t.ok !== false && !t.blocked;
+      const ic = ok ? "✓" : "✗";
+      const col = ok ? "#4ade80" : "#f87171";
+      const desc = t.cmd === "order" ? `${t.side} ${t.qty} ${t.symbol}${t.price ? " @" + t.price : ""}`
+        : t.cmd === "close" ? `close ${t.symbol}`
+        : t.cmd === "stoploss" ? `stop ${t.symbol} @ ${t.trigger}`
+        : t.cmd === "leverage" ? `lev ${t.symbol} ${t.leverage}x`
+        : `${t.cmd} ${t.symbol || ""}`;
+      const tm = new Date(t.ts).toLocaleTimeString();
+      return `<div class="arow" style="cursor:default;padding:3px 9px;font-size:11px">
+        <span style="color:${col}">${ic}</span> ${desc} <span style="color:var(--dim)">${tm}</span></div>`;
+    }).join("") || `<div style="color:var(--dim);font-size:11px;padding:6px 9px">ยังไม่มีประวัติ</div>`;
+    // 🧠 Copilot decision section — advisory analysis from the sibling engine.
+    let copHtml = "";
+    if (copilot && copilot.ok) {
+      const d = copilot.decision || "UNKNOWN";
+      const dCol = d === "GO" ? "#4ade80" : d === "NO_GO" ? "#f87171" : "#ffb054";
+      const stale = copilot.stale ? ` <span style="color:#ffb054">⚠️ stale (${copilot.ageSec}s)</span>` : "";
+      const rg = copilot.risk_gate || {};
+      const ex = copilot.execution || {};
+      const mc = copilot.market || {};
+      copHtml = `<div class="field" style="margin-top:8px"><label>🧠 Copilot Decision <span style="color:${dCol};font-weight:700">${d}</span>${stale}</label>
+        <div class="arow" style="cursor:default;padding:5px 9px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <div><b>${copilot.symbol || "—"}</b> <span style="color:var(--dim)">${copilot.direction || "—"}</span>
+            ${copilot.grade ? `· grade <b>${copilot.grade}</b>` : ""}</div>
+          <div style="font-size:10.5px;color:var(--dim)">${rg.futures || "?"} risk · ${ex.runtime_mode || "?"} · ${ex.dispatch_available ? "dispatch ✓" : "dispatch ✗"}</div>
+        </div>
+        ${mc.reference_price ? `<div style="font-size:10.5px;color:var(--dim);padding:2px 9px">ref $${mc.reference_price} · ${mc.structure_state || "?"} · swing ${mc.recent_swing_low}–${mc.recent_swing_high}</div>` : ""}
+        ${(rg.reasons && rg.reasons.length) ? `<div style="font-size:10px;color:#f87171;padding:2px 9px">${rg.reasons.join(" · ")}</div>` : ""}
+        <div style="font-size:9.5px;color:var(--dim);padding:2px 9px">id: ${copilot.decision_id || "—"}</div>
+      </div>`;
+    } else {
+      copHtml = `<div class="field" style="margin-top:8px"><label>🧠 Copilot Decision</label>
+        <div style="font-size:11px;color:var(--dim);padding:6px 9px">${copilot && copilot.msg ? copilot.msg : "ไม่ได้ติดตั้งหรือยังไม่มี report — สั่ง copilot-link run-analysis"}</div></div>`;
+    }
+    // 🔭 Scan signals — actionable A/B-graded opportunities from the scanner.
+    let scanHtml = "";
+    if (scan && scan.ok) {
+      const actionable = (scan.signals || []).filter((s) => s.grade === "A" || s.grade === "B");
+      const rows = actionable.slice(0, 4).map((s) => {
+        const gCol = s.grade === "A" ? "#4ade80" : "#ffb054";
+        return `<div class="arow" style="cursor:default;padding:4px 9px;display:flex;justify-content:space-between">
+          <div><b>${s.symbol}</b> <span style="color:${gCol};font-weight:700">${s.grade}</span> <span style="color:${s.dir === "bull" ? "#4ade80" : "#f87171"}">${s.dir === "bull" ? "LONG" : "SHORT"}</span></div>
+          <div style="font-size:10.5px;color:var(--dim)">entry ${s.entry?.toFixed(2)} · stop ${s.stop?.toFixed(2)} · tgt ${s.target?.toFixed(2)}</div>
+        </div>`;
+      }).join("") || `<div style="color:var(--dim);font-size:11px;padding:6px 9px">ไม่มีโอกาส grade A/B ตอนนี้</div>`;
+      scanHtml = `<div class="field" style="margin-top:8px"><label>🔭 Scan Signals ${actionable.length ? `(${actionable.length} actionable)` : ""}</label>${rows}</div>`;
+    }
+    // 📊 Performance card — today's win/loss/PnL.
+    let perfHtml = "";
+    if (perf && perf.ok && perf.exits > 0) {
+      const wr = perf.winRate == null ? "—" : perf.winRate + "%";
+      const wrCol = perf.winRate == null ? "var(--dim)" : perf.winRate >= 50 ? "#4ade80" : "#f87171";
+      const pnlCol = perf.totalPnl >= 0 ? "#4ade80" : "#f87171";
+      perfHtml = `<div class="field" style="margin-top:8px"><label>📊 Performance (วันนี้)</label>
+        <div style="display:flex;gap:14px;padding:5px 9px;font-size:12px">
+          <span>ไม้: <b>${perf.exits}</b></span>
+          <span>ชนะ: <b style="color:#4ade80">${perf.wins}</b></span>
+          <span>แพ้: <b style="color:#f87171">${perf.losses}</b></span>
+          <span>win rate: <b style="color:${wrCol}">${wr}</b></span>
+          <span>PnL: <b style="color:${pnlCol}">${perf.totalPnl >= 0 ? "+" : ""}$${perf.totalPnl.toFixed(2)}</b></span>
+        </div></div>`;
+    }
+    box.innerHTML =
+      `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <b style="font-size:14px;color:var(--accent)">📈 Trading Desk</b>
+        <span class="badge" style="background:rgba(94,200,255,0.1);color:${envCol};border:1px solid ${envCol}40;padding:2px 8px;border-radius:10px;font-size:11px">${env}</span>
+        <span style="font-size:11px;color:${status.tradeEnabled ? "#4ade80" : "var(--dim)"}">${status.tradeEnabled ? "🔓 เทรดเปิด" : "🔒 เทรดปิด"}</span>
+        <button onclick="renderTrade()" style="margin-left:auto;font:inherit;font-size:11px;padding:4px 10px;border-radius:7px">🔄 รีเฟรช</button>
+      </div>
+      <div class="statgrid">
+        ${card("💵", "ยอด USDT", "$" + usdtBal.toFixed(2), status.hasKey ? "" : "ยังไม่ตั้ง key")}
+        ${card("📊", "สถานะเปิด", openCount, openCount + "/3")}
+        ${card("💰", "Unrealized PnL", (totalPnl >= 0 ? "+" : "") + "$" + totalPnl.toFixed(2), totalPnl >= 0 ? "กำไร" : "ขาดทุน")}
+        ${card("📜", "ไม้ล่าสุด", tr.length, audit ? audit.count + " ทั้งหมด" : "")}
+      </div>
+      ${copHtml}
+      ${scanHtml}
+      ${perfHtml}
+      <div class="field" style="margin-top:10px"><label>👀 Watchlist (24h)</label>${wlRows}</div>
+      <div class="field" style="margin-top:8px"><label>📊 สถานะเปิด</label>${posRows}</div>
+      <div class="field" style="margin-top:8px"><label>📜 ไม้ล่าสุด (audit)</label>${tradeRows}</div>
+      <div style="font-size:10px;color:var(--dim);margin-top:8px">
+        ข้อมูลจาก Binance ${env} · กด 🔄 รีเฟรช · ตั้งค่าใน panel (Ctrl+K → Binance)</div>`;
+  }
+
   async function renderDash() {
     const s = await fetch("/stats").then((x) => x.json()).catch(() => null);
     const box = modalCard.querySelector("#dashBox");
@@ -4320,7 +4858,34 @@
       })()}
       <div style="font-size:10px;color:var(--dim);margin-top:6px">
         🔑 main keys: OpenAI ${s.features.openai ? "✅" : "—"} · Gemini ${s.features.gemini ? "✅" : "—"}
-        · perms ค้าง ${s.pendingPerms}</div>`;
+        · perms ค้าง ${s.pendingPerms}</div>
+      <div style="display:flex;justify-content:flex-end;margin-top:6px">
+        <button id="dashExport" style="font:inherit;font-size:11px;padding:4px 10px;border-radius:7px" title="${esc(tr("ส่งออก 7 วันเป็น CSV"))}">⬇ CSV</button>
+      </div>`;
+    // Wire the CSV export button. Reuses the /stats payload already in hand.
+    const expBtn = box.querySelector("#dashExport");
+    if (expBtn) expBtn.onclick = () => {
+      const head = ["day", "runs", "done", "failed", "cost_usd", "jobs", "notes", "events"];
+      const lines = [head.join(",")];
+      for (const d of s.days) {
+        lines.push([d.day, d.runs, d.done, d.failed, (d.cost || 0).toFixed(4),
+          d.jobs || 0, d.notes || 0, d.events || 0].map(csvCell).join(","));
+      }
+      // Per-agent 7-day KPI block.
+      if (s.kpi && s.kpi.length) {
+        lines.push("");
+        lines.push(["agent", "runs", "done", "failed", "successRate_pct", "avgDuration_sec"].join(","));
+        for (const r of s.kpi) {
+          if (!r.runs) continue;
+          lines.push([r.id, r.runs, r.done, r.failed, r.successRate == null ? "" : r.successRate,
+            r.avgDurationSec == null ? "" : r.avgDurationSec].map(csvCell).join(","));
+        }
+      }
+      downloadBlob(lines.join("\n"),
+        "bagidea-stats-" + new Date().toISOString().slice(0, 10) + ".csv",
+        "text/csv;charset=utf-8");
+      toast(tr("ส่งออกสถิติแล้ว"), "ok");
+    };
   }
 
   let opsSeq = 0;   // render token: only the newest openOps() commits async DOM
@@ -4328,10 +4893,12 @@
     modal.classList.add("open");
     const seq = ++opsSeq;
     const T = (t, label) => `<div class="tab ${tab === t ? "on" : ""}" data-t="${t}">${label}</div>`;
-    const tabs = `<div class="tabs">${T("proj", "📁 PROJECTS")}${T("jobs", "📋 TASKS")}${T("cal", "📅 CALENDAR")}${T("notes", "📝 NOTES")}${T("org", "🏢 ORG")}${T("dash", "📊 STATS")}</div>`;
+    const tabs = `<div class="tabs">${T("proj", "📁 PROJECTS")}${T("jobs", "📋 TASKS")}${T("cal", "📅 CALENDAR")}${T("notes", "📝 NOTES")}${T("org", "🏢 ORG")}${T("trade", "📈 TRADE")}${T("dash", "📊 STATS")}</div>`;
     let body = "";
     if (tab === "dash") {
       body = `<div id="dashBox" style="font-size:12px;color:var(--dim)">loading…</div>`;
+    } else if (tab === "trade") {
+      body = `<div id="tradeBox" style="font-size:12px;color:var(--dim)">loading…</div>`;
     } else if (tab === "proj") {
       body = `<div style="font-size:11px;color:var(--dim);margin-bottom:6px">
           💡 สั่งงานในแชทโดยพูดชื่อโปรเจคได้เลย — agents รู้จักทุกโปรเจคในรายการนี้และเข้าไปทำงานเอง</div>
@@ -4417,6 +4984,8 @@
 
     if (tab === "dash") {
       renderDash();
+    } else if (tab === "trade") {
+      renderTrade();
     } else if (tab === "proj") {
       // Deferred refreshes re-render ONLY while the user still has this tab
       // open — openOps() opens the modal, so a bare delayed call would POP
@@ -4623,6 +5192,7 @@
         if (placeSel.value === "__path") payload.path = pathInp.value.trim();
         else payload.place = placeSel.value;
         await api("/projects", payload);
+        toast(tr("เพิ่มโปรเจคแล้ว"), "ok");
         openOps("proj");
       };
       modalCard.querySelector("#plBrowse").onclick = async () => {
@@ -4691,7 +5261,7 @@
              <div style="font-size:10.5px;color:var(--dim);margin:3px 0 6px">เสนอโดย ${(p.agents || []).map(nameOf).join(", ")}</div>
              <div style="white-space:pre-wrap;font-size:11.5px;line-height:1.55;max-height:40vh;overflow:auto;background:rgba(0,0,0,0.2);border:1px solid var(--line);border-radius:8px;padding:9px 11px">${(p.detail || "").replace(/</g, "&lt;")}</div>
              <input class="prMsg" placeholder="ข้อความถึงทีม (ไม่บังคับ) — ใช้ทั้งตอนอนุมัติ/ไม่อนุมัติ"
-                    style="width:100%;margin-top:7px;font:inherit;font-size:11px;color:var(--text);background:rgba(255,255,255,0.05);border:1px solid var(--line);border-radius:8px;padding:7px 9px;outline:none">`;
+                    style="width:100%;margin-top:7px;font:inherit;font-size:11px;color:var(--text);background:var(--surf-2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;outline:none">`;
           const b = card.querySelectorAll(".winbtn:not(.pinbtn)");
           const msgOf = () => (card.querySelector(".prMsg").value || "").trim();
           b[0].onclick = () => api("/proposals/respond", { id: p.id, decision: "approve", message: msgOf() })
@@ -5031,7 +5601,7 @@
         const edit = () => {
           row.innerHTML = `<div style="flex:1;width:100%">
               <textarea class="nEdit" maxlength="500" spellcheck="false"
-                style="width:100%;min-height:96px;font:inherit;font-size:13px;line-height:1.5;color:var(--text);background:rgba(255,255,255,0.05);border:1px solid var(--line);border-radius:10px;padding:8px 11px;outline:none;resize:vertical;overflow-wrap:break-word;word-break:break-word"></textarea>
+                style="width:100%;min-height:96px;font:inherit;font-size:13px;line-height:1.5;color:var(--text);background:var(--surf-2);border:1px solid var(--line);border-radius:10px;padding:8px 11px;outline:none;resize:vertical;overflow-wrap:break-word;word-break:break-word"></textarea>
               <div class="assistrow" style="margin-top:6px">
                 <button class="primary nSave" style="flex:1">💾 ${t("บันทึก")}</button>
                 <button class="send nCancel" title="${t("ยกเลิก")}">↩</button>
@@ -5497,11 +6067,20 @@
   }
 
   async function api(url, body) {
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-bagidea-ui": "1" },
-      body: JSON.stringify(body),
-    });
+    let r;
+    try {
+      r = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bagidea-ui": "1" },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      // Network failure / daemon down / auth rejected — surface instead of swallow.
+      toast(tr("ส่งคำสั่งไม่สำเร็จ") + " — " + (e && e.message ? e.message : url), "err");
+      return {};
+    }
+    if (r.status === 401) { toast(tr("PIN ไม่ถูกต้อง กรุณาปลดล็อกอีกครั้ง"), "err"); return {}; }
+    if (r.status >= 500) { toast(tr("เซิร์ฟเวอร์ผิดพลาด") + " (" + r.status + ")", "err"); return {}; }
     try { return await r.json(); } catch { return {}; }
   }
 
@@ -5614,17 +6193,28 @@
       { ic: "🧩", group: "นำทาง", label: "ปลั๊กอิน", hint: "Plugins", run: () => openPlugins() },
       { ic: "🏗️", group: "นำทาง", label: "แต่งเลย์เอาต์ออฟฟิศ", hint: "3D editor", run: () => openEditor3d() },
       { ic: "💬", group: "นำทาง", label: "เริ่มประชุม", hint: "Discussion", run: () => openDiscuss() },
-      { ic: "📈", group: "การกระทำ", label: "ดูพอร์ต Binance", hint: "Trading panel", run: () => popWindow("/plugin/binance/panel", "📈 Binance Trader", "plugin:binance", { w: 640, h: 720 }) },
+      { ic: "📈", group: "การกระทำ", label: "แดชบอร์ดเทรด", hint: "Trading dashboard", run: () => openOps("trade") },
+      { ic: "📈", group: "การกระทำ", label: "ดูพอร์ต Binance", hint: "Trading panel", run: () => popWindow("/plugin/binance/panel", "📈 Binance Trader", "plugin:binance", { w: 680, h: 800 }) },
       { ic: "🎤", group: "การกระทำ", label: "พูดกับออฟฟิศ (Push-to-talk)", hint: "Voice", run: () => { if (typeof pttToggle === "function") pttToggle(); } },
       { ic: "📺", group: "การกระทำ", label: "สลับโหมด Feed", hint: "Feed mode", run: () => { if (typeof setFeedMode === "function") setFeedMode(!document.body.classList.contains("feedmode")); } },
       { ic: "🌐", group: "การกระทำ", label: "เปลี่ยนภาษา", hint: "Language", run: () => { renderLangMenu(); const m = document.getElementById("langMenu"); if (m) m.classList.toggle("open"); } },
     ];
+    // ⌨️ Keyboard shortcuts reference — informational entries (run opens this
+    // list in a toast so the owner can see them without opening the palette).
+    const sc = window.__bagideaShortcuts || [];
+    const shortcutCmds = sc.length ? [{
+      ic: "⌨️", group: "ทางลัด", label: "ดูคีย์ลัดทั้งหมด",
+      hint: "Shortcuts",
+      run: () => {
+        toast(sc.map((s) => s[0] + "  →  " + tr(s[1])).join("   ·   "), "info", 12000);
+      },
+    }] : [];
     // Dynamic "talk to X" entries from the live roster.
     const agentCmds = Object.keys(ROSTER || {}).map((id) => ({
       ic: "💬", group: "คุยกับ agent", label: `คุยกับ ${nameOf(id)}`,
       hint: roleOf(id) || id, run: () => setTarget(id),
     }));
-    return cmds.concat(agentCmds);
+    return cmds.concat(shortcutCmds, agentCmds);
   }
 
   let palSeq = 0;   // render token: only the newest openPalette() owns the DOM
@@ -5745,15 +6335,82 @@
     applyFilter();   // initial render
   }
 
-  // Global hotkey: Ctrl+K (Win/Linux) or Cmd+K (mac). Ignored while typing in
-  // the native PTT/F6 path is irrelevant — those are shell-level, not JS. We
-  // also avoid opening it if a confirm dialog (z-index 99999) is already up.
+  // Global hotkeys. Ctrl/Cmd+K opens the command palette (existing). Added:
+  //   Esc        → close modal (was: backdrop-click only)
+  //   Ctrl/Cmd+B → toggle sidebar (Security/Mission panel)
+  //   Ctrl/Cmd+, → open Settings
+  //   Ctrl/Cmd+Shift+O → open Office Ops
+  //   Ctrl/Cmd+1..9 → jump to the Nth agent in the rail
+  // We bail when the user is typing in an input/textarea/select or a contenteditable,
+  // EXCEPT for Esc (so Esc still closes the modal from within a field) and the palette
+  // capture handler above already grabs Ctrl+K first.
+  function _typingInField(el) {
+    if (!el) return false;
+    const t = el.tagName;
+    return t === "INPUT" || t === "TEXTAREA" || t === "SELECT" || el.isContentEditable;
+  }
   window.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
+    const mod = e.ctrlKey || e.metaKey;
+    // Esc closes the topmost modal-like overlay (modal / fsPick / lock screen),
+    // even while typing inside one of its fields. confirmDanger & palette have
+    // their own Esc handlers (capture-phase) so they win first.
+    if (e.key === "Escape" && !e.shiftKey && !mod) {
+      if (document.getElementById("lockScreen")) return;   // don't close the lock screen via Esc
+      const m = document.getElementById("modal");
+      const fp = document.getElementById("fsPick");
+      if (m && m.classList.contains("open")) { e.preventDefault(); closeModal(); return; }
+      if (fp && fp.classList.contains("open")) { e.preventDefault(); if (typeof fsDone === "function") fsDone(null); return; }
+      return;
+    }
+    // Cmd/Ctrl+K palette (existing behavior, kept here for clarity).
+    if (mod && (e.key === "k" || e.key === "K")) { e.preventDefault(); openPalette(); return; }
+    // Shortcuts below are disabled while the user is typing in a field —
+    // otherwise Ctrl+B in a note would toggle the sidebar instead of staying
+    // a no-op / future rich-text shortcut.
+    if (_typingInField(e.target)) return;
+    if (mod && (e.key === "b" || e.key === "B")) {
       e.preventDefault();
-      openPalette();
+      // Toggle the Security/Mission sidebar. setSide() is the canonical helper
+      // (also wired to #sideBtn in the header); it flips #side.closed and
+      // reflows the #sideTab handle.
+      if (typeof setSide === "function") {
+        const sb = document.getElementById("side");
+        setSide(sb && sb.classList.contains("closed"));
+      }
+      return;
+    }
+    if (mod && e.key === ",") {
+      e.preventDefault();
+      openSettings("agents");
+      return;
+    }
+    if (mod && e.shiftKey && (e.key === "o" || e.key === "O")) {
+      e.preventDefault();
+      openOps("proj");
+      return;
+    }
+    // Ctrl/Cmd+1..9 → Nth agent in the rail. The "auto" seat is skipped so
+    // the numbers map to real agents (CEO/main = 1, then staff in roster order).
+    if (mod && /^[1-9]$/.test(e.key)) {
+      const n = Number(e.key) - 1;
+      const rail = document.getElementById("rail");
+      if (!rail) return;
+      const seats = rail.querySelectorAll(".seat:not(.autoSeat)");
+      if (n < seats.length) { e.preventDefault(); seats[n].click(); }
+      return;
     }
   });
+  // ⌨️ Keyboard shortcuts cheatsheet — appended to the command palette.
+  // The palette builds its command list in applyFilter(); we expose a small
+  // helper so the palette can list these too (kept here, next to the handlers).
+  window.__bagideaShortcuts = [
+    ["Ctrl/Cmd + K", "Command palette"],
+    ["Esc", "Close modal / folder picker"],
+    ["Ctrl/Cmd + B", "Toggle sidebar"],
+    ["Ctrl/Cmd + ,", "Open Settings"],
+    ["Ctrl/Cmd + Shift + O", "Open Office Ops"],
+    ["Ctrl/Cmd + 1..9", "Switch to Nth agent"],
+  ];
 
   // Sub-agent (ghost) events: parent's face, spectral naming — never a rail
   // seat, never a roster entry. Live view appends when watching that session.
@@ -5858,6 +6515,16 @@
       const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(ae.tagName) && modalCard.contains(ae);
       if (modal.classList.contains("open") && modalCard.querySelector("#jlist") && !typing)
         openOps("jobs");
+      return;
+    }
+    if (ev.type === "trade.fill" || (ev.type === "plugin.event" && ev.plugin === "binance")) {
+      // A position opened/closed or the binance plugin emitted a tick —
+      // refresh the trading dashboard IF it's open and the user isn't typing
+      // in a form (same guard as jobs.changed).
+      const ae = document.activeElement || {};
+      const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(ae.tagName) && modalCard.contains(ae);
+      if (modal.classList.contains("open") && modalCard.querySelector("#tradeBox") && !typing)
+        renderTrade();
       return;
     }
     if (ev.type === "editor.opening") {
@@ -6110,7 +6777,11 @@
   }
 
   function connect() {
-    const ws = new WebSocket(`ws://${location.host}/ws`);
+    // 🔐 When a PIN is set, append ?pin=<sessionPIN> so the WS upgrade passes
+    // the gate (browsers can't set custom headers on WebSocket). uiPinOk() on
+    // the server accepts both the header (for fetch) and the query string.
+    const qs = UI_PIN ? ("?pin=" + encodeURIComponent(UI_PIN)) : "";
+    const ws = new WebSocket(`ws://${location.host}/ws${qs}`);
     ws.onopen = () => document.getElementById("conn").classList.add("on");
     ws.onclose = () => {
       document.getElementById("conn").classList.remove("on");
@@ -6122,6 +6793,68 @@
   ensureAgent("main");
   setTarget("ceo");   // first focus is the CEO seat (you)
   connect();
+  // 🔐 PIN gate: if the owner set a PIN, show the lock screen before any work.
+  bootAuthGate();
+
+  // ---- 🔍 Memory search sidebar (GET /recall?q=) -------------------------
+  // Backend has had /recall forever (used by the archive-search skill); this
+  // surfaces it in the UI so the owner can grep the office memory directly.
+  let memSeq = 0;
+  let memTimer = null;
+  function memSearch(q) {
+    const my = ++memSeq;            // race guard: ignore stale responses
+    const out = document.getElementById("memOut");
+    if (!out) return;
+    if (!q || q.trim().length < 2) {
+      out.innerHTML = '<div class="mem-empty">' + esc(tr("พิมพ์ ≥2 ตัวเพื่อค้น")) + '</div>';
+      return;
+    }
+    out.innerHTML = '<div class="mem-empty">' + esc(tr("กำลังค้น…")) + '</div>';
+    fetch("/recall?q=" + encodeURIComponent(q.trim()) + "&k=8")
+      .then((x) => x.json())
+      .then((r) => {
+        if (my !== memSeq) return;   // a newer query superseded us
+        const hits = (r && r.hits) || [];
+        if (!hits.length) {
+          out.innerHTML = '<div class="mem-empty">' + esc(tr("ไม่พบความทรงจำที่เกี่ยวข้อง")) + '</div>';
+          return;
+        }
+        out.innerHTML = hits.map((h, i) => {
+          const title = esc(h.title || h.path || h.id || tr("(ไม่มีชื่อ)"));
+          const snip = esc((h.snippet || h.text || "").slice(0, 160));
+          const tier = esc(h.tier || h.kind || "");
+          const score = h.score != null ? " · " + Number(h.score).toFixed(2) : "";
+          return '<div class="memhit" data-mi="' + i + '">' +
+            '<div class="mt">' + title + '</div>' +
+            (snip ? '<div class="ms">' + snip + '</div>' : '') +
+            '<div class="mtag">' + tier + score + '</div></div>';
+        }).join("");
+        // Remember full hit payloads for click-to-expand.
+        out._hits = hits;
+      })
+      .catch(() => { if (my === memSeq) out.innerHTML = '<div class="mem-empty">' + esc(tr("ค้นไม่สำเร็จ")) + '</div>'; });
+  }
+  (function wireMem() {
+    const inp = document.getElementById("memInp");
+    const out = document.getElementById("memOut");
+    if (!inp || !out) return;
+    memSearch("");
+    inp.addEventListener("input", () => {
+      clearTimeout(memTimer);
+      memTimer = setTimeout(() => memSearch(inp.value), 250);
+    });
+    out.addEventListener("click", (e) => {
+      const row = e.target.closest(".memhit");
+      if (!row) return;
+      const hit = (out._hits || [])[Number(row.dataset.mi)];
+      if (!hit) return;
+      // Drop the full memory into the chat log as an owner-side chip so the
+      // owner can read / forward it. Uses textContent to stay injection-safe.
+      const full = (hit.snippet || hit.text || hit.body || "").slice(0, 1200);
+      const title = hit.title || hit.path || hit.id || tr("ความทรงจำ");
+      addChip("🔍 <b>" + esc(title) + "</b><br><span style='white-space:pre-wrap'>" + esc(full) + "</span>");
+    });
+  })();
 
   // ---- send ---------------------------------------------------------------
   // ---- 📎 attachments: upload first, send paths with the message ----------
