@@ -408,6 +408,41 @@ module.exports = (ctx) => {
     }
   }
 
+  // --- Exchange qty filters (stepSize/minQty/minNotional) --------------------------------
+  // The fixed 3-decimal qty floor rejected coarse-precision symbols outright ("Precision is
+  // over the maximum", 27 lost entries in the 07-15..17 audit) and zeroed high-price ones.
+  // /fapi/v1/exchangeInfo ignores ?symbol= (returns all ~700 symbols, ~0.9MB) so fetch once,
+  // cache 12h in memory. Fetch failure -> null -> callers fall back to the legacy floor so an
+  // exchangeInfo hiccup never halts the desk.
+  let exFilters = { at: 0, map: null };
+  async function symbolFilters(symbol) {
+    if (!exFilters.map || Date.now() - exFilters.at > 12 * 3600e3) {
+      const r = await req("GET", "/fapi/v1/exchangeInfo", null, false);
+      if (r.ok && r.json && Array.isArray(r.json.symbols)) {
+        const map = {};
+        for (const s of r.json.symbols) {
+          const f = (t) => (s.filters || []).find((x) => x.filterType === t) || {};
+          const lot = f("LOT_SIZE"), mkt = f("MARKET_LOT_SIZE");
+          map[s.symbol] = {
+            // MARKET entries obey MARKET_LOT_SIZE; take the stricter of both to be safe.
+            stepSize: Number(mkt.stepSize || lot.stepSize) || 0,
+            minQty: Math.max(Number(mkt.minQty) || 0, Number(lot.minQty) || 0),
+            minNotional: Number(f("MIN_NOTIONAL").notional) || 0,
+          };
+        }
+        exFilters = { at: Date.now(), map };
+      } else if (!exFilters.map) return null; // never fetched -> legacy behaviour
+    }
+    return exFilters.map[symbol] || null;
+  }
+  // Floor qty to the symbol's stepSize. Decimals derived from the stepSize string keep the
+  // result exact ("0.001" -> 3 dp, "1" -> whole units) — no float artifacts in the API qty.
+  function quantizeQty(qty, stepSize) {
+    if (!(stepSize > 0)) return Math.floor(qty * 1e3) / 1e3; // legacy coarse floor
+    const dec = (String(stepSize).split(".")[1] || "").length;
+    return Number((Math.floor(qty / stepSize + 1e-9) * stepSize).toFixed(dec));
+  }
+
   // Pretty-print a single balance row from /fapi/v2/balance.
   const fmtBal = (b) => ({
     asset: b.asset,
@@ -848,11 +883,14 @@ module.exports = (ctx) => {
     const cap = c.maxOrderUsd || 10;
     const maxQtyByCap = cap / r.entry;
     if (qty > maxQtyByCap) qty = maxQtyByCap;
-    // Round qty down to a sane precision (Binance wants stepSize-aligned; we
-    // trim to 3 decimals as a coarse floor — the order may still be rejected
-    // for precision, in which case the audit log captures it).
-    const q = Math.floor(qty * 1e3) / 1e3;
-    if (q <= 0) return { blocked: `qty ต่ำเกินไป (${qty}) — equity $${equity.toFixed(2)} risk ${riskPct}% cap $${cap}` };
+    // Floor qty to the symbol's real stepSize (exchangeInfo, cached). The old fixed
+    // 3-decimal floor mis-sized coarse-precision symbols -> "Precision is over the maximum".
+    const flt = await symbolFilters(r.symbol);
+    const q = quantizeQty(qty, flt ? flt.stepSize : 0);
+    if (q <= 0 || (flt && q < flt.minQty))
+      return { blocked: `qty ต่ำเกินไป (${qty}${flt ? `, ขั้นต่ำ exchange ${flt.minQty}` : ""}) — equity $${equity.toFixed(2)} risk ${riskPct}% cap $${cap}` };
+    if (flt && flt.minNotional > 0 && q * r.entry < flt.minNotional)
+      return { blocked: `notional $${(q * r.entry).toFixed(2)} ต่ำกว่าขั้นต่ำ exchange $${flt.minNotional} (${r.symbol}) — cap $${cap} เล็กเกินสำหรับเหรียญนี้` };
     const side = r.dir === "bull" ? "BUY" : "SELL";
     // Build the order object the guard expects, then run the FULL gate.
     const o = { symbol: r.symbol, side, qty: q, grade: r.grade,
@@ -1213,8 +1251,12 @@ module.exports = (ctx) => {
               // 2. Partial TP: close partialTpPct% at +partialTpR (once).
               if (!tp.partialTaken && tr3.partialTpR > 0 && tr3.partialTpPct > 0 && r >= tr3.partialTpR) {
                 const closeSide = isLong ? "SELL" : "BUY";
-                const partQty = Math.floor(Math.abs(live.size) * (tr3.partialTpPct / 100) * 1e3) / 1e3;
-                if (partQty > 0) {
+                // stepSize-aware floor (same fix as entry sizing). reduceOnly closes skip the
+                // minNotional check — only enforce minQty so a sub-minimum partial is skipped
+                // (position stays whole; trail/stop layers still manage it).
+                const pFlt = await symbolFilters(tp.symbol);
+                const partQty = quantizeQty(Math.abs(live.size) * (tr3.partialTpPct / 100), pFlt ? pFlt.stepSize : 0);
+                if (partQty > 0 && !(pFlt && partQty < pFlt.minQty)) {
                   const pr = await req("POST", "/fapi/v1/order",
                     { symbol: tp.symbol, side: closeSide, type: "MARKET", quantity: String(partQty), reduceOnly: "true" }, true);
                   if (pr.ok) {
