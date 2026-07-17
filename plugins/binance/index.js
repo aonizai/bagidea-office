@@ -1376,7 +1376,8 @@ module.exports = (ctx) => {
           ctx.broadcast({ type: "scan.signal", plugin: "binance", symbol: r.symbol, grade: r.grade, dir: r.dir,
             entry: r.entry, stop: r.stop, target: r.target, signals: r.signals });
           ctx.feed(msg.replace(/<[^>]+>/g, ""), "scout");
-          try { ctx.relay(msg); } catch {}
+          // scan signals stay on the overlay/dashboard only — NOT relayed to Telegram
+          // (was phone spam every scan as price drifts, and it buried real trade alerts).
           // Closed-loop: if the owner enabled autoTradeSignal, place the trade
           // directly from the signal (through the full guard — same as autotrade).
           if (cc.autoTradeSignal) {
