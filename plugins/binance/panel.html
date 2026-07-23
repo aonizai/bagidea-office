@@ -92,8 +92,8 @@
         <input id="autoTrade" type="checkbox" style="width:auto"> 🤖 เปิด auto-trade (เทรดอัตโนมัติตามกฎ)
       </label>
     </div>
-    <div class="lbl">ขนาด order สูงสุด (USD) — cap ต่อ order</div>
-    <input id="maxOrderUsd" type="number" min="1" step="1" value="10" placeholder="10">
+    <div class="lbl">Notional cap (% ของ equity) — เพดานต่อ order</div>
+    <input id="maxNotionalPct" type="number" min="1" max="100" step="1" value="60" placeholder="60">
     <div class="lbl">Leverage สูงสุด (x) — cap</div>
     <input id="maxLeverage" type="number" min="1" max="125" step="1" value="5" placeholder="5">
     <button class="primary" onclick="saveKeys()">💾 บันทึก Key</button>
@@ -127,7 +127,7 @@ async function saveKeys() {
   body.testnet = document.getElementById("testnet").checked;
   body.tradeEnabled = document.getElementById("tradeEnabled").checked;
   body.autoTrade = document.getElementById("autoTrade").checked;
-  body.maxOrderUsd = Number(document.getElementById("maxOrderUsd").value) || 10;
+  body.maxNotionalPct = Number(document.getElementById("maxNotionalPct").value) || 60;
   body.maxLeverage = Number(document.getElementById("maxLeverage").value) || 5;
   const r = await fetch("/plugin/binance/cmd", { method: "POST",
     headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -136,7 +136,7 @@ async function saveKeys() {
       + " · key:" + (j.hasKey ? "✓" : "—") + " secret:" + (j.hasSecret ? "✓" : "—")
       + " · เทรด:" + (j.tradeEnabled ? "🔓เปิด" : "🔒ปิด")
       + " · auto:" + (j.autoTrade ? "🤖เปิด" : "🔒ปิด")
-      + " · cap $" + j.maxOrderUsd + " · max lev " + j.maxLeverage + "x"
+      + " · cap " + j.maxNotionalPct + "% equity · max lev " + j.maxLeverage + "x"
     : "ERROR: " + JSON.stringify(j);
   if (j.ok) renderEnv(j);
   // Clear the password fields so the secret never lingers in the DOM.
@@ -170,8 +170,8 @@ function renderEnv(s) {
   if (s) {
     const te = document.getElementById("tradeEnabled");
     if (te && typeof s.tradeEnabled === "boolean") te.checked = s.tradeEnabled;
-    const mx = document.getElementById("maxOrderUsd");
-    if (mx && typeof s.maxOrderUsd === "number") mx.value = s.maxOrderUsd;
+    const mx = document.getElementById("maxNotionalPct");
+    if (mx && typeof s.maxNotionalPct === "number") mx.value = s.maxNotionalPct;
     const tn = document.getElementById("testnet");
     if (tn && typeof s.testnet === "boolean") tn.checked = s.testnet;
     const at = document.getElementById("autoTrade");

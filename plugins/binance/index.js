@@ -80,7 +80,17 @@ const DEFAULTS = {
       { maxStopPct: 100, maxLev: 7 },
     ],
   },
-  maxConcurrentPositions: 2,  // engine may hold at most this many open positions at once
+  maxConcurrentPositions: 10, // Framework B (accelerate sample): hold up to 10 at once.
+                              // Worst-case grade-A %-risk margin = 5.0%/trade (notional
+                              // ≤$5002 ÷ effLev 20x), so 10 = 50% worst-case — 30% under
+                              // the 80% hard cap. Practical ceiling is ~5 (allowlist size
+                              // + no-averaging), so this is generous, margin-safe headroom.
+  // Framework B HARD CAP: worst-case total initial margin must stay ≤ this % of
+  // the equity base before ANY new order opens. B raises concurrency/trades-per-
+  // day to collect samples faster, so unconstrained worst-case margin could climb;
+  // this backstop guarantees the book can never touch 80%+ (16 grade-A trades = 80%).
+  // Enforced on manual `order` + `autotrade` + auto-signal, fail-closed.
+  marginCapPct: 80,
   allowedSymbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"],
   timeoutMs: 10000,
   // Auto-trade (Phase 7): off by default. When on, the monitoring loop can
@@ -88,7 +98,9 @@ const DEFAULTS = {
   // confirming each one. Still testnet-only + capped + audited.
   autoTrade: false,
   autoTradeRules: {
-    maxTradesPerDay: 3,
+    maxTradesPerDay: 300,     // Framework B (accelerate sample ~100x) — was 3. Non-binding
+                              // headroom: real rate is gated by the daily-loss circuit-
+                              // breaker + the 80% margin cap, not this counter.
     requireSetupGrade: "B",   // A or B only
     mandatoryStop: true,
     noAveragingDown: true,
@@ -570,6 +582,52 @@ module.exports = (ctx) => {
     if (!r.ok)
       return { ok: false, ...g, applied: false, reason: `ตั้ง effective leverage ${g.effLev}x (${symbol}) ไม่สำเร็จ — ยกเลิกไม้ ไม่เปิดที่ leverage เกิน guardrail (${(r.json && r.json.msg) || r.body})` };
     return { ok: true, ...g, applied: true };
+  }
+
+  // --- Portfolio margin hard cap (Framework B) ------------------------------
+  // Framework B accelerates sample collection (more concurrent positions / more
+  // trades per day), so unconstrained worst-case total margin could approach
+  // 100% of equity. This HARD CAP blocks any new order whose margin would push
+  // total initial margin over marginCapPct% of the equity base — the book can
+  // never touch 100%. Pure decision below (all inputs explicit, unit-testable);
+  // marginGuard() is the live wrapper that reads real exchange margin.
+  //   { ok, existingMargin, newMargin, projected, projectedPct, capUsd, capPct, reason }
+  function marginDecision({ existingMargin, newMargin, equity, capPct }) {
+    const cap = Number(capPct) || 0;
+    const eq = Number(equity) || 0;
+    const capUsd = eq * cap / 100;
+    const existing = Math.max(0, Number(existingMargin) || 0);
+    const add = Math.max(0, Number(newMargin) || 0);
+    const projected = existing + add;
+    const projectedPct = eq > 0 ? projected / eq * 100 : 0;
+    const r2 = (x) => Math.round(x * 100) / 100;
+    const ok = !cap || projected <= capUsd + 1e-9;
+    return {
+      ok, capPct: cap, capUsd: r2(capUsd),
+      existingMargin: r2(existing), newMargin: r2(add),
+      projected: r2(projected), projectedPct: r2(projectedPct),
+      reason: ok ? null
+        : `total-margin guard: ไม้นี้จะดันมาร์จินรวมเป็น $${r2(projected)} (${r2(projectedPct)}% ของ equity $${r2(eq)}) — เกินเพดาน ${cap}% ($${r2(capUsd)}). ปิดไม้เก่าก่อน หรือลด size`,
+    };
+  }
+  // Live wrapper: read current total initial margin from the exchange (open
+  // positions + resting orders), add this order's margin (notional / effective
+  // leverage), then apply the cap. Fail-CLOSED: if the account read fails we
+  // BLOCK rather than risk an over-margined book. effLev falls back to the desk
+  // default (low lev → higher margin estimate → conservative).
+  async function marginGuard({ notional, effLev }) {
+    const c = cfg();
+    const capPct = c.marginCapPct != null ? c.marginCapPct : 80;
+    if (!capPct) return { ok: true, capPct: 0, skipped: true, reason: null };
+    const equity = c.simulatedEquity || await accountEquity();
+    const lev = Math.max(1, Number(effLev) || c.leverageDefault || 3);
+    const newMargin = (Number(notional) || 0) / lev;
+    const acct = await req("GET", "/fapi/v2/account", null, true);
+    if (!acct.ok || !acct.json) {
+      return { ok: false, capPct, reason: "อ่านมาร์จินบัญชีไม่ได้ — บล็อกไม้ไว้ก่อน (fail-closed) กันมาร์จินรวมเกินเพดาน" };
+    }
+    const existingMargin = Number(acct.json.totalInitialMargin || 0);
+    return marginDecision({ existingMargin, newMargin, equity, capPct });
   }
 
   // Pretty-print a single balance row from /fapi/v2/balance.
@@ -1138,6 +1196,16 @@ module.exports = (ctx) => {
           return `ถึงเพดาน ${maxConc} position พร้อมกัน (เปิดอยู่ ${open.length}: ${open.map((p) => p.symbol).join(", ")}) — ปิดไม้เก่าก่อน`;
       } catch {}
     }
+    // Portfolio margin HARD CAP (Framework B) — worst-case total margin must
+    // stay ≤ marginCapPct% of equity. Effective leverage is gated by stop width
+    // (same tier table applyLeverageGuard will set before opening), so the margin
+    // estimate here matches what the exchange will actually lock.
+    {
+      const lg = leverageGuard({ entry: o.entry, stop: o.stopPrice, requestedLev: null });
+      const mLev = lg.skipped ? (c.leverageDefault || 3) : lg.effLev;
+      const mchk = await marginGuard({ notional: o.usdValue, effLev: mLev });
+      if (!mchk.ok) return mchk.reason;
+    }
     // Daily loss limit. Scalping: scalpingRules.dailyLossPct (3%). Trend: top-level
     // dailyLossPct (2%). Sizing base for % is simulatedEquity (real capital), not
     // the testnet balance.
@@ -1630,6 +1698,7 @@ module.exports = (ctx) => {
         if (typeof p.maxLeverage === "number") patch.maxLeverage = p.maxLeverage;
         if (typeof p.leverageDefault === "number") patch.leverageDefault = p.leverageDefault;
         if (typeof p.maxConcurrentPositions === "number") patch.maxConcurrentPositions = p.maxConcurrentPositions;
+        if (typeof p.marginCapPct === "number") patch.marginCapPct = p.marginCapPct;
         if (typeof p.dailyLossPct === "number") patch.dailyLossPct = p.dailyLossPct;
         if (typeof p.autoTrade === "boolean") patch.autoTrade = p.autoTrade;
         if (typeof p.autoTradeSignal === "boolean") patch.autoTradeSignal = p.autoTradeSignal;
@@ -1794,18 +1863,29 @@ module.exports = (ctx) => {
           // known (explicit-qty orders with no stop can't be gated by stop width).
           const entryForLev = o.price || price;
           const levPreview = leverageGuard({ entry: entryForLev, stop: o.stop, requestedLev: null });
-          // dry / preview: return the computed sizing + leverage WITHOUT placing.
-          // Passes through the same price fetch + sizeByRisk + tradeGuard path.
+          // Portfolio margin HARD CAP (Framework B): worst-case total margin must
+          // stay ≤ marginCapPct% of equity — the book can never touch 100%. Same
+          // effective leverage the exchange will lock (from the tier table above).
+          const mLevManual = levPreview.skipped ? (cfg().leverageDefault || 3) : levPreview.effLev;
+          const marginChk = await marginGuard({ notional: usdValue, effLev: mLevManual });
+          // dry / preview: return the computed sizing + leverage + margin WITHOUT
+          // placing. Passes through the same price + sizeByRisk + tradeGuard path.
           if (o.dry) {
-            audit({ cmd: "order-dry", symbol: o.symbol, side: o.side, qty, usdValue, sizing, leverage: levPreview });
+            audit({ cmd: "order-dry", symbol: o.symbol, side: o.side, qty, usdValue, sizing, leverage: levPreview, margin: marginChk });
             const levMsg = levPreview.skipped ? "" : levPreview.reject
               ? ` — ⛔ ${levPreview.reason}`
               : ` — lev ${levPreview.effLev}x (stop ${levPreview.stopPct}% → tier ${levPreview.tierLev}x, liq ~${levPreview.liqPct}% ≥ ${levPreview.liqNeededPct}%)`;
+            const marginMsg = marginChk.skipped ? ""
+              : marginChk.ok
+                ? ` — margin ✓ รวม $${marginChk.projected} (${marginChk.projectedPct}% ≤ ${marginChk.capPct}%)`
+                : ` — ⛔ ${marginChk.reason}`;
             return reply({ ok: true, dry: true, symbol: o.symbol, side: o.side,
               type: o.price ? "LIMIT" : "MARKET", qty, entry: entryForLev,
-              notional: usd2(usdValue), sizing, leverage: levPreview,
-              msg: `DRY (ไม่ส่ง order จริง): ${o.side} ${qty} ${o.symbol}${sizing ? ` — risk $${sizing.riskUsd} (${sizing.riskPct}%), notional $${usd2(usdValue)}${sizing.capped ? " [capped ที่ backstop]" : ""}` : `, notional $${usd2(usdValue)}`}${levMsg}` });
+              notional: usd2(usdValue), sizing, leverage: levPreview, margin: marginChk,
+              msg: `DRY (ไม่ส่ง order จริง): ${o.side} ${qty} ${o.symbol}${sizing ? ` — risk $${sizing.riskUsd} (${sizing.riskPct}%), notional $${usd2(usdValue)}${sizing.capped ? " [capped ที่ backstop]" : ""}` : `, notional $${usd2(usdValue)}`}${levMsg}${marginMsg}` });
           }
+          // Live: enforce the margin hard cap BEFORE any leverage side-effect.
+          if (!marginChk.ok) { audit({ cmd: "order", ...o, qty, usdValue, blocked: marginChk.reason }); return reply({ ok: false, blocked: true, msg: marginChk.reason, margin: marginChk }); }
           // Live: enforce the guardrail — set gated leverage on the exchange, or
           // block if even the lowest tier can't clear the liquidation buffer.
           // SAFETY GUARD (v0.8.1): only auto-set leverage when this is a genuinely
