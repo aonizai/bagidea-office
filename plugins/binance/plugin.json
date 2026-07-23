@@ -1,8 +1,8 @@
 {
   "id": "binance",
   "name": "📈 Binance Trader",
-  "version": "0.6.0",
-  "description": "Crypto trading desk on Binance Futures testnet: market data (klines/funding), account (balance/positions/orders), execution (order/close/stop/leverage/cancel), income/PnL, monitoring loop with alerts, and a guarded auto-trade engine. v0.6 adds a read-only /plugin/binance/snapshot route + token-gated /pause kill-switch for the Copilot dashboard bridge. Testnet-only with per-order USD cap + leverage cap + daily loss limit + audit log.",
+  "version": "0.8.1",
+  "description": "Crypto trading desk on Binance Futures testnet: market data (klines/funding), account (balance/positions/orders), execution (order/close/stop/leverage/cancel), income/PnL, monitoring loop with alerts, and a guarded auto-trade engine. v0.8 adds a DYNAMIC LEVERAGE GUARDRAIL (Option B): maxLeverage is now a 20x ceiling, and effective leverage is auto-capped by stop width so liquidation stays ≥1.5× the stop away — stop ≤3%→20x · 3–4%→15x · 4–6%→10x · >6%→7x — applied uniformly across manual order, autotrade, and auto-signal; rejects only when even the lowest tier can't clear the buffer. v0.7 unifies %-risk position sizing across ALL paths (qty = equity×risk%/stopDist, default 0.5% ≈ $25). Notional backstop = 100% of equity (~$5000). Testnet-only with notional cap + leverage guardrail + daily loss limit + audit log.",
   "panel": "panel.html",
   "window": { "w": 680, "h": 820, "resizable": true },
   "commands": [
@@ -14,7 +14,7 @@
     { "name": "balance",     "args": "",                  "desc": "Futures account balances (testnet — requires API key)" },
     { "name": "positions",   "args": "",                  "desc": "Open futures positions with unrealized PnL + leverage (requires key)" },
     { "name": "openorders",  "args": "[symbol]",          "desc": "Currently resting (unfilled) orders (requires key)" },
-    { "name": "order",       "args": "<symbol> <BUY|SELL> <qty> [@price]", "desc": "Place a testnet order (MANUAL). MARKET if no price, LIMIT if @price. e.g. order BTCUSDT BUY 0.001" },
+    { "name": "order",       "args": "<symbol> <BUY|SELL> <qty|risk> [stopPrice] [@price]", "desc": "Place a testnet order (MANUAL). Explicit qty: order BTCUSDT BUY 0.001. Or %-risk sizing: order BTCUSDT BUY risk 59700 (qty = equity×0.5%/stopDist). MARKET if no @price, LIMIT if @price." },
     { "name": "autotrade",   "args": "<symbol> <BUY|SELL> <qty> <grade A|B|C> <stopPrice> [@entryPrice]", "desc": "Gated auto-execution: runs autoTradeGuard (autoTrade on + cap + daily loss + grade + no-averaging) then places order + mandatory stop. e.g. autotrade BTCUSDT BUY 0.001 B 59000 @60000" },
     { "name": "close",       "args": "<symbol>",          "desc": "Flatten any open position on a symbol at market (close BTCUSDT)" },
     { "name": "stoploss",    "args": "<symbol> <triggerPrice>", "desc": "STOP-MARKET that closes the position if price crosses the trigger. Auto-detects side (also take-profit)" },

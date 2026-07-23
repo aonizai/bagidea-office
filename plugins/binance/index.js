@@ -15,6 +15,10 @@ const path = require("path");
 // at a glance on a phone lock screen.
 const fmtPrice = (p) => p == null ? "—" : Number(p).toLocaleString("en-US", { maximumFractionDigits: 4 });
 const fmtUsd = (v) => (v >= 0 ? "+" : "") + "$" + Math.abs(v).toFixed(2);
+// %-of-equity rounding: pct + usd to 2dp, null-safe so a missing risk-at-stop
+// (no tracked stop) passes straight through.
+const pct2 = (v) => v == null || !isFinite(v) ? null : Math.round(Number(v) * 100) / 100;
+const usd2 = (v) => v == null || !isFinite(v) ? null : Math.round(Number(v) * 100) / 100;
 // Build a single alert message. kind drives the emoji + color word.
 // rows = [{label, value, accent?}] rendered as "label: value" lines.
 function tgAlert(opts) {
@@ -46,8 +50,37 @@ const URLS = {
 const DEFAULTS = {
   testnet: true,
   tradeEnabled: false,        // read-only until explicitly opened
-  maxOrderUsd: 10,            // cap per order (testnet safety)
-  maxLeverage: 5,             // cap on leverage setting (testnet safety)
+  // Per-order notional cap as a % of equity — a pure BACKSTOP, not the sizer.
+  // Real size comes from %-risk (qty = equity×riskPct/stopDist); this only stops
+  // a pathologically tight stop from blowing size up. notional = qty×price must
+  // stay <= equity×maxNotionalPct%. At $5002 base, 100% = ~$5000. By design this
+  // does NOT bind a normal setup: a 0.5% stop sizes to exactly ~equity notional,
+  // which equals the cap (strict `>`), so it passes. Tighter-than-0.5% stops get
+  // trimmed to ~$5000. Bounds BOTH manual orders (tradeGuard) and the auto path.
+  maxNotionalPct: 100,        // ~$5000 backstop @ $5002 base (was 60/$3000)
+  maxLeverage: 20,            // hard CEILING on leverage (was flat 5x). Effective
+                              // leverage is squeezed BELOW this by dynamicLeverage
+                              // (Option B) based on stop width — see below.
+  leverageDefault: 3,         // desk default leverage (set via `leverage` cmd; cap = maxLeverage)
+  // Dynamic leverage guardrail (Option B — replaces the flat 5x cap). Effective
+  // leverage is gated by STOP WIDTH so liquidation always sits a safe multiple
+  // beyond the stop. The tier table squeezes effective leverage DOWN as the stop
+  // widens (auto-cap, never up); maxLeverage above is only the ceiling:
+  //   stop ≤3% → 20x · 3–4% → 15x · 4–6% → 10x · >6% → 7x
+  // Principle: liquidation distance (≈100/lev %) must stay ≥ liqBufferMult× the
+  // stop distance. If even the lowest tier can't clear that buffer (stop too
+  // wide), the trade is REJECTED; otherwise leverage is auto-capped to the tier.
+  dynamicLeverage: {
+    enabled: true,
+    liqBufferMult: 1.5,       // liquidation must be ≥ this × stop distance away
+    tiers: [                  // first tier whose maxStopPct ≥ stopPct wins
+      { maxStopPct: 3, maxLev: 20 },
+      { maxStopPct: 4, maxLev: 15 },
+      { maxStopPct: 6, maxLev: 10 },
+      { maxStopPct: 100, maxLev: 7 },
+    ],
+  },
+  maxConcurrentPositions: 2,  // engine may hold at most this many open positions at once
   allowedSymbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"],
   timeoutMs: 10000,
   // Auto-trade (Phase 7): off by default. When on, the monitoring loop can
@@ -55,7 +88,7 @@ const DEFAULTS = {
   // confirming each one. Still testnet-only + capped + audited.
   autoTrade: false,
   autoTradeRules: {
-    maxTradesPerDay: 5,
+    maxTradesPerDay: 3,
     requireSetupGrade: "B",   // A or B only
     mandatoryStop: true,
     noAveragingDown: true,
@@ -117,9 +150,11 @@ const DEFAULTS = {
   // but R is large. "Trade less. Trade better. Cut losers. Let winners run."
   entryTf: "15m",            // entry timeframe
   contextTf: "1h",           // higher-TF trend filter (must align with entry)
-  simulatedEquity: 2000,     // simulate real capital (testnet has $5001 but size off this)
+  simulatedEquity: 5002,     // real tradable USDT base ($5002). % risk/notional/loss size off this
   trendRules: {
-    riskPct: 0.3,            // 0.3%/trade = ~$6 from $2000
+    riskPct: 0.5,            // default risk/trade = 0.5% = ~$25 from $5002 base
+    riskPctMax: 1,           // ceiling for a normal (grade B/C) setup
+    riskPctMaxGradeA: 2,     // higher ceiling reserved for grade-A setups only
     atrStopMult: 2,          // stop = 2×ATR (wider than scalp 1.5)
     fixedTargetR: 0,         // 0 = no fixed target, let winners run; >0 = TP at that R
     partialTpR: 2,           // take partial profit at +2R
@@ -129,7 +164,7 @@ const DEFAULTS = {
     trailPct: 1.5,           // trail % from peak (wider than scalp 0.5)
     minRr: 2,                // minimum R:R to accept a setup
   },
-  dailyLossPct: 2,           // 2% daily loss circuit-breaker = $40 from $2000
+  dailyLossPct: 2,           // 2% daily loss circuit-breaker = ~$100 from $5002 base
   cooldownAfterLosses: 2,    // 2 consecutive losses → cooldown (was 3 for scalp)
   cooldownMin: 60,           // cooldown length in minutes (was 30)
   // Kill-switch for the read-only dashboard bridge. When tradePaused is true,
@@ -443,6 +478,100 @@ module.exports = (ctx) => {
     return Number((Math.floor(qty / stepSize + 1e-9) * stepSize).toFixed(dec));
   }
 
+  // Shared %-risk position sizer — the SINGLE sizing equation used by every path
+  // that opens size (auto-signal, autotrade, and manual `order` with a stop):
+  //   qty = (equity × riskPct%) / stopDistance
+  // then trimmed to the notional backstop (equity × maxNotionalPct%) and floored
+  // to the symbol's real stepSize, with minQty / minNotional gates enforced.
+  // Sizing base = simulatedEquity (locked real capital $5002), NOT the testnet
+  // balance, so numbers match what we'd size on mainnet. riskCeil (optional)
+  // clamps riskPct — the auto path passes a per-grade ceiling (2% grade-A, 1%
+  // otherwise); manual passes the plain trend ceiling. Returns
+  // { qty, riskPct, riskUsd, stopDist, notional, notionalCap, capped, equity }
+  // or { blocked } with a precise reason.
+  async function sizeByRisk({ symbol, entry, stop, riskPct, riskCeil }) {
+    const c = cfg();
+    const equity = c.simulatedEquity || await accountEquity();
+    const tr = c.trendRules || {};
+    let rp = riskPct != null ? riskPct : (tr.riskPct || 0.5);
+    const ceil = riskCeil != null ? riskCeil : (tr.riskPctMax || 1);
+    if (rp > ceil) rp = ceil;
+    const riskUsd = equity * rp / 100;
+    const stopDist = Math.abs(Number(entry) - Number(stop));
+    if (!(stopDist > 0)) return { blocked: "stop distance ศูนย์ — ขนาดไม่ได้ (entry เท่ากับ stop?)" };
+    let qty = riskUsd / stopDist;
+    // Notional backstop = equity × maxNotionalPct%. Risk sizing can exceed it when
+    // the stop is tighter than ~0.5% (e.g. $25 risk / $0.10 stop); the cap is a
+    // HARD ceiling — shrink qty so qty×entry <= cap. A normal 0.5% stop sizes to
+    // exactly ~equity notional = the cap, so it passes (strict `>`) untrimmed.
+    const notionalCap = equity * (c.maxNotionalPct || 100) / 100;
+    const maxQtyByCap = notionalCap / entry;
+    let capped = false;
+    if (qty > maxQtyByCap) { qty = maxQtyByCap; capped = true; }
+    // Floor to the symbol's real stepSize (exchangeInfo, cached).
+    const flt = await symbolFilters(symbol);
+    const q = quantizeQty(qty, flt ? flt.stepSize : 0);
+    if (q <= 0 || (flt && q < flt.minQty))
+      return { blocked: `qty ต่ำเกินไป (${qty}${flt ? `, ขั้นต่ำ exchange ${flt.minQty}` : ""}) — equity $${equity.toFixed(2)} risk ${rp}% notionalCap $${notionalCap.toFixed(0)}` };
+    if (flt && flt.minNotional > 0 && q * entry < flt.minNotional)
+      return { blocked: `notional $${(q * entry).toFixed(2)} ต่ำกว่าขั้นต่ำ exchange $${flt.minNotional} (${symbol})` };
+    return { qty: q, riskPct: rp, riskUsd, stopDist, notional: q * entry, notionalCap, capped, equity };
+  }
+
+  // --- Dynamic leverage guardrail (Option B) --------------------------------
+  // Pure computation: given entry+stop, return the effective leverage after the
+  // stop-width tier squeeze + the ≥liqBufferMult× liquidation-buffer check.
+  // { effLev, tierLev, ceiling, stopPct, liqPct, liqNeededPct, reject, reason,
+  //   skipped }. skipped=true when there's no usable stop (can't gate). requested
+  // (optional) is the leverage the caller wants; default = ceiling (auto paths
+  // pass none → they always run at the tier max, never above it).
+  function leverageForStop(stopPct, tiers) {
+    for (const t of tiers) if (stopPct <= t.maxStopPct) return t.maxLev;
+    return tiers.length ? tiers[tiers.length - 1].maxLev : 0;
+  }
+  function leverageGuard({ entry, stop, requestedLev }) {
+    const c = cfg();
+    const dl = c.dynamicLeverage || {};
+    const ceiling = c.maxLeverage || 20;
+    const e = Number(entry), s = Number(stop);
+    if (!(e > 0) || !(s > 0) || !(Math.abs(e - s) > 0))
+      return { skipped: true, reject: false, effLev: null };     // no stop → can't gate
+    const stopPct = Math.abs(e - s) / e * 100;
+    if (dl.enabled === false)
+      return { skipped: true, reject: false, stopPct, effLev: null };
+    const tiers = Array.isArray(dl.tiers) && dl.tiers.length ? dl.tiers
+      : [{ maxStopPct: 3, maxLev: 20 }, { maxStopPct: 4, maxLev: 15 }, { maxStopPct: 6, maxLev: 10 }, { maxStopPct: 100, maxLev: 7 }];
+    const tierLev = Math.min(leverageForStop(stopPct, tiers), ceiling);
+    const req = requestedLev != null ? Number(requestedLev) : ceiling;
+    const effLev = Math.max(1, Math.min(req, tierLev, ceiling));
+    const buf = dl.liqBufferMult || 1.5;
+    const liqPct = 100 / effLev;               // liquidation distance ≈ 1/lev (initial-margin model)
+    const liqNeededPct = buf * stopPct;
+    const reject = liqPct < liqNeededPct;      // even the tier floor can't clear the buffer
+    const r2 = (x) => Math.round(x * 100) / 100;
+    return {
+      skipped: false, reject, effLev, tierLev, ceiling, buf,
+      stopPct: r2(stopPct), liqPct: r2(liqPct), liqNeededPct: r2(liqNeededPct),
+      reason: reject
+        ? `leverage guardrail: stop กว้าง ${stopPct.toFixed(2)}% — แม้ที่ ${effLev}x liquidation (~${liqPct.toFixed(1)}%) ยังไม่ห่าง ≥${buf}× stop (${liqNeededPct.toFixed(1)}%) → reject`
+        : null,
+    };
+  }
+  // Live variant: run the guard, and if it passes (and a stop exists) SET the
+  // symbol's leverage on the exchange to the gated value BEFORE the position
+  // opens. Returns { ok, ...guard, applied }. ok=false → the caller must block
+  // (either the guard rejected, or we couldn't guarantee the gated leverage).
+  async function applyLeverageGuard(symbol, entry, stop, requestedLev) {
+    const g = leverageGuard({ entry, stop, requestedLev });
+    if (g.skipped) return { ok: true, ...g };
+    if (g.reject) return { ok: false, ...g };
+    const r = await req("POST", "/fapi/v1/leverage", { symbol, leverage: String(g.effLev) }, true);
+    audit({ cmd: "leverage-auto", symbol, effLev: g.effLev, tierLev: g.tierLev, stopPct: g.stopPct, ok: r.ok, status: r.status, resp: r.json || r.body });
+    if (!r.ok)
+      return { ok: false, ...g, applied: false, reason: `ตั้ง effective leverage ${g.effLev}x (${symbol}) ไม่สำเร็จ — ยกเลิกไม้ ไม่เปิดที่ leverage เกิน guardrail (${(r.json && r.json.msg) || r.body})` };
+    return { ok: true, ...g, applied: true };
+  }
+
   // Pretty-print a single balance row from /fapi/v2/balance.
   const fmtBal = (b) => ({
     asset: b.asset,
@@ -461,23 +590,62 @@ module.exports = (ctx) => {
     leverage: Number(p.leverage),
   });
 
-  // Parse "BTCUSDT BUY 0.001" or "BTCUSDT BUY 0.001 @60000" into a clean object.
+  // Parse a manual order line into a clean object. Two sizing modes:
+  //   explicit qty:  order BTCUSDT BUY 0.001            (MARKET)
+  //                  order BTCUSDT BUY 0.001 @60000     (LIMIT @60000)
+  //   %-risk sizing: order BTCUSDT BUY risk 59700       (MARKET, stop 59700 → qty auto)
+  //                  order BTCUSDT BUY risk 59700 @60000(LIMIT @60000, stop 59700)
+  //                  order BTCUSDT BUY risk=0.5 59700   (override risk% for this order)
+  // In %-risk mode qty = equity×riskPct/stopDist (shared sizeByRisk). The stop is
+  // the first bare number after the `risk` keyword; @price = entry (default: mark).
   // Tolerates JSON too: {"symbol":"BTCUSDT","side":"buy","qty":0.001,"price":60000}
+  // or {"symbol":"BTCUSDT","side":"buy","risk":true,"stop":59700,"riskPct":0.5}.
+  // Returns { symbol, side, mode:'explicit'|'risk', qty, price, stop, riskPct }.
   function parseOrderArgs(raw) {
     const s = String(raw || "").trim();
     if (!s) return null;
     if (s.startsWith("{")) {
       try {
         const o = JSON.parse(s);
-        if (!o.symbol || !o.side || !o.qty) return null;
-        return { symbol: String(o.symbol).toUpperCase(), side: String(o.side).toUpperCase(),
-          qty: Number(o.qty), price: o.price ? Number(o.price) : null };
+        if (!o.symbol || !o.side) return null;
+        const base = { symbol: String(o.symbol).toUpperCase(), side: String(o.side).toUpperCase(),
+          price: o.price != null ? Number(o.price) : null, dry: !!o.dry };
+        if (o.risk || o.mode === "risk") {
+          if (o.stop == null) return null;
+          return { ...base, mode: "risk", qty: null, stop: Number(o.stop), riskPct: o.riskPct != null ? Number(o.riskPct) : null };
+        }
+        if (o.qty == null) return null;
+        return { ...base, mode: "explicit", qty: Number(o.qty), stop: o.stop != null ? Number(o.stop) : null, riskPct: null };
       } catch { return null; }
     }
-    // Split on whitespace, but pull an optional "@price" off the end.
-    const m = s.match(/^(\S+)\s+(BUY|SELL|buy|sell)\s+([\d.]+)(?:\s*@?\s*([\d.]+))?$/);
-    if (!m) return null;
-    return { symbol: m[1].toUpperCase(), side: m[2].toUpperCase(), qty: Number(m[3]), price: m[4] ? Number(m[4]) : null };
+    const parts = s.split(/\s+/);
+    const symbol = (parts[0] || "").toUpperCase();
+    const side = (parts[1] || "").toUpperCase();
+    if (!symbol || (side !== "BUY" && side !== "SELL")) return null;
+    let mode = "explicit", qty = null, price = null, stop = null, riskPct = null, dry = false;
+    const nums = [];   // bare (non-@, non-keyword) numbers, in order
+    for (const tok of parts.slice(2)) {
+      if (tok.startsWith("@")) { const p = Number(tok.slice(1)); if (Number.isFinite(p)) price = p; continue; }
+      // dry / preview: compute + return the sizing WITHOUT placing an order.
+      if (/^(?:dry|--dry|preview)$/i.test(tok)) { dry = true; continue; }
+      const mRisk = /^risk(?:=([\d.]+))?$/i.exec(tok);
+      if (mRisk || tok === "%") { mode = "risk"; if (mRisk && mRisk[1]) riskPct = Number(mRisk[1]); continue; }
+      const n = Number(tok);
+      if (Number.isFinite(n)) nums.push(n);
+    }
+    if (mode === "risk") {
+      // First bare number = stop price (required). A second bare number, if no @
+      // was given, is treated as the entry price.
+      if (!nums.length) return null;
+      stop = nums[0];
+      if (price == null && nums.length > 1) price = nums[1];
+      return { symbol, side, mode, qty: null, price, stop, riskPct, dry };
+    }
+    // explicit: first bare number = qty (required); second = price (legacy @-less form).
+    if (!nums.length) return null;
+    qty = nums[0];
+    if (price == null && nums.length > 1) price = nums[1];
+    return { symbol, side, mode, qty, price, stop: null, riskPct: null, dry };
   }
 
   // --- Trading guards + audit log -------------------------------------------
@@ -504,8 +672,12 @@ module.exports = (ctx) => {
     const sym = String(o.symbol || "").toUpperCase();
     if (c.allowedSymbols && c.allowedSymbols.length && !c.allowedSymbols.includes(sym))
       return `symbol ${sym} ไม่อยู่ใน allowlist (อนุญาต: ${c.allowedSymbols.join(", ")})`;
-    if (c.maxOrderUsd && o.usdValue && o.usdValue > c.maxOrderUsd)
-      return `ขนาด order $${o.usdValue} เกิน cap $${c.maxOrderUsd}`;
+    // Notional cap = equity x maxNotionalPct%. equityBase uses simulatedEquity
+    // (the locked $5002 real base) so the check stays sync + deterministic.
+    const equityBase = c.simulatedEquity || 0;
+    const notionalCap = equityBase * (c.maxNotionalPct || 0) / 100;
+    if (notionalCap && o.usdValue && o.usdValue > notionalCap)
+      return `notional $${Number(o.usdValue).toFixed(2)} เกิน cap $${notionalCap.toFixed(0)} (${c.maxNotionalPct}% ของ equity $${equityBase})`;
     if (o.leverage && c.maxLeverage && o.leverage > c.maxLeverage)
       return `leverage ${o.leverage}x เกิน cap ${c.maxLeverage}x`;
     return null;   // allowed
@@ -717,7 +889,7 @@ module.exports = (ctx) => {
   async function buildSnapshot() {
     const c = cfg();
     const caps = {
-      maxOrderUsd: c.maxOrderUsd, maxLeverage: c.maxLeverage,
+      maxNotionalPct: c.maxNotionalPct, maxLeverage: c.maxLeverage,
       maxTradesPerDay: (c.autoTradeRules || {}).maxTradesPerDay,
       dailyLossPct: c.scalping ? (c.scalpingRules || {}).dailyLossPct : (c.dailyLossPct || 2),
     };
@@ -866,31 +1038,16 @@ module.exports = (ctx) => {
     // One-position-at-a-time: skip if any tracked position is open.
     if (rules.onePositionAtATime && readPos().length > 0)
       return { blocked: "มี position เปิดอยู่แล้ว — ข้าม signal" };
-    // Position size from trend risk%: qty = (equity × riskPct%) / stopDistance.
-    // Sizing base is simulatedEquity (real capital $2000) — NOT the testnet
-    // balance ($5001) — so numbers match what we'd use on mainnet.
-    const equity = c.simulatedEquity || await accountEquity();
+    // Position size via the shared %-risk sizer (same equation as manual `order`
+    // + autotrade). Grade risk ceiling: 2% reserved for grade-A, 1% otherwise —
+    // the default 0.5% sits under both, so it only bites if riskPct is raised.
     const tr = c.trendRules || {};
     const sr = c.scalping ? (c.scalpingRules || {}) : {};
-    const riskPct = c.scalping ? (sr.riskPct || 0.5) : (tr.riskPct || 0.3);
-    const riskUsd = equity * riskPct / 100;
-    const stopDist = Math.abs(r.entry - r.stop);
-    if (stopDist <= 0) return { blocked: "stop distance ศูนย์ — ขนาดไม่ได้" };
-    let qty = riskUsd / stopDist;
-    // Cap by maxOrderUsd: risk-based sizing can give a notional way over the
-    // testnet cap (e.g. $25 risk / $0.53 stop = 47 BNB = $27k notional). The
-    // cap is a HARD floor — shrink qty so qty × entry ≤ cap.
-    const cap = c.maxOrderUsd || 10;
-    const maxQtyByCap = cap / r.entry;
-    if (qty > maxQtyByCap) qty = maxQtyByCap;
-    // Floor qty to the symbol's real stepSize (exchangeInfo, cached). The old fixed
-    // 3-decimal floor mis-sized coarse-precision symbols -> "Precision is over the maximum".
-    const flt = await symbolFilters(r.symbol);
-    const q = quantizeQty(qty, flt ? flt.stepSize : 0);
-    if (q <= 0 || (flt && q < flt.minQty))
-      return { blocked: `qty ต่ำเกินไป (${qty}${flt ? `, ขั้นต่ำ exchange ${flt.minQty}` : ""}) — equity $${equity.toFixed(2)} risk ${riskPct}% cap $${cap}` };
-    if (flt && flt.minNotional > 0 && q * r.entry < flt.minNotional)
-      return { blocked: `notional $${(q * r.entry).toFixed(2)} ต่ำกว่าขั้นต่ำ exchange $${flt.minNotional} (${r.symbol}) — cap $${cap} เล็กเกินสำหรับเหรียญนี้` };
+    const riskPct0 = c.scalping ? (sr.riskPct || 0.5) : (tr.riskPct || 0.5);
+    const riskCeil = r.grade === "A" ? (tr.riskPctMaxGradeA || 2) : (tr.riskPctMax || 1);
+    const sized = await sizeByRisk({ symbol: r.symbol, entry: r.entry, stop: r.stop, riskPct: riskPct0, riskCeil });
+    if (sized.blocked) return { blocked: sized.blocked };
+    const q = sized.qty;
     const side = r.dir === "bull" ? "BUY" : "SELL";
     // Build the order object the guard expects, then run the FULL gate.
     const o = { symbol: r.symbol, side, qty: q, grade: r.grade,
@@ -898,6 +1055,10 @@ module.exports = (ctx) => {
     o.usdValue = r.entry * q;
     const block = await autoTradeGuard(o);
     if (block) return { blocked: block };
+    // Dynamic leverage guardrail (Option B): gate effective leverage by stop
+    // width before opening. Reject only if even the lowest tier fails the buffer.
+    const lg = await applyLeverageGuard(r.symbol, r.entry, r.stop, null);
+    if (!lg.ok) { audit({ cmd: "auto-signal-blocked", symbol: r.symbol, grade: r.grade, blocked: lg.reason }); return { blocked: lg.reason }; }
     // Place MARKET order (scalp = speed) + mandatory stop.
     const or = await req("POST", "/fapi/v1/order",
       { symbol: r.symbol, side, type: "MARKET", quantity: String(q) }, true);
@@ -962,6 +1123,20 @@ module.exports = (ctx) => {
     if (rules.maxTradesPerDay) {
       const n = tradesToday();
       if (n >= rules.maxTradesPerDay) return `ถึง limit ${rules.maxTradesPerDay} ไม้/วัน แล้ว (วันนี้ ${n} ไม้)`;
+    }
+    // Max concurrent open positions — engine-wide exposure cap. Counts LIVE
+    // exchange positions (authoritative), so it also respects the CEO's own
+    // manual books (e.g. an open ETH SHORT). Adding to a symbol that's already
+    // open isn't a new book, so only a brand-new symbol at the cap is blocked.
+    const maxConc = c.maxConcurrentPositions || 0;
+    if (maxConc) {
+      try {
+        const prc = await req("GET", "/fapi/v2/positionRisk", null, true);
+        const open = (prc.ok && Array.isArray(prc.json) ? prc.json : []).filter((p) => Math.abs(Number(p.positionAmt || 0)) > 0);
+        const already = open.some((p) => p.symbol === o.symbol);
+        if (!already && open.length >= maxConc)
+          return `ถึงเพดาน ${maxConc} position พร้อมกัน (เปิดอยู่ ${open.length}: ${open.map((p) => p.symbol).join(", ")}) — ปิดไม้เก่าก่อน`;
+      } catch {}
     }
     // Daily loss limit. Scalping: scalpingRules.dailyLossPct (3%). Trend: top-level
     // dailyLossPct (2%). Sizing base for % is simulatedEquity (real capital), not
@@ -1451,8 +1626,11 @@ module.exports = (ctx) => {
         if (typeof p.testnet === "boolean") patch.testnet = p.testnet;
         if (Array.isArray(p.allowedSymbols)) patch.allowedSymbols = p.allowedSymbols;
         if (typeof p.tradeEnabled === "boolean") patch.tradeEnabled = p.tradeEnabled;
-        if (typeof p.maxOrderUsd === "number") patch.maxOrderUsd = p.maxOrderUsd;
+        if (typeof p.maxNotionalPct === "number") patch.maxNotionalPct = p.maxNotionalPct;
         if (typeof p.maxLeverage === "number") patch.maxLeverage = p.maxLeverage;
+        if (typeof p.leverageDefault === "number") patch.leverageDefault = p.leverageDefault;
+        if (typeof p.maxConcurrentPositions === "number") patch.maxConcurrentPositions = p.maxConcurrentPositions;
+        if (typeof p.dailyLossPct === "number") patch.dailyLossPct = p.dailyLossPct;
         if (typeof p.autoTrade === "boolean") patch.autoTrade = p.autoTrade;
         if (typeof p.autoTradeSignal === "boolean") patch.autoTradeSignal = p.autoTradeSignal;
         if (typeof p.tradePaused === "boolean") patch.tradePaused = p.tradePaused;
@@ -1467,26 +1645,38 @@ module.exports = (ctx) => {
         return reply({ ok: true, testnet: c.testnet, hasKey: !!c.apiKey, hasSecret: !!c.apiSecret,
           tradeEnabled: c.tradeEnabled, autoTrade: c.autoTrade, autoTradeSignal: c.autoTradeSignal,
           scalping: c.scalping, tradePaused: c.tradePaused, hasPauseToken: !!c.officePauseToken,
-          allowedSymbols: c.allowedSymbols, maxOrderUsd: c.maxOrderUsd, maxLeverage: c.maxLeverage,
+          allowedSymbols: c.allowedSymbols, maxNotionalPct: c.maxNotionalPct, maxLeverage: c.maxLeverage,
           monitorMs: c.monitorMs, scanIntervalMs: c.scanIntervalMs, autoTradeRules: c.autoTradeRules });
       }
 
       if (cmd === "status") {
         const c = cfg();
         const base = c.testnet ? URLS.testnet : URLS.mainnet;
-        // Ping the public time endpoint to confirm reachability without keys.
-        return req("GET", "/fapi/v1/ping").then((r) => reply({
-          ok: r.ok, reachable: r.ok,
-          environment: c.testnet ? "TESTNET" : "MAINNET",
-          baseUrl: base,
-          hasKey: !!c.apiKey, hasSecret: !!c.apiSecret,
-          tradeEnabled: c.tradeEnabled, autoTrade: c.autoTrade, autoTradeSignal: c.autoTradeSignal,
-          scalping: c.scalping, tradePaused: c.tradePaused, hasPauseToken: !!c.officePauseToken,
-          allowedSymbols: c.allowedSymbols,
-          maxOrderUsd: c.maxOrderUsd, maxLeverage: c.maxLeverage,
-          monitorMs: c.monitorMs, scanIntervalMs: c.scanIntervalMs,
-          pingStatus: r.status, pingError: r.error,
-        }));
+        return (async () => {
+          // Ping the public time endpoint to confirm reachability without keys.
+          const r = await req("GET", "/fapi/v1/ping");
+          const tr = c.trendRules || {};
+          const equity = c.simulatedEquity || await accountEquity();
+          const notionalCap = equity * (c.maxNotionalPct || 0) / 100;
+          // Day PnL% off the same equity base (best-effort — needs keys).
+          let dayPnlUsd = null, dayPnlPct = null;
+          try { const { realized, unreal } = await dailyPnl(); dayPnlUsd = usd2(realized + unreal); dayPnlPct = pct2((realized + unreal) / equity * 100); } catch {}
+          const lossPct = c.scalping ? (c.scalpingRules || {}).dailyLossPct : (c.dailyLossPct || 2);
+          reply({
+            ok: r.ok, reachable: r.ok,
+            environment: c.testnet ? "TESTNET" : "MAINNET",
+            baseUrl: base,
+            hasKey: !!c.apiKey, hasSecret: !!c.apiSecret,
+            tradeEnabled: c.tradeEnabled, autoTrade: c.autoTrade, autoTradeSignal: c.autoTradeSignal,
+            scalping: c.scalping, tradePaused: c.tradePaused, hasPauseToken: !!c.officePauseToken,
+            allowedSymbols: c.allowedSymbols,
+            maxNotionalPct: c.maxNotionalPct, notionalCapUsd: usd2(notionalCap), equityBase: usd2(equity),
+            riskPct: tr.riskPct, riskPctMax: tr.riskPctMax, riskPctMaxGradeA: tr.riskPctMaxGradeA,
+            maxLeverage: c.maxLeverage, dynamicLeverage: c.dynamicLeverage, dailyLossPct: lossPct, dayPnlUsd, dayPnlPct,
+            monitorMs: c.monitorMs, scanIntervalMs: c.scanIntervalMs,
+            pingStatus: r.status, pingError: r.error,
+          });
+        })().catch((e) => reply({ ok: false, msg: "status error: " + e.message }));
       }
 
       // pause [on|off] [reason] — toggle the kill-switch from the office panel
@@ -1537,48 +1727,127 @@ module.exports = (ctx) => {
       }
 
       if (cmd === "positions") {
-        return req("GET", "/fapi/v2/positionRisk", null, true).then((r) => {
+        return (async () => {
+          const c = cfg();
+          const r = await req("GET", "/fapi/v2/positionRisk", null, true);
           if (!r.ok) return reply({ ok: false, status: r.status, error: r.error || (r.json && r.json.msg) || r.body });
-          const rows = (Array.isArray(r.json) ? r.json : []).map(fmtPos).filter((p) => p.size > 0);
-          reply({ ok: true, environment: cfg().testnet ? "TESTNET" : "MAINNET", count: rows.length, positions: rows });
-        });
+          const equity = c.simulatedEquity || await accountEquity();
+          const tracked = readPos();
+          const rows = (Array.isArray(r.json) ? r.json : []).map(fmtPos).filter((p) => p.size > 0).map((p) => {
+            const notional = p.size * p.mark;
+            // Risk-at-stop% needs a stop; positionRisk carries none, so join with
+            // the tracked position. Null when the position isn't tracked w/ a stop.
+            const t = tracked.find((x) => x.symbol === p.symbol);
+            const stop = t ? (t.stop != null ? t.stop : t.initialStop) : null;
+            const riskUsd = stop != null ? Math.abs(p.entry - stop) * p.size : null;
+            return {
+              ...p,
+              uPnlPct: pct2(p.pnl / equity * 100),
+              exposurePct: pct2(notional / equity * 100),
+              riskAtStopPct: riskUsd != null ? pct2(riskUsd / equity * 100) : null,
+            };
+          });
+          let dayPnlUsd = null, dayPnlPct = null;
+          try { const { realized, unreal } = await dailyPnl(); dayPnlUsd = usd2(realized + unreal); dayPnlPct = pct2((realized + unreal) / equity * 100); } catch {}
+          reply({
+            ok: true, environment: c.testnet ? "TESTNET" : "MAINNET",
+            equityBase: usd2(equity), count: rows.length, positions: rows,
+            exposurePctTotal: pct2(rows.reduce((s, p) => s + (p.exposurePct || 0), 0)),
+            uPnlPctTotal: pct2(rows.reduce((s, p) => s + (p.uPnlPct || 0), 0)),
+            dayPnlUsd, dayPnlPct,
+          });
+        })().catch((e) => reply({ ok: false, msg: "positions error: " + e.message }));
       }
 
       // --- Trading commands. All go through tradeGuard first, then hit the
       // signed /fapi/v1/order endpoint, then audit-log the result. ----------
 
-      // order MARKET:  order BTCUSDT BUY 0.001        (qty in coin units)
-      // order LIMIT:   order BTCUSDT BUY 0.001 @60000  (price required)
+      // order MARKET:  order BTCUSDT BUY 0.001         (explicit qty)
+      // order LIMIT:   order BTCUSDT BUY 0.001 @60000  (explicit qty @price)
+      // %-risk MARKET: order BTCUSDT BUY risk 59700    (qty auto from 0.5% risk / stop)
+      // %-risk LIMIT:  order BTCUSDT BUY risk 59700 @60000
       // "SELL" opens/closes a SHORT; the same endpoint handles both directions
       // in hedge-off mode (the testnet default).
       if (cmd === "order") {
         const o = parseOrderArgs(args);
-        if (!o) return reply({ ok: false, msg: 'usage: order <SYMBOL> <BUY|SELL> <qty> [@price]   เช่น order BTCUSDT BUY 0.001  หรือ  order BTCUSDT BUY 0.001 @60000' });
-        // Estimate USD value from the latest price (for the cap check).
-        return req("GET", "/fapi/v1/ticker/price", { symbol: o.symbol }).then((pr) => {
+        if (!o) return reply({ ok: false, msg: 'usage: order <SYMBOL> <BUY|SELL> <qty> [@price]  หรือ  order <SYMBOL> <BUY|SELL> risk <stopPrice> [@entryPrice]   เช่น order BTCUSDT BUY 0.001  |  order BTCUSDT BUY risk 59700' });
+        return (async () => {
+          // Latest price for the cap check + as the default entry for %-sizing.
+          const pr = await req("GET", "/fapi/v1/ticker/price", { symbol: o.symbol });
           const price = pr.ok ? Number(pr.json.price) : 0;
-          const usdValue = price * o.qty;
+          let qty = o.qty, sizing = null;
+          if (o.mode === "risk") {
+            // Same equation as autotrade/auto-signal: qty = equity×risk%/stopDist,
+            // trimmed to the notional backstop, floored to stepSize, gates enforced.
+            if (!price) return reply({ ok: false, msg: "ดึงราคาไม่ได้ — ยกเลิก order (ต้องมีราคาไว้คำนวณ %-size)" });
+            const entry = o.price || price;
+            const sized = await sizeByRisk({ symbol: o.symbol, entry, stop: o.stop, riskPct: o.riskPct });
+            if (sized.blocked) { audit({ cmd: "order", ...o, blocked: sized.blocked }); return reply({ ok: false, blocked: true, msg: sized.blocked }); }
+            qty = sized.qty;
+            sizing = { mode: "risk", riskPct: sized.riskPct, riskUsd: usd2(sized.riskUsd), stopDist: sized.stopDist,
+              entry, notional: usd2(sized.notional), notionalCap: usd2(sized.notionalCap), capped: sized.capped, equity: usd2(sized.equity) };
+          }
+          const usdValue = (o.price || price) * qty;
           const block = tradeGuard({ symbol: o.symbol, usdValue });
-          if (block) { audit({ cmd: "order", ...o, usdValue, blocked: block }); return reply({ ok: false, blocked: true, msg: block }); }
+          if (block) { audit({ cmd: "order", ...o, qty, usdValue, blocked: block }); return reply({ ok: false, blocked: true, msg: block }); }
+          // Dynamic leverage guardrail preview (Option B) — only when a stop is
+          // known (explicit-qty orders with no stop can't be gated by stop width).
+          const entryForLev = o.price || price;
+          const levPreview = leverageGuard({ entry: entryForLev, stop: o.stop, requestedLev: null });
+          // dry / preview: return the computed sizing + leverage WITHOUT placing.
+          // Passes through the same price fetch + sizeByRisk + tradeGuard path.
+          if (o.dry) {
+            audit({ cmd: "order-dry", symbol: o.symbol, side: o.side, qty, usdValue, sizing, leverage: levPreview });
+            const levMsg = levPreview.skipped ? "" : levPreview.reject
+              ? ` — ⛔ ${levPreview.reason}`
+              : ` — lev ${levPreview.effLev}x (stop ${levPreview.stopPct}% → tier ${levPreview.tierLev}x, liq ~${levPreview.liqPct}% ≥ ${levPreview.liqNeededPct}%)`;
+            return reply({ ok: true, dry: true, symbol: o.symbol, side: o.side,
+              type: o.price ? "LIMIT" : "MARKET", qty, entry: entryForLev,
+              notional: usd2(usdValue), sizing, leverage: levPreview,
+              msg: `DRY (ไม่ส่ง order จริง): ${o.side} ${qty} ${o.symbol}${sizing ? ` — risk $${sizing.riskUsd} (${sizing.riskPct}%), notional $${usd2(usdValue)}${sizing.capped ? " [capped ที่ backstop]" : ""}` : `, notional $${usd2(usdValue)}`}${levMsg}` });
+          }
+          // Live: enforce the guardrail — set gated leverage on the exchange, or
+          // block if even the lowest tier can't clear the liquidation buffer.
+          // SAFETY GUARD (v0.8.1): only auto-set leverage when this is a genuinely
+          // NEW position. If a position is already open on this symbol, changing
+          // leverage under it retunes the margin/liquidation of the LIVE trade —
+          // never touch an open position's leverage. Skip the guard (leave the
+          // existing exchange leverage untouched) and record it in the audit log.
+          // Auto paths (autotrade / auto-signal) don't need this — no-averaging
+          // already blocks a second entry on a symbol that's already open.
+          if (o.stop != null) {
+            let posOpen = false;
+            const prc = await req("GET", "/fapi/v2/positionRisk", { symbol: o.symbol }, true);
+            if (prc.ok && Array.isArray(prc.json)) {
+              const pos = prc.json.find((p) => p.symbol === o.symbol);
+              posOpen = pos && Math.abs(Number(pos.positionAmt || 0)) > 0;
+            }
+            if (posOpen) {
+              audit({ cmd: "leverage-auto", symbol: o.symbol, skipped: "position-open", note: "manual order on symbol with open position — leverage left untouched" });
+            } else {
+              const lg = await applyLeverageGuard(o.symbol, entryForLev, o.stop, null);
+              if (!lg.ok) { audit({ cmd: "order", ...o, qty, usdValue, blocked: lg.reason }); return reply({ ok: false, blocked: true, msg: lg.reason, leverage: lg }); }
+            }
+          }
           const body = {
             symbol: o.symbol, side: o.side.toUpperCase(),
             type: o.price ? "LIMIT" : "MARKET",
-            quantity: String(o.qty),
+            quantity: String(qty),
             ...(o.price ? { price: String(o.price), timeInForce: "GTC" } : {}),
           };
-          return req("POST", "/fapi/v1/order", body, true).then((r) => {
-            const ok = r.ok;
-            audit({ cmd: "order", ...o, usdValue, price, ok, status: r.status, resp: r.json || r.body });
-            if (!ok) return reply({ ok: false, status: r.status, error: (r.json && r.json.msg) || r.body });
-            const j = r.json;
-            reply({
-              ok: true, orderId: j.orderId, status: j.status, type: j.type,
-              symbol: j.symbol, side: j.side, qty: Number(j.origQty),
-              price: j.price ? Number(j.price) : price,
-              avgPrice: j.avgPrice ? Number(j.avgPrice) : null,
-            });
+          const r = await req("POST", "/fapi/v1/order", body, true);
+          const ok = r.ok;
+          audit({ cmd: "order", ...o, qty, usdValue, price, sizing, ok, status: r.status, resp: r.json || r.body });
+          if (!ok) return reply({ ok: false, status: r.status, error: (r.json && r.json.msg) || r.body });
+          const j = r.json;
+          reply({
+            ok: true, orderId: j.orderId, status: j.status, type: j.type,
+            symbol: j.symbol, side: j.side, qty: Number(j.origQty),
+            price: j.price ? Number(j.price) : price,
+            avgPrice: j.avgPrice ? Number(j.avgPrice) : null,
+            sizing,
           });
-        });
+        })().catch((e) => reply({ ok: false, msg: "order error: " + e.message }));
       }
 
       // close <SYMBOL>: flatten any open position on that symbol by placing a
@@ -1871,11 +2140,17 @@ module.exports = (ctx) => {
       // order + mandatory stop. Every step is audited + alerted.
       // Usage: autotrade <symbol> <BUY|SELL> <qty> <grade> <stopPrice> [@entryPrice] [target]
       if (cmd === "autotrade") {
-        // Custom parse: autotrade <symbol> <BUY|SELL> <qty> <grade> <stopPrice> [targetPrice] [@entryPrice]
-        // targetPrice is optional but needed for the scalping fee-aware R:R check.
+        // Custom parse: autotrade <symbol> <BUY|SELL> <qty|risk[=pct]> <grade> <stopPrice> [targetPrice] [@entryPrice]
+        // qty slot accepts `risk` (or `risk=0.5`) to size from %-risk instead of a
+        // fixed qty — same equation as manual order / auto-signal. targetPrice is
+        // optional but needed for the scalping fee-aware R:R check.
         const parts = String(args || "").trim().split(/\s+/);
-        const o = { symbol: (parts[0] || "").toUpperCase(), side: (parts[1] || "").toUpperCase(), qty: Number(parts[2]) };
-        if (!o.symbol || !o.side || !o.qty) return reply({ ok: false, msg: 'usage: autotrade <symbol> <BUY|SELL> <qty> <grade> <stopPrice> [targetPrice] [@entryPrice]   เช่น autotrade BTCUSDT BUY 0.001 B 59000 61000 @60000' });
+        const qtyTok = parts[2] || "";
+        const mRisk = /^(?:risk|auto|%)(?:=([\d.]+))?$/i.exec(qtyTok);
+        const o = { symbol: (parts[0] || "").toUpperCase(), side: (parts[1] || "").toUpperCase(),
+          mode: mRisk ? "risk" : "explicit", qty: mRisk ? null : Number(qtyTok),
+          riskPct: mRisk && mRisk[1] ? Number(mRisk[1]) : null };
+        if (!o.symbol || !o.side || (o.mode === "explicit" && !o.qty)) return reply({ ok: false, msg: 'usage: autotrade <symbol> <BUY|SELL> <qty|risk> <grade> <stopPrice> [targetPrice] [@entryPrice]   เช่น autotrade BTCUSDT BUY 0.001 B 59000  หรือ  autotrade BTCUSDT BUY risk B 59000' });
         // grade (A/B/C) + stop price + optional target (numbers after grade).
         const gradeIdx = parts.findIndex((x) => /^[ABC]$/.test(x.toUpperCase()));
         o.grade = gradeIdx >= 0 ? parts[gradeIdx].toUpperCase() : null;
@@ -1892,15 +2167,32 @@ module.exports = (ctx) => {
           const pr = await req("GET", "/fapi/v1/ticker/price", { symbol: o.symbol });
           if (!pr.ok) return reply({ ok: false, msg: "ดึงราคาไม่ได้ — ยกเลิก autotrade" });
           const price = Number(pr.json.price);
-          o.usdValue = price * o.qty;
           // For the fee-aware R:R check, entry defaults to current price if not given.
           o.entry = o.price || price;
           o.stop = o.stopPrice;
+          // %-risk sizing (same equation as manual order / auto-signal). Grade
+          // ceiling: 2% grade-A, 1% otherwise; default 0.5% sits under both.
+          if (o.mode === "risk") {
+            const tr = cfg().trendRules || {};
+            const riskCeil = o.grade === "A" ? (tr.riskPctMaxGradeA || 2) : (tr.riskPctMax || 1);
+            const sized = await sizeByRisk({ symbol: o.symbol, entry: o.entry, stop: o.stop, riskPct: o.riskPct, riskCeil });
+            if (sized.blocked) { audit({ cmd: "autotrade", ...o, blocked: sized.blocked }); return reply({ ok: false, blocked: true, msg: sized.blocked }); }
+            o.qty = sized.qty;
+            o.sizing = { riskPct: sized.riskPct, riskUsd: usd2(sized.riskUsd), notional: usd2(sized.notional), capped: sized.capped };
+          }
+          o.usdValue = price * o.qty;
           // Full auto-trade gate.
           const block = await autoTradeGuard(o);
           if (block) {
             audit({ cmd: "autotrade", ...o, price, blocked: block });
             return reply({ ok: false, blocked: true, msg: block });
+          }
+          // Dynamic leverage guardrail (Option B): set gated leverage by stop
+          // width before opening, or block if even the lowest tier fails buffer.
+          const lg = await applyLeverageGuard(o.symbol, o.entry, o.stop, null);
+          if (!lg.ok) {
+            audit({ cmd: "autotrade", ...o, price, blocked: lg.reason });
+            return reply({ ok: false, blocked: true, msg: lg.reason, leverage: lg });
           }
           // Execute: order (MARKET or LIMIT) + mandatory stop-loss.
           const orderBody = {
