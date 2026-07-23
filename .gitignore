@@ -116,3 +116,7 @@ keystore*
 mnemonic*.txt
 credentials.json
 secrets.json
+
+# Config backups hold the same API keys as config.json — never commit any
+# runtime state under a plugin's data/ (state.json, .bak files, future files).
+plugins/*/data/
