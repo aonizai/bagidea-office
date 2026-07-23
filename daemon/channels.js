@@ -10,6 +10,8 @@
 const https = require("https");
 const tls = require("tls");
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 
 // ---- tiny https JSON request ------------------------------------------------
 function jreq(method, host, path, headers, body, cb, timeoutMs) {
@@ -33,6 +35,86 @@ function jreq(method, host, path, headers, body, cb, timeoutMs) {
   req.on("error", (e) => cb(e));
   if (data) req.write(data);
   req.end();
+}
+
+// ---- Telegram media (zero-dep): multipart upload out, getFile download in ----
+const TG_INBOX = path.join(__dirname, "..", "workspace", "inbox");
+const MEDIA_EXT = /\.(png|jpe?g|gif|webp|bmp|mp4|mov|webm|mkv|mp3|ogg|oga|wav|m4a|flac|pdf)$/i;
+
+// A reply LINE is "media" when, by itself, it is an absolute path to an
+// existing media file — the office media-capability convention (path on its
+// own line). Everything else stays plain text.
+function isLocalMediaPath(s) {
+  if (!s) return false;
+  if (!(s.startsWith("/") || /^[A-Za-z]:[\\/]/.test(s))) return false;
+  if (!MEDIA_EXT.test(s)) return false;
+  try { return fs.statSync(s).isFile(); } catch { return false; }
+}
+
+// Upload one local file to a chat, choosing the richest Telegram method by ext.
+function tgSendFile(token, chatId, filePath, caption, cb) {
+  let buf;
+  try { buf = fs.readFileSync(filePath); } catch (e) { return cb && cb(e); }
+  const ext = path.extname(filePath).toLowerCase();
+  let endpoint = "sendDocument", field = "document";
+  if (/\.(png|jpe?g|gif|webp|bmp)$/.test(ext)) { endpoint = "sendPhoto"; field = "photo"; }
+  else if (/\.(mp4|mov|webm|mkv)$/.test(ext)) { endpoint = "sendVideo"; field = "video"; }
+  else if (/\.(mp3|ogg|oga|wav|m4a|flac)$/.test(ext)) { endpoint = "sendAudio"; field = "audio"; }
+  const boundary = "----bagidea" + crypto.randomBytes(8).toString("hex");
+  const parts = [];
+  const addField = (name, val) =>
+    parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${val}\r\n`));
+  addField("chat_id", chatId);
+  if (caption) addField("caption", String(caption).slice(0, 1000));
+  parts.push(Buffer.from(
+    `--${boundary}\r\nContent-Disposition: form-data; name="${field}"; ` +
+    `filename="${path.basename(filePath)}"\r\nContent-Type: application/octet-stream\r\n\r\n`));
+  parts.push(buf);
+  parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+  const body = Buffer.concat(parts);
+  const req = https.request({
+    method: "POST", host: "api.telegram.org", path: `/bot${token}/${endpoint}`,
+    headers: { "content-type": `multipart/form-data; boundary=${boundary}`, "content-length": body.length },
+  }, (res) => {
+    let out = ""; res.on("data", (c) => (out += c));
+    res.on("end", () => { let j = null; try { j = JSON.parse(out); } catch {} cb && cb(null, j, res.statusCode); });
+  });
+  req.setTimeout(65000, () => req.destroy(new Error("timeout")));
+  req.on("error", (e) => cb && cb(e));
+  req.write(body); req.end();
+}
+
+// Pick the file_id from an inbound message (photos come as sized array).
+function tgIncomingFileId(m) {
+  if (m.photo && m.photo.length) return m.photo[m.photo.length - 1].file_id;  // biggest
+  if (m.document) return m.document.file_id;
+  if (m.video) return m.video.file_id;
+  if (m.voice) return m.voice.file_id;
+  if (m.audio) return m.audio.file_id;
+  return null;
+}
+
+// getFile → stream the bytes to workspace/inbox → hand back the local path.
+function tgDownload(token, fileId, cb) {
+  jreq("GET", "api.telegram.org", `/bot${token}/getFile?file_id=${encodeURIComponent(fileId)}`, null, null,
+    (e, j) => {
+      if (e || !j || !j.ok || !j.result || !j.result.file_path) return cb(e || new Error("getFile failed"));
+      const remote = j.result.file_path;                       // e.g. photos/file_123.jpg
+      const base = path.basename(remote).replace(/[^\w.\-]/g, "_") || "file";
+      try { fs.mkdirSync(TG_INBOX, { recursive: true }); } catch {}
+      const dest = path.join(TG_INBOX, `tg_${Date.now()}_${base}`);
+      const req = https.request({ method: "GET", host: "api.telegram.org", path: `/file/bot${token}/${remote}` },
+        (res) => {
+          if (res.statusCode !== 200) { res.resume(); return cb(new Error("download " + res.statusCode)); }
+          const out = fs.createWriteStream(dest);
+          res.pipe(out);
+          out.on("finish", () => out.close(() => cb(null, dest)));
+          out.on("error", (er) => cb(er));
+        });
+      req.setTimeout(65000, () => req.destroy(new Error("timeout")));
+      req.on("error", (er) => cb(er));
+      req.end();
+    });
 }
 
 // ---- minimal WebSocket CLIENT (for the Discord gateway) ---------------------
@@ -132,16 +214,31 @@ module.exports = function initChannels(ctx) {
           for (const u of j.result || []) {
             offset = u.update_id + 1;
             const m = u.message;
-            if (!m || !m.text) continue;
+            if (!m) continue;
             // Optional allowlist: a chat id pins the office to YOUR chat.
             if (cfg.chat && String(m.chat.id) !== String(cfg.chat)) continue;
             const from = [m.from && m.from.first_name, m.from && m.from.last_name]
               .filter(Boolean).join(" ") || "telegram user";
             const chatId = m.chat.id;
-            ctx.onMessage("telegram", from, m.text,
-              (reply) => sendTelegram(cfg.token, chatId, reply),
-              () => jreq("POST", "api.telegram.org", `/bot${cfg.token}/sendChatAction`,
-                null, { chat_id: chatId, action: "typing" }, () => {}));
+            const reply = (r) => sendTelegram(cfg.token, chatId, r);
+            const typing = () => jreq("POST", "api.telegram.org", `/bot${cfg.token}/sendChatAction`,
+              null, { chat_id: chatId, action: "typing" }, () => {});
+            // Inbound media: Telegram sends a photo/file, not text — download it
+            // and hand the agent the caption + a local path it can Read/analyse.
+            const fileId = tgIncomingFileId(m);
+            if (fileId) {
+              typing();
+              tgDownload(cfg.token, fileId, (err, localPath) => {
+                const cap = m.caption ? m.caption.trim() + "\n" : "";
+                const line = (err || !localPath)
+                  ? `${cap}[ผู้ใช้ส่งไฟล์แนบมาทาง Telegram แต่โหลดไม่สำเร็จ]`
+                  : `${cap}[ไฟล์แนบจาก Telegram — เปิดอ่าน/วิเคราะห์ได้ที่พาธนี้]\n${localPath}`;
+                ctx.onMessage("telegram", from, line, reply, typing);
+              });
+              continue;
+            }
+            if (!m.text) continue;
+            ctx.onMessage("telegram", from, m.text, reply, typing);
           }
           setTimeout(poll, 400);
         });
@@ -150,9 +247,23 @@ module.exports = function initChannels(ctx) {
     log("telegram poller started");
   }
   function sendTelegram(token, chatId, text) {
-    const parts = chunk(String(text), 3900);
+    // Split reply into media file paths (own line = photo/file) vs plain text,
+    // so the office media-capability actually reaches Telegram, not just the UI.
+    const media = [], textLines = [];
+    for (const line of String(text).split("\n")) {
+      if (isLocalMediaPath(line.trim())) media.push(line.trim());
+      else textLines.push(line);
+    }
+    const msg = textLines.join("\n").trim();
+    const sendMedia = () => {
+      let i = 0;
+      const next = () => { if (i >= media.length) return; tgSendFile(token, chatId, media[i++], "", () => next()); };
+      next();
+    };
+    if (!msg) return sendMedia();  // media-only (or empty) reply
+    const parts = chunk(msg, 3900);
     const sendNext = (i) => {
-      if (i >= parts.length) return;
+      if (i >= parts.length) return sendMedia();  // text done → then the files
       jreq("POST", "api.telegram.org", `/bot${token}/sendMessage`, null,
         { chat_id: chatId, text: parts[i], parse_mode: "HTML", disable_web_page_preview: true }, () => sendNext(i + 1));
     };
