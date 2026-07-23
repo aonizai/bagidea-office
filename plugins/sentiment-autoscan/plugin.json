@@ -1,0 +1,16 @@
+{
+  "id": "sentiment-autoscan",
+  "name": "📡 Sentiment Auto-Scan",
+  "version": "0.1.0",
+  "description": "Auto-scans crypto news, funding rate, and Fear & Greed on a schedule, and reports a bullish/bearish/neutral sentiment brief with sources.",
+  "panel": "panel.html",
+  "window": { "w": 460, "h": 620, "resizable": true },
+  "commands": [
+    { "name": "scan-now", "args": "", "desc": "Run an on-demand sentiment scan (news + funding + fear&greed) and return the bias brief" },
+    { "name": "config-get", "args": "", "desc": "Return the current auto-scan config" },
+    { "name": "config-set", "args": "<json>", "desc": "Merge-update the auto-scan config (see config.schema.json)" },
+    { "name": "status", "args": "", "desc": "Plugin health: enabled, last scan time, next scheduled scan" }
+  ],
+  "needsKeys": [],
+  "enabled": true
+}

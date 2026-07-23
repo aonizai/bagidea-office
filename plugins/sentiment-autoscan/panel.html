@@ -1,0 +1,246 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>📡 Sentiment Auto-Scan</title>
+<style>
+  body{margin:0;padding:14px;background:#0c1322;color:#dbe7ff;
+    font-family:system-ui,"Segoe UI","Leelawadee UI",Tahoma,"Noto Sans Thai","Noto Sans CJK",sans-serif;font-size:14px}
+  h2{margin:0 0 4px;font-size:16px;color:#5ec8ff}
+  .sub{color:#7f93b8;font-size:12px;margin:0 0 12px}
+  button{background:#16223a;color:#5ec8ff;border:1px solid #2a3f66;border-radius:6px;
+    padding:7px 12px;cursor:pointer;margin:0 6px 8px 0;font:inherit}
+  button:hover{background:#1d2e4e}
+  button.primary{color:#06121f;background:#5ec8ff;border-color:#5ec8ff;font-weight:700}
+  button:disabled{opacity:0.5;cursor:default}
+  input[type=number]{background:#101a2e;color:#dbe7ff;border:1px solid #2a3f66;border-radius:6px;
+    padding:6px 8px;width:100px;box-sizing:border-box;font:inherit}
+  .card{background:#0f1830;border:1px solid #1c2a45;border-radius:8px;padding:10px 12px;margin:0 0 10px}
+  .lbl{color:#7f93b8;font-size:12px;margin:8px 0 4px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .toggle{display:flex;align-items:center;gap:6px;font-size:13px}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
+  .bullish{background:rgba(74,222,128,0.15);color:#4ade80;border:1px solid rgba(74,222,128,0.3)}
+  .bearish{background:rgba(255,116,104,0.15);color:#ff7468;border:1px solid rgba(255,116,104,0.3)}
+  .neutral{background:rgba(148,163,184,0.15);color:#94a3b8;border:1px solid rgba(148,163,184,0.3)}
+  .on{background:rgba(74,222,128,0.15);color:#4ade80;border:1px solid rgba(74,222,128,0.3)}
+  .off{background:rgba(148,163,184,0.15);color:#94a3b8;border:1px solid rgba(148,163,184,0.3)}
+  .alert{background:rgba(255,176,84,0.1);color:#ffb054;border:1px solid rgba(255,176,84,0.3);border-radius:8px;padding:8px 10px;font-size:12px;margin:0 0 10px}
+  .kv{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:2px 0}
+  .kv .k{color:#7f93b8}
+  ul.reasons{margin:4px 0 0;padding-left:18px;font-size:12px;color:#a8bbe0}
+  .news-item{border-top:1px solid #1c2a45;padding:6px 0}
+  .news-item:first-child{border-top:none}
+  .news-item .h{font-size:13px;font-weight:600}
+  .news-item .s{font-size:12px;color:#7f93b8;margin-top:2px}
+  .imp-high{color:#ff7468}
+  .imp-medium{color:#ffb054}
+  .imp-low{color:#7f93b8}
+  .muted{color:#7f93b8;font-size:12px}
+  .statusline{font-size:12px;color:#7f93b8;margin:2px 0 10px}
+</style></head><body>
+
+<h2>📡 Sentiment Auto-Scan</h2>
+<p class="sub">ข่าว + funding rate + Fear&amp;Greed → bias bullish/bearish/neutral พร้อม high-impact alert</p>
+
+<div id="statusline" class="statusline">กำลังโหลด…</div>
+<div id="highImpactAlert"></div>
+
+<div class="card">
+  <div class="lbl" style="margin-top:0">การตั้งค่า</div>
+  <div class="row">
+    <label class="toggle"><input type="checkbox" id="cfgEnabled"> เปิดสแกนอัตโนมัติ</label>
+    <label class="toggle">ทุก <input type="number" id="cfgInterval" min="5" step="1" placeholder="นาที"> นาที</label>
+  </div>
+  <div class="row" style="margin-top:6px">
+    <label class="toggle"><input type="checkbox" id="cfgNews"> ข่าว</label>
+    <label class="toggle"><input type="checkbox" id="cfgFunding"> Funding</label>
+    <label class="toggle"><input type="checkbox" id="cfgFearGreed"> Fear&amp;Greed</label>
+  </div>
+  <div class="row" style="margin-top:6px">
+    <label class="toggle">High-impact lead <input type="number" id="cfgLead" min="1" step="1"> นาที</label>
+    <label class="toggle"><input type="checkbox" id="cfgBroadcast"> Broadcast แจ้งเตือน</label>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button class="primary" onclick="saveConfig()">💾 บันทึกการตั้งค่า</button>
+    <button onclick="scanNow()">🔍 Scan now</button>
+  </div>
+  <div id="saveMsg" class="muted"></div>
+</div>
+
+<div id="snapshotBox"></div>
+
+<script>
+const PID = "sentiment-autoscan";
+
+async function cmd(c, a) {
+  const r = await fetch(`/plugin/${PID}/cmd`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ cmd: c, args: a })
+  });
+  return r.json();
+}
+
+function fmtTime(iso) {
+  if (!iso) return "-";
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+}
+
+function biasBadge(overall) {
+  const cls = overall === "bullish" ? "bullish" : overall === "bearish" ? "bearish" : "neutral";
+  const label = overall === "bullish" ? "📈 Bullish" : overall === "bearish" ? "📉 Bearish" : "➖ Neutral";
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function fillConfigForm(cfg) {
+  document.getElementById("cfgEnabled").checked = !!cfg.enabled;
+  document.getElementById("cfgInterval").value = cfg.intervalMinutes == null ? "" : cfg.intervalMinutes;
+  document.getElementById("cfgNews").checked = !!cfg.sources.news;
+  document.getElementById("cfgFunding").checked = !!cfg.sources.funding;
+  document.getElementById("cfgFearGreed").checked = !!cfg.sources.fearGreed;
+  document.getElementById("cfgLead").value = cfg.highImpactLeadMinutes;
+  document.getElementById("cfgBroadcast").checked = !!cfg.broadcastEnabled;
+}
+
+function renderStatus(s) {
+  const badge = s.enabled ? `<span class="badge on">ON</span>` : `<span class="badge off">OFF</span>`;
+  document.getElementById("statusline").innerHTML =
+    `${badge} last scan: ${fmtTime(s.lastScanAt)} &nbsp;·&nbsp; next scan: ${fmtTime(s.nextScanAt)} &nbsp;·&nbsp; last bias: ${s.lastBias || "-"}`;
+}
+
+function renderSnapshot(snap) {
+  if (!snap) { document.getElementById("snapshotBox").innerHTML = ""; return; }
+  const b = snap.bias || { overall: "neutral", score: 0, reasons: [] };
+  const f = snap.funding;
+  const fg = snap.fearGreed;
+  const news = snap.news;
+  const hi = snap.highImpact || { active: false, events: [] };
+
+  let html = `<div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div>${biasBadge(b.overall)} <span class="muted">score ${b.score}</span></div>
+      <div class="muted">${fmtTime(snap.timestamp)}</div>
+    </div>`;
+  if (b.reasons && b.reasons.length) html += `<ul class="reasons">${b.reasons.map(r => `<li>${escapeHtml(r)}</li>`).join("")}</ul>`;
+  html += `</div>`;
+
+  html += `<div class="card">`;
+  if (f && !f.error) {
+    html += `<div class="kv"><span class="k">Funding (${f.symbol})</span><span>${f.fundingRatePct.toFixed(4)}%</span></div>
+              <div class="kv"><span class="k">Mark price</span><span>${f.markPrice}</span></div>`;
+  } else if (f) {
+    html += `<div class="muted">Funding: ${escapeHtml(f.error)}</div>`;
+  } else {
+    html += `<div class="muted">Funding: source ปิดอยู่</div>`;
+  }
+  if (fg && !fg.error) {
+    html += `<div class="kv"><span class="k">Fear &amp; Greed</span><span>${fg.value} (${escapeHtml(fg.label)})</span></div>`;
+  } else if (fg) {
+    html += `<div class="muted">Fear&amp;Greed: ${escapeHtml(fg.error)}</div>`;
+  } else {
+    html += `<div class="muted">Fear&amp;Greed: source ปิดอยู่</div>`;
+  }
+  html += `</div>`;
+
+  html += `<div class="card">`;
+  if (hi.active) {
+    html += `<div class="alert">⚠️ High-impact ใกล้ถึง: <b>${escapeHtml(hi.nearest.name)}</b> อีก ${hi.nearest.minutesToEvent} นาที (lead ${hi.leadMinutes} นาที)</div>`;
+  } else if (hi.nearest) {
+    html += `<div class="muted">เหตุการณ์ถัดไป: ${escapeHtml(hi.nearest.name)} อีก ${hi.nearest.minutesToEvent} นาที</div>`;
+  } else {
+    html += `<div class="muted">ไม่มี high-impact event ที่ทราบตอนนี้</div>`;
+  }
+  html += `</div>`;
+
+  html += `<div class="card"><div class="lbl" style="margin-top:0">ข่าว</div>`;
+  if (news && !news.error && Array.isArray(news.items) && news.items.length) {
+    html += news.items.map(it => `<div class="news-item">
+        <div class="h">${escapeHtml(it.headline || "")} <span class="imp-${it.impact || "low"}">[${it.impact || "-"}]</span></div>
+        <div class="s">${escapeHtml(it.summary || "")}</div>
+      </div>`).join("");
+  } else if (news && news.error) {
+    html += `<div class="muted">ข่าว: ${escapeHtml(news.error)}</div>`;
+  } else {
+    html += `<div class="muted">ข่าว: source ปิดอยู่ หรือยังไม่มีข้อมูล</div>`;
+  }
+  html += `</div>`;
+
+  document.getElementById("snapshotBox").innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+
+async function refreshAll() {
+  const [statusR, cfgR] = await Promise.all([cmd("status", ""), cmd("config-get", "")]);
+  if (statusR.ok) renderStatus(statusR);
+  if (cfgR.ok) fillConfigForm(cfgR.config);
+}
+
+async function scanNow() {
+  const btns = document.querySelectorAll("button");
+  btns.forEach(b => b.disabled = true);
+  document.getElementById("saveMsg").textContent = "กำลังสแกน…";
+  try {
+    const r = await cmd("scan-now", "");
+    if (r.ok) {
+      renderSnapshot(r.snapshot);
+      document.getElementById("saveMsg").textContent = "สแกนเสร็จ " + fmtTime(r.snapshot.timestamp);
+    } else {
+      document.getElementById("saveMsg").textContent = "สแกนล้มเหลว: " + (r.msg || "unknown error");
+    }
+    await refreshAll();
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
+}
+
+async function saveConfig() {
+  const patch = {
+    enabled: document.getElementById("cfgEnabled").checked,
+    intervalMinutes: document.getElementById("cfgInterval").value === "" ? null : Number(document.getElementById("cfgInterval").value),
+    sources: {
+      news: document.getElementById("cfgNews").checked,
+      funding: document.getElementById("cfgFunding").checked,
+      fearGreed: document.getElementById("cfgFearGreed").checked,
+    },
+    highImpactLeadMinutes: Number(document.getElementById("cfgLead").value),
+    broadcastEnabled: document.getElementById("cfgBroadcast").checked,
+  };
+  document.getElementById("saveMsg").textContent = "กำลังบันทึก…";
+  const r = await cmd("config-set", JSON.stringify(patch));
+  if (r.ok) {
+    fillConfigForm(r.config);
+    document.getElementById("saveMsg").textContent = "บันทึกแล้ว";
+    await refreshAll();
+  } else {
+    document.getElementById("saveMsg").textContent = "บันทึกไม่สำเร็จ: " + (r.msg || "unknown error");
+  }
+}
+
+function connectWs() {
+  try {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${proto}//${location.host}/ws`);
+    ws.onmessage = (m) => {
+      let e;
+      try { e = JSON.parse(m.data); } catch { return; }
+      if (e.type !== "plugin.event" || e.plugin !== PID) return;
+      if (e.event === "scan" && e.snapshot) {
+        renderSnapshot(e.snapshot);
+        refreshAll();
+      } else if (e.event === "high-impact" && e.snapshot) {
+        renderSnapshot(e.snapshot);
+        document.getElementById("highImpactAlert").innerHTML = `<div class="alert">🔔 ${escapeHtml(e.message || "")}</div>`;
+        refreshAll();
+      } else if (e.event === "config") {
+        refreshAll();
+      }
+    };
+    ws.onclose = () => setTimeout(connectWs, 3000);
+    ws.onerror = () => ws.close();
+  } catch {}
+}
+
+refreshAll();
+connectWs();
+</script>
+</body></html>

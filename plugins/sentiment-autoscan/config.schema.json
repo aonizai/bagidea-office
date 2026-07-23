@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Sentiment Auto-Scan Config",
+  "description": "Persisted at ctx.dataDir/config.json (plugins/sentiment-autoscan/data/config.json) once phase 2/3 wire up persistence.",
+  "type": "object",
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Turns the auto-scan scheduler on/off. Off by default — owner opts in explicitly."
+    },
+    "intervalMinutes": {
+      "type": ["integer", "null"],
+      "minimum": 5,
+      "default": null,
+      "description": "How often to auto-run a scan, in minutes. Owner-set, no forced default — null means auto-scan is not configured yet (manual scan-now still works)."
+    },
+    "sources": {
+      "type": "object",
+      "description": "Which inputs feed the sentiment brief.",
+      "properties": {
+        "news": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include crypto news (WebSearch)."
+        },
+        "funding": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include Binance funding rate (premiumIndex)."
+        },
+        "fearGreed": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include the Fear & Greed Index."
+        }
+      },
+      "required": ["news", "funding", "fearGreed"],
+      "default": { "news": true, "funding": true, "fearGreed": true }
+    },
+    "highImpactLeadMinutes": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 30,
+      "description": "Minutes-before-event threshold for high-impact economic events (CPI/FOMC/NFP) that qualifies for a broadcast."
+    },
+    "broadcastEnabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, push a plugin.event broadcast + office feed post once a high-impact event crosses highImpactLeadMinutes."
+    }
+  },
+  "required": ["enabled", "intervalMinutes", "sources", "highImpactLeadMinutes", "broadcastEnabled"]
+}
