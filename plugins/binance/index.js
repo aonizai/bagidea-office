@@ -742,13 +742,16 @@ module.exports = (ctx) => {
   }
 
   // --- Auto-trade guards (Phase 7) -----------------------------------------
-  // Count today's executed orders from the audit log (cmd=order + ok, not
-  // blocked). Used to enforce maxTradesPerDay.
+  // Count today's executed entries from the audit log across ALL entry paths:
+  // manual `order` fills log {cmd:"order", ok}, while autotrade / auto-signal
+  // fills log {cmd:"autotrade"|"auto-signal", orderOk} — counting only "order"
+  // let auto fills bypass maxTradesPerDay. Blocked attempts never count.
   function tradesToday() {
     try {
       const log = JSON.parse(fs.readFileSync(auditFile, "utf8"));
       const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-      return log.filter((e) => e.cmd === "order" && e.ok && e.ts >= dayStart.getTime()).length;
+      return log.filter((e) => e.ts >= dayStart.getTime() &&
+        ((e.cmd === "order" && e.ok) || ((e.cmd === "autotrade" || e.cmd === "auto-signal") && e.orderOk))).length;
     } catch { return 0; }
   }
   // Fetch today's realized PnL (income REALIZED_PNL since midnight) + current
