@@ -21,6 +21,10 @@ godot/bin-mac/
 # Runtime artifacts
 daemon/journal.jsonl
 daemon/*.bak
+# Pre-edit copies of plugin source (e.g. index.js.bak-before-<feature>-<ts>).
+# Only plugins/*/data/ was covered before, so a blanket `git add plugins/`
+# would commit a stale duplicate of the money-path file.
+plugins/**/*.bak*
 daemon/registry.json
 daemon/sessions.json
 daemon/paused.json
