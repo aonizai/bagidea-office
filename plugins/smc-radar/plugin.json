@@ -1,0 +1,30 @@
+{
+  "id": "smc-radar",
+  "name": "🔲 SMC / FVG Radar",
+  "version": "0.1.0",
+  "description": "Deterministic Smart-Money-Concepts reader for Binance Futures. From klines only (never chart images) it labels market structure (BOS / MSS / range), finds Fair Value Gaps with a fill state and an A/B/C grade, flags liquidity sweeps, and marks premium vs discount. An FVG is a WAITING ZONE, not an entry: it says where price may react, never that you should trade now. Advisory only — it places no orders and is not wired into autotrade or the auto-signal gate.",
+  "commands": [
+    {
+      "name": "smc",
+      "args": "<symbol> [tf]",
+      "desc": "Full SMC read for one symbol: structure (BOS/MSS/range), unfilled FVG zones with grades, liquidity sweeps, premium/discount. Reach for this when you are asked WHERE price might react, or to sanity-check a setup before proposing it. e.g. smc BTCUSDT 15m (default 15m, this desk's entry TF). The output is a map of places to WAIT — a zone existing is never a reason to open a trade; entry still needs its own confirmation and a risk check."
+    },
+    {
+      "name": "fvg",
+      "args": "<symbol> [tf]",
+      "desc": "Just the FVG zone list — top/bottom, direction, age in bars, % filled, grade, invalidated yes/no. The compact form of `smc` when you only need levels to quote in a brief or a journal entry. Same rule: a zone is where you WAIT for a reaction, not an entry signal."
+    },
+    {
+      "name": "levels",
+      "args": "<symbol> [tf]",
+      "desc": "Liquidity + range map: recent swing highs/lows (where stops are resting), equal-high/equal-low clusters, sweeps already taken, and the premium/discount split of the current dealing range. Use this INSTEAD of eyeballing or hand-computing support/resistance, so every level you quote comes from structure and is reproducible."
+    },
+    {
+      "name": "health",
+      "args": "",
+      "desc": "Check the engine loaded and the binance kline bridge is reachable. Run this first if smc/fvg/levels comes back empty or errors."
+    }
+  ],
+  "needsKeys": [],
+  "enabled": true
+}
