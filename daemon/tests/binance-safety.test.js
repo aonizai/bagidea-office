@@ -51,6 +51,36 @@ test("newsGate fails CLOSED: unreadable cache, stale cache, unparseable event", 
   assert.strictEqual(S.newsGateDecide({ events: [], nowMs: now, gate: { enabled: false }, cacheOk: false, cacheMtimeMs: NaN }), null);
 });
 
+test("commentary stamped with the cache's own write time never blocks", () => {
+  // The live cache mixes calendar releases with running commentary. The notes
+  // carry no schedule, so the writer stamps them with the scan time — which put
+  // them inside the +/-5 min window on EVERY scan, i.e. a permanent block.
+  // A note is identified exactly: its `at` equals the cache's `updated` field.
+  const updated = Date.parse("2026-07-25T13:42:11Z");
+  const gate = { enabled: true, blockBeforeMin: 5, blockAfterMin: 5, highImpactOnly: true };
+  const commentary = { title: "US-Iran conflict: no new escalation details this scan", impact: "high", at: "2026-07-25T13:42:11Z" };
+  const now = updated + 2 * 60e3;
+  assert.strictEqual(
+    S.newsGateDecide({ events: [commentary], nowMs: now, gate, cacheOk: true, cacheMtimeMs: updated, cacheUpdatedMs: updated }),
+    null, "rolling commentary must not block");
+  assert.strictEqual(S.isScheduledEvent(commentary, updated), false);
+
+  // A real release keeps its own timestamp and MUST still block.
+  const fomc = { title: "FOMC", impact: "high", at: "2026-07-29T18:00:00Z" };
+  assert.strictEqual(S.isScheduledEvent(fomc, updated), true);
+  const justBefore = Date.parse("2026-07-29T17:57:00Z");
+  assert.ok(S.newsGateDecide({ events: [fomc], nowMs: justBefore, gate, cacheOk: true, cacheMtimeMs: justBefore, cacheUpdatedMs: updated }),
+    "a scheduled release inside the window must still block");
+});
+
+test("with no cache `updated` field, every event counts as scheduled (fails closed)", () => {
+  const gate = { enabled: true, blockBeforeMin: 5, blockAfterMin: 5, highImpactOnly: true };
+  const now = Date.parse("2026-07-25T13:44:00Z");
+  const ev = { title: "note", impact: "high", at: "2026-07-25T13:42:11Z" };
+  assert.strictEqual(S.isScheduledEvent(ev, NaN), true, "cannot classify ⇒ treat as real");
+  assert.ok(S.newsGateDecide({ events: [ev], nowMs: now, gate, cacheOk: true, cacheMtimeMs: now, cacheUpdatedMs: NaN }));
+});
+
 /* ------------------------------------------------- audit / daily trade cap */
 
 test("tradesTodayDecide counts every entry path, not just manual orders", () => {
@@ -167,4 +197,156 @@ test("blocked signals and dry runs are NOT classified as money entries", () => {
     assert.ok(!S.AUDIT_MONEY_CMDS.has(c), `${c} must be noise`);
   for (const c of ["order", "autotrade", "auto-signal", "exit", "exit-failed", "emergency-close", "close", "stoploss"])
     assert.ok(S.AUDIT_MONEY_CMDS.has(c), `${c} must be on the money trail`);
+});
+
+/* ------------------------------------------------------------- ownership */
+
+test("client order ids fit Binance's charset and do not collide", () => {
+  const seen = new Set();
+  const re = /^[.A-Za-z0-9_-]{1,36}$/;
+  for (let i = 0; i < 10000; i++) {
+    const id = S.makeClientOrderId("as", 1784988298387 + i);
+    assert.ok(re.test(id), `bad id: ${id}`);
+    assert.ok(S.isDeskTagged(id));
+    seen.add(id);
+  }
+  assert.ok(seen.size > 9900, `too many collisions: ${seen.size}/10000`);
+  assert.ok(!S.isDeskTagged("x-NqBcVsE4Xk1"), "an exchange-generated id is not ours");
+  assert.ok(!S.isDeskTagged(""), "a missing id is not ours");
+});
+
+test("classifyPosition: ours only when EVERY opening fill carries our tag", () => {
+  const since = 1000;
+  const mk = (o) => ({ status: "FILLED", side: "BUY", executedQty: "1", time: 2000, ...o });
+  // Fully tagged ⇒ desk.
+  assert.strictEqual(S.classifyPosition({
+    positionAmt: "1", tracked: false, taggingSinceMs: since,
+    orders: [mk({ clientOrderId: "bd-as-lz9k2p-x7f3" })],
+  }), "desk");
+  // One untagged fill in the opening set ⇒ foreign. Not "mostly ours".
+  assert.strictEqual(S.classifyPosition({
+    positionAmt: "2", tracked: false, taggingSinceMs: since,
+    orders: [mk({ clientOrderId: "bd-as-lz9k2p-x7f3" }), mk({ clientOrderId: "web_manual_123" })],
+  }), "foreign");
+  // Opened before tagging existed ⇒ unknown, forever.
+  assert.strictEqual(S.classifyPosition({
+    positionAmt: "1", tracked: false, taggingSinceMs: 5000,
+    orders: [mk({ clientOrderId: "bd-as-lz9k2p-x7f3", time: 4000 })],
+  }), "unknown");
+  // Order history unreadable ⇒ unknown (never assume it is ours).
+  assert.strictEqual(S.classifyPosition({ positionAmt: "1", tracked: false, orders: null, taggingSinceMs: since }), "unknown");
+  // Fills do not add up to the position ⇒ unknown.
+  assert.strictEqual(S.classifyPosition({
+    positionAmt: "5", tracked: false, taggingSinceMs: since,
+    orders: [mk({ clientOrderId: "bd-as-a-b" })],
+  }), "unknown");
+  // Already in our own store ⇒ desk without needing history.
+  assert.strictEqual(S.classifyPosition({ positionAmt: "1", tracked: true, orders: null }), "desk");
+});
+
+test("stopCoverage separates 'no stop' from 'could not check' — never conflates them", () => {
+  const long = { positionAmt: "1" };
+  assert.deepStrictEqual(S.stopCoverage({ ...long, algos: [{ side: "SELL", closePosition: "true" }] }),
+    { covered: true, unverified: false, reason: null });
+  // A stop on the wrong side does not protect a long.
+  assert.strictEqual(S.stopCoverage({ ...long, algos: [{ side: "BUY", closePosition: "true" }] }).covered, false);
+  assert.strictEqual(S.stopCoverage({ ...long, algos: [{ side: "BUY", closePosition: "true" }] }).unverified, false);
+  // Quantity-based coverage counts too.
+  assert.strictEqual(S.stopCoverage({ ...long, algos: [{ side: "SELL", origQty: "1" }] }).covered, true);
+  assert.strictEqual(S.stopCoverage({ ...long, algos: [{ side: "SELL", origQty: "0.4" }] }).covered, false);
+  // API failure and unrecognised rows are UNVERIFIED, not uncovered.
+  assert.deepStrictEqual(S.stopCoverage({ ...long, algos: null }),
+    { covered: false, unverified: true, reason: "algo-read-failed" });
+  assert.strictEqual(S.stopCoverage({ ...long, algos: [{ algoId: 1 }] }).unverified, true);
+  // Flat is trivially covered.
+  assert.strictEqual(S.stopCoverage({ positionAmt: "0", algos: [] }).covered, true);
+});
+
+test("a naked FOREIGN position produces an alert and ZERO orders", () => {
+  // This is the standing rule ("never touch the CEO's positions") written as an
+  // assertion rather than a comment. If reconcileDecide ever emits an order for
+  // a position it cannot prove is ours, this test fails.
+  const live = [{ symbol: "ETHUSDT", positionAmt: "1", entryPrice: "1800" }];
+  const d = S.reconcileDecide({
+    live, tracked: [], classes: { ETHUSDT: "foreign" },
+    coverage: { ETHUSDT: { covered: false, unverified: false, reason: "no-stop" } },
+    state: {}, nowMs: 1e12,
+  });
+  assert.deepStrictEqual(d.replace, [], "no order may EVER be sent for a foreign position");
+  assert.deepStrictEqual(d.adopt, [], "a foreign position is never adopted into our store");
+  assert.strictEqual(d.pause, null, "someone else's book does not pause our desk");
+  assert.strictEqual(d.alerts.length, 1);
+  assert.strictEqual(d.alerts[0].kind, "foreign-naked");
+  // `unknown` must behave identically — it differs only in wording.
+  const u = S.reconcileDecide({
+    live, tracked: [], classes: { ETHUSDT: "unknown" },
+    coverage: { ETHUSDT: { covered: false, unverified: false, reason: "no-stop" } },
+    state: {}, nowMs: 1e12,
+  });
+  assert.deepStrictEqual(u.replace, []);
+  assert.deepStrictEqual(u.adopt, []);
+});
+
+test("our own naked position: one tick observes, two ticks re-place, then it stops and pauses", () => {
+  const live = [{ symbol: "BTCUSDT", positionAmt: "0.01", entryPrice: "64000" }];
+  const tracked = [{ symbol: "BTCUSDT", stop: 63000, managed: true }];
+  const classes = { BTCUSDT: "desk" };
+  const coverage = { BTCUSDT: { covered: false, unverified: false, reason: "no-stop" } };
+  const t0 = 1e12;
+
+  const a = S.reconcileDecide({ live, tracked, classes, coverage, state: {}, nowMs: t0 });
+  assert.deepStrictEqual(a.replace, [], "a single uncovered tick could be a race — observe first");
+
+  const b = S.reconcileDecide({ live, tracked, classes, coverage, state: a.state, nowMs: t0 + 30e3 });
+  assert.strictEqual(b.replace.length, 1);
+  assert.deepStrictEqual(b.replace[0], { symbol: "BTCUSDT", stop: 63000, side: "SELL", qty: 0.01 });
+
+  // Attempts are budgeted and spaced; after the budget it pauses instead of looping orders.
+  let st = b.state;
+  for (let i = 0; i < 6; i++) {
+    const r = S.reconcileDecide({ live, tracked, classes, coverage, state: st, nowMs: t0 + (i + 2) * 700e3 });
+    st = r.state;
+    if (r.pause) { assert.match(r.pause, /stop-replace-exhausted/); return; }
+  }
+  assert.fail("should have exhausted the replace budget and paused");
+});
+
+test("an adopted position with no known stop pauses instead of guessing one", () => {
+  const live = [{ symbol: "SOLUSDT", positionAmt: "1", entryPrice: "74" }];
+  const d = S.reconcileDecide({
+    live, tracked: [{ symbol: "SOLUSDT", stop: null, managed: false }],
+    classes: { SOLUSDT: "desk" },
+    coverage: { SOLUSDT: { covered: false, unverified: false, reason: "no-stop" } },
+    state: {}, nowMs: 1e12,
+  });
+  assert.deepStrictEqual(d.replace, [], "inventing a stop price is not allowed");
+  assert.match(d.pause, /naked-no-known-stop/);
+});
+
+test("an untracked position of OURS is adopted for watching, not managing", () => {
+  const d = S.reconcileDecide({
+    live: [{ symbol: "BNBUSDT", positionAmt: "0.5", entryPrice: "565" }],
+    tracked: [], classes: { BNBUSDT: "desk" },
+    coverage: { BNBUSDT: { covered: true, unverified: false, reason: null } },
+    state: {}, nowMs: 1e12,
+  });
+  assert.strictEqual(d.adopt.length, 1);
+  assert.strictEqual(d.adopt[0].symbol, "BNBUSDT");
+  assert.deepStrictEqual(d.replace, []);
+});
+
+test("unverified coverage never triggers an action, and only alerts after several ticks", () => {
+  const live = [{ symbol: "XRPUSDT", positionAmt: "10", entryPrice: "1.08" }];
+  const tracked = [{ symbol: "XRPUSDT", stop: 1.05, managed: true }];
+  const classes = { XRPUSDT: "desk" };
+  const coverage = { XRPUSDT: { covered: false, unverified: true, reason: "algo-read-failed" } };
+  let st = {}, alerted = false;
+  for (let i = 0; i < 5; i++) {
+    const r = S.reconcileDecide({ live, tracked, classes, coverage, state: st, nowMs: 1e12 + i * 30e3 });
+    assert.deepStrictEqual(r.replace, [], "an unreadable algo list is NOT evidence of a missing stop");
+    assert.strictEqual(r.pause, null);
+    if (r.alerts.length) alerted = true;
+    st = r.state;
+  }
+  assert.ok(alerted, "persistent inability to verify must eventually be reported");
 });

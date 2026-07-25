@@ -415,7 +415,25 @@ function parseEventAt(ev) {
  *  Fails closed three ways: unparseable event time, unreadable cache, stale
  *  cache. A cached `minutesUntil` is deliberately ignored — it was computed at
  *  fetch time and reusing it just tells the same lie more slowly. */
-function newsGateDecide({ events, nowMs, gate, cacheOk, cacheMtimeMs }) {
+/** Is this a SCHEDULED event, or a rolling commentary note?
+ *
+ *  The news cache mixes two things. Calendar releases (FOMC, CPI, NFP) carry
+ *  their own fixed timestamp. Running commentary ("no new escalation details
+ *  this scan… still no single fixed timestamp") has no time at all, so the
+ *  writer stamps it with the scan time — which means it sits inside the ±5 min
+ *  block window on EVERY scan, forever.
+ *
+ *  The discriminator is exact rather than heuristic: a note stamped "now" has
+ *  `at` equal to the cache's own `updated` field, to the second. A real event's
+ *  timestamp is its own and never coincides with a later write. */
+function isScheduledEvent(ev, cacheUpdatedMs, epsilonMs = 2000) {
+  const at = parseEventAt(ev);
+  if (at == null) return false;
+  if (!Number.isFinite(cacheUpdatedMs)) return true;   // cannot tell ⇒ treat as scheduled (blocks)
+  return Math.abs(at - cacheUpdatedMs) > epsilonMs;
+}
+
+function newsGateDecide({ events, nowMs, gate, cacheOk, cacheMtimeMs, cacheUpdatedMs }) {
   if (!gate || !gate.enabled) return null;
   if (!cacheOk) return "news gate: อ่าน news-cache ไม่ได้ — ประเมินข่าวไม่ได้ (fail-closed)";
   const maxAgeH = gate.maxCacheAgeH == null ? 24 : gate.maxCacheAgeH;
@@ -426,6 +444,9 @@ function newsGateDecide({ events, nowMs, gate, cacheOk, cacheMtimeMs }) {
     const at = parseEventAt(ev);
     if (at == null)
       return `news gate: อ่านเวลาข่าว "${(ev && ev.title) || "?"}" ไม่ได้ — fail-closed`;
+    // Commentary stamped "now" is context, not a scheduled release. Blocking on
+    // it would pause the desk permanently while a running story is in the cache.
+    if (!isScheduledEvent(ev, cacheUpdatedMs)) continue;
     const mins = Math.round((at - nowMs) / 60000);
     if (mins >= -(gate.blockAfterMin || 0) && mins <= (gate.blockBeforeMin || 0)) {
       const when = mins >= 0 ? `อีก ${mins} นาที (ก่อนข่าว)` : `${-mins} นาทีที่แล้ว (หลังข่าว)`;
@@ -513,6 +534,151 @@ function exitOutcome({ orderOk, avgPrice, mark }) {
   return { shouldRemove: true, exitPrice: mark, pnlSource: "estimated-from-mark" };
 }
 
+/* --------------------------------------------------------- OWNERSHIP -----
+ * The desk shares an account with its owner. Nothing in /fapi/v2/positionRisk
+ * says who opened a position, so ownership has to be MADE decidable: the desk
+ * tags every order it sends, and a position is ours only if every order that
+ * opened it carries our tag. Anything we cannot prove is ours is treated as
+ * the owner's and is never touched — only reported.
+ * ------------------------------------------------------------------------ */
+
+/** `bd-<src>-<base36 ms>-<rand4>`, inside Binance's ^[.A-Za-z0-9_-]{1,36}$.
+ *  src: as=auto-signal at=autotrade mo=manual order xt=trail/target exit
+ *       xp=partial xm=manual close xe=emergency close xs=stop re-place */
+function makeClientOrderId(src, nowMs, rnd) {
+  const s = String(src || "xx").slice(0, 2).toLowerCase().replace(/[^a-z]/g, "x").padEnd(2, "x");
+  const t = Math.max(0, Math.floor(Number(nowMs) || 0)).toString(36);
+  const r = Math.floor((rnd == null ? Math.random() : rnd) * 1679616).toString(36).padStart(4, "0").slice(-4);
+  return `bd-${s}-${t}-${r}`;
+}
+const isDeskTagged = (id) => /^bd-[a-z]{2}-/.test(String(id || ""));
+
+/**
+ * desk | foreign | unknown.
+ *
+ * `unknown` is treated EXACTLY like `foreign` by every caller — it differs only
+ * in the wording of the alert. That is the fail-closed definition: not provably
+ * ours ⇒ the owner's ⇒ never touched. Positions opened before tagging existed
+ * all land here, which is why tagging must be deployed while the desk is flat.
+ */
+function classifyPosition({ positionAmt, tracked, orders, taggingSinceMs }) {
+  if (tracked) return "desk";
+  const target = Math.abs(Number(positionAmt) || 0);
+  if (!(target > 0)) return "unknown";
+  if (!Array.isArray(orders) || orders.length === 0) return "unknown";
+  const openSide = Number(positionAmt) > 0 ? "BUY" : "SELL";
+  const filled = orders
+    .filter((o) => o && o.status === "FILLED" && o.side === openSide &&
+                   !(o.reduceOnly === true || o.reduceOnly === "true"))
+    .sort((a, b) => (Number(b.time) || 0) - (Number(a.time) || 0));
+  // Walk back from the newest fill until the position size is accounted for.
+  const opening = [];
+  let acc = 0;
+  for (const o of filled) {
+    opening.push(o);
+    acc += Math.abs(Number(o.executedQty) || 0);
+    if (acc >= target * 0.999) break;
+  }
+  if (!opening.length || acc < target * 0.999) return "unknown";
+  if (opening.some((o) => !Number.isFinite(Number(o.time)) || Number(o.time) < Number(taggingSinceMs || Infinity)))
+    return "unknown";
+  return opening.every((o) => isDeskTagged(o.clientOrderId)) ? "desk" : "foreign";
+}
+
+/**
+ * Three states, never a boolean — and that distinction IS the safety of this
+ * check. `unverified` (the API call failed, or rows arrived in a shape we do
+ * not recognise) must never be mistaken for `uncovered`, because only
+ * `uncovered` is ever allowed to trigger an action.
+ */
+function stopCoverage({ positionAmt, algos }) {
+  const amt = Number(positionAmt) || 0;
+  if (amt === 0) return { covered: true, unverified: false, reason: "flat" };
+  if (!Array.isArray(algos)) return { covered: false, unverified: true, reason: "algo-read-failed" };
+  if (algos.some((a) => !a || typeof a.side !== "string"))
+    return { covered: false, unverified: true, reason: "unrecognised-rows" };
+  const need = amt > 0 ? "SELL" : "BUY";
+  const hit = algos.find((a) => a.side === need &&
+    (a.closePosition === true || a.closePosition === "true" ||
+     Math.abs(Number(a.origQty) || 0) >= Math.abs(amt) * 0.999));
+  return hit ? { covered: true, unverified: false, reason: null }
+             : { covered: false, unverified: false, reason: "no-stop" };
+}
+
+/**
+ * The reconciliation policy, as a pure function of what we observed.
+ *
+ * Two rules carry all the weight:
+ *   1. A position that is not provably ours produces alerts and NOTHING else —
+ *      no orders, ever. (Pinned by a test asserting `replace: []`.)
+ *   2. When protection cannot be guaranteed the desk STOPS OPENING; it never
+ *      starts closing. Auto-flattening on a false negative would close a
+ *      healthy position, and if ownership were ever wrong it would close the
+ *      owner's.
+ */
+function reconcileDecide({
+  live, tracked, classes, coverage, state, nowMs,
+  uncoveredTicksToAct = 2, unverifiedTicksToAlert = 4, maxReplaceAttempts = 3,
+  replaceCooldownMs = 600000, alertCooldownMs = 3600000,
+}) {
+  const out = { adopt: [], alerts: [], replace: [], pause: null, state: {} };
+  const trackedBySym = new Map((tracked || []).map((t) => [t.symbol, t]));
+  for (const p of live || []) {
+    const sym = p.symbol;
+    const cls = (classes || {})[sym] || "unknown";
+    const cov = (coverage || {})[sym] || { covered: false, unverified: true, reason: "missing" };
+    const prev = (state || {})[sym] || {};
+    const st = {
+      firstSeen: prev.firstSeen || nowMs, class: cls,
+      uncoveredTicks: 0, unverifiedTicks: 0,
+      replaceAttempts: prev.replaceAttempts || 0,
+      lastReplaceAt: prev.lastReplaceAt || 0, lastAlertAt: prev.lastAlertAt || 0,
+    };
+    const alert = (kind, extra) => {
+      if (nowMs - st.lastAlertAt < alertCooldownMs) return;
+      st.lastAlertAt = nowMs;
+      out.alerts.push({ symbol: sym, kind, class: cls, ...extra });
+    };
+
+    if (cls === "desk" && !trackedBySym.has(sym))
+      out.adopt.push({ symbol: sym, positionAmt: p.positionAmt, entryPrice: p.entryPrice });
+
+    if (cov.unverified) st.unverifiedTicks = (prev.unverifiedTicks || 0) + 1;
+    else if (!cov.covered) st.uncoveredTicks = (prev.uncoveredTicks || 0) + 1;
+
+    if (st.unverifiedTicks >= unverifiedTicksToAlert) alert("coverage-unverified", { reason: cov.reason });
+
+    if (st.uncoveredTicks > 0) {
+      if (cls !== "desk") {
+        alert("foreign-naked");                       // report only — never act
+      } else {
+        const t = trackedBySym.get(sym);
+        const knownStop = t && t.stop != null;
+        if (!knownStop) {
+          out.pause = out.pause || `naked-no-known-stop:${sym}`;
+          alert("desk-naked-no-stop");
+        } else if (st.replaceAttempts >= maxReplaceAttempts) {
+          out.pause = out.pause || `stop-replace-exhausted:${sym}`;
+          alert("stop-replace-exhausted", { attempts: st.replaceAttempts });
+        } else if (st.uncoveredTicks >= uncoveredTicksToAct &&
+                   nowMs - st.lastReplaceAt >= replaceCooldownMs) {
+          out.replace.push({
+            symbol: sym, stop: t.stop,
+            side: Number(p.positionAmt) > 0 ? "SELL" : "BUY",
+            qty: Math.abs(Number(p.positionAmt) || 0),
+          });
+          st.replaceAttempts += 1;
+          st.lastReplaceAt = nowMs;
+        }
+      }
+    } else {
+      st.replaceAttempts = 0;   // coverage restored — reset the budget
+    }
+    out.state[sym] = st;
+  }
+  return out;
+}
+
 module.exports = (ctx) => {
   // Live-loop registry. Hung on globalThis so it SURVIVES the require-cache
   // delete that /plugins/reload does — a module-scope counter would reset on
@@ -549,9 +715,28 @@ module.exports = (ctx) => {
     try { c = JSON.parse(fs.readFileSync(cfgFile, "utf8")); } catch {}
     return { ...DEFAULTS, ...c };
   };
+  // Atomic: a crash mid-write used to be able to truncate the money trail, and
+  // the same helper protects positions.json and config.json.
+  //
+  // The mode is carried across explicitly. tmp+rename creates the temp file
+  // under the process umask, so a naive atomic write SILENTLY RELAXES the
+  // permissions of whatever it replaces — and config.json holds the API key and
+  // secret in cleartext at 0600. Defaults to 0600 for a file that does not
+  // exist yet, because everything this helper writes is desk-private.
+  const writeJsonAtomic = (file, data) => {
+    let mode = 0o600;
+    try { mode = fs.statSync(file).mode & 0o777; } catch { /* new file → stay private */ }
+    const tmp = file + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 2), { mode });
+    try { fs.chmodSync(tmp, mode); } catch { /* best effort on odd filesystems */ }
+    fs.renameSync(tmp, file);
+  };
+
   const saveCfg = (patch) => {
     const c = { ...cfg(), ...patch };
-    fs.writeFileSync(cfgFile, JSON.stringify(c, null, 2));
+    // Atomic + mode-preserving: this file carries the API key/secret at 0600,
+    // and a torn write here loses every cap at once.
+    writeJsonAtomic(cfgFile, c);
     return c;
   };
 
@@ -616,6 +801,16 @@ module.exports = (ctx) => {
     const r = await req("GET", "/fapi/v1/openAlgoOrders", {}, true);
     const arr = (r.ok && Array.isArray(r.json)) ? r.json : [];
     return symbol ? arr.filter((o) => String(o.symbol) === String(symbol)) : arr;
+  }
+  /** Same call, but reports FAILURE instead of flattening it to []. Coverage
+   *  checking needs "could not read" and "read fine, nothing there" to be
+   *  different answers — conflating them is how you close a protected position. */
+  async function listStopAlgosChecked() {
+    try {
+      const r = await req("GET", "/fapi/v1/openAlgoOrders", {}, true);
+      if (!r.ok || !Array.isArray(r.json)) return null;
+      return r.json;
+    } catch { return null; }
   }
   async function cancelStopAlgos(symbol, exceptId) {
     for (const o of await listStopAlgos(symbol)) {
@@ -883,13 +1078,6 @@ module.exports = (ctx) => {
   const archiveFile = () =>
     path.join(ctx.dataDir, "orders-" + new Date().toISOString().slice(0, 7) + ".jsonl");
 
-  // Atomic: a crash mid-write used to be able to truncate the money trail (and
-  // the same helper protects positions.json and config.json, which holds keys).
-  const writeJsonAtomic = (file, data) => {
-    const tmp = file + ".tmp";
-    fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-    fs.renameSync(tmp, file);
-  };
 
   let lastArchivedDay = null;
   const audit = (entry) => {
@@ -1132,15 +1320,18 @@ module.exports = (ctx) => {
       const events = Array.isArray(j.events) ? j.events : (Array.isArray(j) ? j : []);
       let mtimeMs = NaN;
       try { mtimeMs = fs.statSync(p).mtimeMs; } catch { /* age unknown → not stale-checked */ }
-      return { ok: true, events, mtimeMs };
-    } catch { return { ok: false, events: [], mtimeMs: NaN }; }
+      // The cache's own write time. Events stamped with exactly this are
+      // commentary the writer had no schedule for — see isScheduledEvent.
+      const updatedMs = j && j.updated ? Date.parse(j.updated) : NaN;
+      return { ok: true, events, mtimeMs, updatedMs };
+    } catch { return { ok: false, events: [], mtimeMs: NaN, updatedMs: NaN }; }
   }
   // --- Position store (data/positions.json) --------------------------------
   // Tracks active positions for the auto-exit manager: entry/stop/target/
   // trail + the best price seen (maxFavorable) so the trail can lock profit.
   const posFile = path.join(ctx.dataDir, "positions.json");
   const readPos = () => { try { return JSON.parse(fs.readFileSync(posFile, "utf8")); } catch { return []; } };
-  const writePos = (arr) => fs.writeFileSync(posFile, JSON.stringify(arr, null, 2));
+  const writePos = (arr) => writeJsonAtomic(posFile, arr);
   const upsertPos = (p) => {
     const arr = readPos().filter((x) => x.symbol !== p.symbol);
     arr.push(p); writePos(arr);
@@ -1502,7 +1693,7 @@ module.exports = (ctx) => {
    */
   async function emergencyClose({ symbol, closeSide, qty, source, reason, intendedStop, stopResp }) {
     const cr = await req("POST", "/fapi/v1/order",
-      { symbol, side: closeSide, type: "MARKET", quantity: String(qty), reduceOnly: "true" }, true);
+      { symbol, side: closeSide, type: "MARKET", quantity: String(qty), reduceOnly: "true", newClientOrderId: makeClientOrderId("xe", Date.now()) }, true);
 
     let verifyOk = false, verifyAmt = 0;
     const vr = await req("GET", "/fapi/v2/positionRisk", { symbol }, true);
@@ -1540,6 +1731,88 @@ module.exports = (ctx) => {
       `position อาจยังเปิดอยู่และไม่มี stop · เดสก์ถูก pause อัตโนมัติ · ต้องเช็คด้วยตาเดี๋ยวนี้`;
     ctx.feed(msg, "compass"); try { ctx.relay(msg); } catch {}
     return { flat: false, reason: outcome.reason, msg: "ปิดไม้ฉุกเฉินไม่สำเร็จ/ยืนยันไม่ได้ — เดสก์ pause แล้ว เช็คด่วน" };
+  }
+
+  // Per-symbol reconciliation state (alert dedup, replace budget). Deliberately
+  // a SEPARATE file from positions.json: positions the desk does not own must
+  // never appear in the store that the exit manager reads, so "never touch the
+  // owner's book" is enforced by structure rather than by discipline.
+  const reconFile = path.join(ctx.dataDir, "reconcile-state.json");
+  const readRecon = () => { try { return JSON.parse(fs.readFileSync(reconFile, "utf8")); } catch { return {}; } };
+  const writeRecon = (o) => { try { writeJsonAtomic(reconFile, o); } catch { /* never break the tick */ } };
+
+  /**
+   * Runs once per monitor tick, right after the positions read.
+   *
+   * Answers two questions nothing in this plugin could answer before:
+   *   - is every open position actually covered by a live stop on the exchange?
+   *   - is this position even ours?
+   * and then does the least dangerous thing that follows from the answer.
+   */
+  async function reconcile(livePos) {
+    const c = cfg();
+    if (!Array.isArray(livePos) || livePos.length === 0) {
+      if (Object.keys(readRecon()).length) writeRecon({});   // nothing open ⇒ nothing to remember
+      return;
+    }
+    const algos = await listStopAlgosChecked();      // ONE account-wide call
+    const tracked = readPos();
+    const trackedSyms = new Set(tracked.map((t) => t.symbol));
+    const classes = {}, coverage = {};
+    for (const p of livePos) {
+      coverage[p.symbol] = stopCoverage({
+        positionAmt: p.positionAmt,
+        algos: algos == null ? null : algos.filter((a) => String(a.symbol) === String(p.symbol)),
+      });
+      if (trackedSyms.has(p.symbol)) { classes[p.symbol] = "desk"; continue; }
+      const ao = await req("GET", "/fapi/v1/allOrders", { symbol: p.symbol, limit: "50" }, true);
+      classes[p.symbol] = classifyPosition({
+        positionAmt: p.positionAmt, tracked: false,
+        orders: ao.ok && Array.isArray(ao.json) ? ao.json : null,
+        taggingSinceMs: c.taggingSinceMs || Infinity,
+      });
+    }
+
+    const d = reconcileDecide({
+      live: livePos, tracked, classes, coverage, state: readRecon(), nowMs: Date.now(),
+    });
+    writeRecon(d.state);
+
+    for (const a of d.adopt) {
+      // Adopted = WATCHED, not managed. managed:false makes the exit manager
+      // skip it entirely: the desk has no idea what the human intended for a
+      // position it did not plan, so it reports and counts it, nothing more.
+      upsertPos({
+        symbol: a.symbol, side: Number(a.positionAmt) > 0 ? "BUY" : "SELL",
+        qty: Math.abs(Number(a.positionAmt) || 0), entry: Number(a.entryPrice) || 0,
+        stop: null, initialStop: null, openedAt: Date.now(),
+        maxFavorable: Number(a.entryPrice) || 0, source: "adopted", managed: false,
+      });
+      audit({ cmd: "adopted", symbol: a.symbol, qty: a.positionAmt, managed: false });
+    }
+
+    for (const rp of d.replace) {
+      const sr = await placeStopAlgo(rp.symbol, rp.side, rp.stop);
+      audit({ cmd: "stop-replace", symbol: rp.symbol, stop: rp.stop, ok: sr.ok, resp: sr.resp });
+      const m = sr.ok ? `🛡️ ${rp.symbol} stop หายไป — วางใหม่ที่ ${rp.stop} แล้ว`
+                      : `⚠️ ${rp.symbol} stop หายไป และวางใหม่ไม่สำเร็จ`;
+      ctx.feed(m, "compass"); try { ctx.relay(m); } catch {}
+    }
+
+    const WORDS = {
+      "foreign-naked": (s, k) => `⚠️ ${s} เปิดอยู่และไม่มี stop — เป็นไม้ที่เดสก์ไม่ได้เปิด (${k}) จึงไม่แตะ แจ้งให้ทราบเท่านั้น`,
+      "desk-naked-no-stop": (s) => `🚨 ${s} เป็นไม้ของเดสก์ ไม่มี stop และไม่รู้ราคา stop เดิม — pause แล้ว ต้องจัดการด้วยมือ`,
+      "stop-replace-exhausted": (s) => `🚨 ${s} วาง stop ใหม่ไม่สำเร็จครบจำนวนครั้ง — หยุดพยายาม pause แล้ว`,
+      "coverage-unverified": (s) => `⚠️ ${s} ตรวจ stop coverage ไม่ได้หลายรอบติด — ไม่ได้แปลว่าไม่มี stop แต่ยืนยันไม่ได้`,
+    };
+    for (const al of d.alerts) {
+      const m = (WORDS[al.kind] || ((s, k) => `${s}: ${k}`))(al.symbol, al.class);
+      audit({ cmd: "reconcile-alert", symbol: al.symbol, kind: al.kind, class: al.class });
+      ctx.feed(m, "compass"); try { ctx.relay(m); } catch {}
+    }
+    if (d.pause && !c.tradePaused) {
+      try { setPause(true, "auto", "reconcile:" + d.pause); } catch {}
+    }
   }
 
   async function executeAutoSignal(r) {
@@ -1585,7 +1858,7 @@ module.exports = (ctx) => {
     if (disposed) return { blocked: "instance disposed" };
     // Place MARKET order (scalp = speed) + mandatory stop.
     const or = await req("POST", "/fapi/v1/order",
-      { symbol: r.symbol, side, type: "MARKET", quantity: String(q) }, true);
+      { symbol: r.symbol, side, type: "MARKET", quantity: String(q), newClientOrderId: makeClientOrderId("as", Date.now()) }, true);
     audit({ cmd: "auto-signal", symbol: r.symbol, side, qty: q, grade: r.grade, price: r.entry, orderOk: or.ok, status: or.status, resp: or.json || or.body });
     if (!or.ok) return { blocked: "order ล้มเหลว: " + ((or.json && or.json.msg) || or.body) };
     // Mandatory stop — conditional order via the Algo Order API (regular endpoint rejects it).
@@ -1756,7 +2029,7 @@ module.exports = (ctx) => {
       const nc = readNewsCache();
       const newsBlock = newsGateDecide({
         events: nc.events, nowMs: Date.now(), gate: c.newsGate,
-        cacheOk: nc.ok, cacheMtimeMs: nc.mtimeMs,
+        cacheOk: nc.ok, cacheMtimeMs: nc.mtimeMs, cacheUpdatedMs: nc.updatedMs,
       });
       if (newsBlock) return newsBlock;
     }
@@ -1844,6 +2117,11 @@ module.exports = (ctx) => {
       try {
         const pr = await req("GET", "/fapi/v2/positionRisk", null, true);
         if (pr.ok && Array.isArray(pr.json)) {
+          // Stop-coverage + ownership reconciliation. Skipped entirely when
+          // nothing is open, so a flat desk pays no extra API calls.
+          const openNow = pr.json.filter((p) => Math.abs(Number(p.positionAmt) || 0) > 0);
+          try { await reconcile(openNow); }
+          catch (e) { ctx.log("binance: reconcile failed: " + e.message); }
           const now = {};
           for (const p of pr.json) {
             const amt = Number(p.positionAmt);
@@ -1898,6 +2176,10 @@ module.exports = (ctx) => {
             // between two positions' awaits, and everything below this line
             // (breakeven re-place, partial TP, trail close) writes real orders.
             if (disposed) break;
+            // Adopted positions are WATCHED, never managed. The desk did not
+            // plan them, so it has no stop, no target and no idea what the
+            // human intended — it only checks their coverage and reports.
+            if (tp.managed === false) continue;
             const live = now[tp.symbol];   // may be undefined if Binance closed it (stop hit)
             const mark = live ? live.mark : null;
             // If the position is gone from Binance (stop filled, or manual close),
@@ -1978,7 +2260,7 @@ module.exports = (ctx) => {
                 const partQty = quantizeQty(Math.abs(live.size) * (tr3.partialTpPct / 100), pFlt ? pFlt.stepSize : 0);
                 if (partQty > 0 && !(pFlt && partQty < pFlt.minQty)) {
                   const pr = await req("POST", "/fapi/v1/order",
-                    { symbol: tp.symbol, side: closeSide, type: "MARKET", quantity: String(partQty), reduceOnly: "true" }, true);
+                    { symbol: tp.symbol, side: closeSide, type: "MARKET", quantity: String(partQty), reduceOnly: "true", newClientOrderId: makeClientOrderId("xp", Date.now()) }, true);
                   if (pr.ok) {
                     tp.partialTaken = true;
                     const partialPnl = (isLong ? mark - tp.entry : tp.entry - mark) * partQty;
@@ -2014,7 +2296,7 @@ module.exports = (ctx) => {
                   // Trail hit → close the runner.
                   const closeSide = isLong ? "SELL" : "BUY";
                   const cr = await req("POST", "/fapi/v1/order",
-                    { symbol: tp.symbol, side: closeSide, type: "MARKET", quantity: String(Math.abs(live.size)), reduceOnly: "true" }, true);
+                    { symbol: tp.symbol, side: closeSide, type: "MARKET", quantity: String(Math.abs(live.size)), reduceOnly: "true", newClientOrderId: makeClientOrderId("xt", Date.now()) }, true);
                   const out = exitOutcome({ orderOk: cr.ok, avgPrice: cr.json && cr.json.avgPrice, mark });
                   if (!out.shouldRemove) { recordExitFailure(tp, "trail", cr); continue; }
                   const exitPx = out.exitPrice;
@@ -2065,7 +2347,7 @@ module.exports = (ctx) => {
               // Close at market (opposite side).
               const closeSide = isLong ? "SELL" : "BUY";
               const cr = await req("POST", "/fapi/v1/order",
-                { symbol: tp.symbol, side: closeSide, type: "MARKET", quantity: String(Math.abs(live.size)), reduceOnly: "true" }, true);
+                { symbol: tp.symbol, side: closeSide, type: "MARKET", quantity: String(Math.abs(live.size)), reduceOnly: "true", newClientOrderId: makeClientOrderId("xt", Date.now()) }, true);
               const out = exitOutcome({ orderOk: cr.ok, avgPrice: cr.json && cr.json.avgPrice, mark });
               if (!out.shouldRemove) { recordExitFailure(tp, exitKind, cr); continue; }
               const exitPx = out.exitPrice;
@@ -2432,6 +2714,7 @@ module.exports = (ctx) => {
             type: o.price ? "LIMIT" : "MARKET",
             quantity: String(qty),
             ...(o.price ? { price: String(o.price), timeInForce: "GTC" } : {}),
+            newClientOrderId: makeClientOrderId("mo", Date.now()),
           };
           const r = await req("POST", "/fapi/v1/order", body, true);
           const ok = r.ok;
@@ -2466,7 +2749,8 @@ module.exports = (ctx) => {
           const block = protectiveGuard({ symbol });
           if (block) { audit({ cmd: "close", symbol, side, qty, blocked: block }); return reply({ ok: false, blocked: true, msg: block }); }
           return req("POST", "/fapi/v1/order",
-            { symbol, side, type: "MARKET", quantity: String(qty) }, true).then((r) => {
+            { symbol, side, type: "MARKET", quantity: String(qty), reduceOnly: "true",
+              newClientOrderId: makeClientOrderId("xm", Date.now()) }, true).then((r) => {
               audit({ cmd: "close", symbol, side, qty, ok: r.ok, status: r.status, resp: r.json || r.body });
               if (!r.ok) return reply({ ok: false, status: r.status, error: (r.json && r.json.msg) || r.body });
               reply({ ok: true, orderId: r.json.orderId, status: r.json.status, msg: `ปิดสถานะ ${symbol} แล้ว (${qty} @ market)` });
@@ -2521,21 +2805,23 @@ module.exports = (ctx) => {
         const now = Date.now();
         const block = newsGateDecide({
           events: nc.events, nowMs: now, gate: { ...ng, enabled: true },
-          cacheOk: nc.ok, cacheMtimeMs: nc.mtimeMs,
+          cacheOk: nc.ok, cacheMtimeMs: nc.mtimeMs, cacheUpdatedMs: nc.updatedMs,
         });
         const evaluable = nc.ok && nc.events.every((e) => parseEventAt(e) != null);
         const near = [];
+        const commentary = [];
         for (const ev of nc.events) {
           if (ng.highImpactOnly && ev.impact !== "high") continue;
           const at = parseEventAt(ev);
           if (at == null) continue;
+          if (!isScheduledEvent(ev, nc.updatedMs)) { commentary.push(ev.title); continue; }
           const mins = Math.round((at - now) / 60000);
           if (mins >= -(ng.blockAfterMin || 5) && mins <= (ng.blockBeforeMin || 5))
             near.push({ title: ev.title, impact: ev.impact, minutesUntil: mins });
         }
         const upcoming = nc.events
           .map((e) => ({ title: e.title, impact: e.impact, at: parseEventAt(e) }))
-          .filter((e) => e.at != null && e.at > now)
+          .filter((e) => e.at != null && e.at > now && Math.abs(e.at - nc.updatedMs) > 2000)
           .sort((a, b) => a.at - b.at)
           .slice(0, 3)
           .map((e) => ({ ...e, inMin: Math.round((e.at - now) / 60000) }));
@@ -2545,6 +2831,7 @@ module.exports = (ctx) => {
           blockBeforeMin: ng.blockBeforeMin || 5, blockAfterMin: ng.blockAfterMin || 5,
           highImpactOnly: ng.highImpactOnly !== false,
           near, upcoming,
+          commentaryIgnored: commentary.length,
           safe: !block,
           blocked: block,
           msg: block ? `🚫 ${block}`
@@ -2617,7 +2904,7 @@ module.exports = (ctx) => {
           const pmBlock = protectiveGuard({ symbol });
           if (pmBlock) return reply({ ok: false, blocked: true, msg: pmBlock });
           return req("POST", "/fapi/v1/order",
-            { symbol, side: isLong ? "SELL" : "BUY", type: "MARKET", quantity: String(tp.qty), reduceOnly: "true" }, true).then((cr) => {
+            { symbol, side: isLong ? "SELL" : "BUY", type: "MARKET", quantity: String(tp.qty), reduceOnly: "true", newClientOrderId: makeClientOrderId("xm", Date.now()) }, true).then((cr) => {
               // A rejected close must NOT drop tracking — the old code removed it
               // regardless, leaving a live position that nothing managed.
               const out = exitOutcome({ orderOk: cr.ok, avgPrice: cr.json && cr.json.avgPrice, mark: null });
@@ -2835,6 +3122,7 @@ module.exports = (ctx) => {
             symbol: o.symbol, side: o.side,
             type: o.price ? "LIMIT" : "MARKET", quantity: String(o.qty),
             ...(o.price ? { price: String(o.price), timeInForce: "GTC" } : {}),
+            newClientOrderId: makeClientOrderId("at", Date.now()),
           };
           const or = await req("POST", "/fapi/v1/order", orderBody, true);
           audit({ cmd: "autotrade", ...o, price, orderOk: or.ok, orderStatus: or.status, orderResp: or.json || or.body });
@@ -2919,5 +3207,6 @@ module.exports = (ctx) => {
 // calls factory({...ctx}); it never reads these. Same pattern as regime-radar.
 module.exports.__safety = {
   parseEventAt, newsGateDecide, auditTrim, tradesTodayDecide,
-  makeDedup, emergencyOutcome, exitOutcome, AUDIT_MONEY_CMDS,
+  makeDedup, emergencyOutcome, exitOutcome, AUDIT_MONEY_CMDS, isScheduledEvent,
+  makeClientOrderId, isDeskTagged, classifyPosition, stopCoverage, reconcileDecide,
 };
