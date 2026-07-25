@@ -157,6 +157,24 @@ const DEFAULTS = {
     minGrade: "B",          // only auto-trade A or B signals (not C)
     onePositionAtATime: true, // skip new signals while a position is already open
   },
+  // REGIME GATE (wires the regime-radar plugin into auto-arm). A breakout/trend
+  // auto-signal may ARM only when the market regime CONFIRMS its direction:
+  //   LONG (bull) signal  -> requires regime "Trend-Up"
+  //   SHORT (bear) signal -> requires regime "Trend-Down"
+  //   Range / High-Vol    -> SKIP (breakouts fakeout in range; matches the desk's
+  //                          suitability map: Range => avoid chasing breakouts).
+  // Regime is pulled from the sibling regime-radar plugin (one deterministic
+  // engine, backtestable), NOT recomputed here. FAIL-CLOSED: if the regime can't
+  // be read, the signal is skipped (can't confirm the trend => don't arm). Every
+  // reject is logged (audit: auto-signal-blocked, reason "regimeGate: ...").
+  // mode "aligned" (default) = directional match above. mode "longOnly" = strict
+  // reading of "arm only in Trend-Up": only Trend-Up longs arm, everything else
+  // (incl. Trend-Down shorts) is skipped. Set enabled:false to disable the gate.
+  regimeGate: {
+    enabled: true,
+    mode: "aligned",        // "aligned" | "longOnly"
+    tf: "1h",               // timeframe for the regime label (regime-radar primary TF)
+  },
   // Trend-following mode (ACTIVE — replaces scalping). Bigger TF, wait for
   // A-Setup, let winners run, partial TP, hold overnight. Risk/trade is small
   // but R is large. "Trade less. Trade better. Cut losers. Let winners run."
@@ -938,6 +956,51 @@ module.exports = (ctx) => {
     } catch (e) { ctx.log("binance: copilot-link call failed (" + e.message + ") — failing open"); return null; }
   }
 
+  // Loopback call to the sibling regime-radar plugin — the single deterministic
+  // regime engine. Returns { regime, dir, confidence } or null. Same loopback
+  // pattern (and fail-open-at-transport) as callCopilotDecision; the CALLER
+  // (regimeGateCheck) decides the fail-CLOSED policy on a null.
+  async function callRegimeRadar(symbol, tf, timeoutMs = 4000) {
+    try {
+      return await new Promise((resolve) => {
+        const body = JSON.stringify({ cmd: "regime", args: `${symbol} ${tf}` });
+        const r = http.request("http://127.0.0.1:8787/plugin/regime-radar/cmd", {
+          method: "POST", timeout: timeoutMs,
+          headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) },
+        }, (res) => {
+          let d = "";
+          res.on("data", (c) => (d += c));
+          res.on("end", () => {
+            try {
+              const j = JSON.parse(d);
+              resolve(j && j.ok ? { regime: j.regime, dir: j.dir, confidence: j.confidence } : null);
+            } catch { resolve(null); }
+          });
+        });
+        r.on("error", (e) => { ctx.log("binance: regime-radar unreachable (" + e.message + ")"); resolve(null); });
+        r.on("timeout", () => { r.destroy(); ctx.log("binance: regime-radar timeout"); resolve(null); });
+        r.end(body);
+      });
+    } catch (e) { ctx.log("binance: regime-radar call failed (" + e.message + ")"); return null; }
+  }
+
+  // Regime gate for breakout/trend auto-arm. Returns null to ALLOW, or a reason
+  // string to BLOCK. r.dir is "bull"/"bear". FAIL-CLOSED: a missing regime blocks.
+  async function regimeGateCheck(r) {
+    const g = cfg().regimeGate || {};
+    if (g.enabled === false) return null;
+    const rr = await callRegimeRadar(r.symbol, g.tf || "1h");
+    if (!rr || !rr.regime) return `regimeGate: regime unavailable for ${r.symbol} (fail-closed) — ข้าม`;
+    const want = r.dir === "bull" ? "Trend-Up" : "Trend-Down";
+    if ((g.mode || "aligned") === "longOnly") {
+      if (r.dir === "bull" && rr.regime === "Trend-Up") return null;
+      return `regimeGate(longOnly): ${r.symbol} regime=${rr.regime} — arm เฉพาะ Trend-Up long เท่านั้น, ข้าม`;
+    }
+    // "aligned": trade direction must match a trending regime; Range/High-Vol skip.
+    if (rr.regime === want) return null;
+    return `regimeGate: ${r.symbol} ${r.dir} ต้องการ regime=${want} แต่ตอนนี้=${rr.regime} (conf ${rr.confidence}%) — ข้าม (ไม่ arm)`;
+  }
+
   // Snapshot embed: advisory only — stale flag surfaces so the dashboard can warn.
   async function fetchCopilotSummary() {
     return await callCopilotDecision(3000);
@@ -1096,6 +1159,11 @@ module.exports = (ctx) => {
     const order = { A: 3, B: 2, C: 1 };
     if ((order[r.grade] || 0) < (order[rules.minGrade || "B"] || 0))
       return { blocked: `signal grade ${r.grade} < ${rules.minGrade || "B"}` };
+    // REGIME GATE — breakout/trend arm only when the regime confirms direction
+    // (LONG⇒Trend-Up, SHORT⇒Trend-Down; Range/High-Vol⇒skip). Fail-closed. The
+    // scanner loop logs the returned reason to the audit trail (auto-signal-blocked).
+    const regimeBlock = await regimeGateCheck(r);
+    if (regimeBlock) return { blocked: regimeBlock };
     // One-position-at-a-time: skip if any tracked position is open.
     if (rules.onePositionAtATime && readPos().length > 0)
       return { blocked: "มี position เปิดอยู่แล้ว — ข้าม signal" };
