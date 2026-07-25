@@ -1338,6 +1338,13 @@ module.exports = (ctx) => {
   };
   const removePos = (symbol) => writePos(readPos().filter((x) => x.symbol !== symbol));
 
+  // Shadow ledger — what autoTradeSignal WOULD have opened. Kept in its own
+  // file so no order-placing or exit-managing path can ever confuse a shadow
+  // entry for a real position.
+  const shadowFile = path.join(ctx.dataDir, "positions.shadow.json");
+  const shadowPos = () => { try { return JSON.parse(fs.readFileSync(shadowFile, "utf8")); } catch { return []; } };
+  const writeShadow = (arr) => { try { writeJsonAtomic(shadowFile, arr); } catch (e) { ctx.log("binance: shadow write failed: " + e.message); } };
+
   /**
    * An exit order was rejected. Keep the position tracked (the next tick will
    * re-evaluate and try again), write NO journal row, and escalate to a human
@@ -1856,6 +1863,33 @@ module.exports = (ctx) => {
     // during the awaits above, and a disposed engine must never place an order
     // alongside its replacement.
     if (disposed) return { blocked: "instance disposed" };
+
+    // ---- SHADOW MODE ------------------------------------------------------
+    // Everything above this line is the real decision path: the same
+    // analyzeSymbol, the same dedup, the same regime gate, the same
+    // autoTradeGuard, the same sizing. Only the order send is replaced.
+    //
+    // The point is to learn what the SYSTEM does rather than what the rules
+    // say — how often the chain actually fires, which gate does the blocking,
+    // whether regime-radar answers in time — without committing capital and
+    // without a second copy of the logic that could drift.
+    if (c.autoTradeSignalShadow && !c.autoTradeSignal) {
+      const sq = shadowPos();
+      sq.push({
+        symbol: r.symbol, side, qty: q, entry: r.entry, stop: r.stop, target: r.target,
+        grade: r.grade, score: r.score, signals: r.signals, dir: r.dir,
+        openedAt: Date.now(), maxFavorable: r.entry,
+        partialTaken: false, breakevenMoved: false, source: "auto-signal-shadow",
+      });
+      writeShadow(sq);
+      audit({
+        cmd: "auto-signal-shadow", symbol: r.symbol, side, qty: q, grade: r.grade,
+        entry: r.entry, stop: r.stop, score: r.score, signals: r.signals,
+      });
+      ctx.feed(`👻 SHADOW ${r.symbol} ${side} grade ${r.grade} @ ${fmtPrice(r.entry)} stop ${fmtPrice(r.stop)} — ไม่ได้ยิงจริง`, "sigma");
+      return { shadow: true, symbol: r.symbol, side, qty: q, grade: r.grade };
+    }
+
     // Place MARKET order (scalp = speed) + mandatory stop.
     const or = await req("POST", "/fapi/v1/order",
       { symbol: r.symbol, side, type: "MARKET", quantity: String(q), newClientOrderId: makeClientOrderId("as", Date.now()) }, true);
@@ -2375,6 +2409,43 @@ module.exports = (ctx) => {
             }
           }
         }
+        // Shadow ledger resolution. One un-symboled premiumIndex call covers
+        // every shadow position at once, and it is skipped entirely when the
+        // ledger is empty — so this costs nothing until shadow mode is on and
+        // has actually fired.
+        try {
+          const sq = shadowPos();
+          const openShadow = sq.filter((x) => !x.closedAt);
+          if (openShadow.length) {
+            const mk = await req("GET", "/fapi/v1/premiumIndex", null, false);
+            const marks = {};
+            if (mk.ok && Array.isArray(mk.json))
+              for (const m of mk.json) marks[m.symbol] = Number(m.markPrice);
+            let dirty = false;
+            for (const sp of openShadow) {
+              const mark = marks[sp.symbol];
+              if (!(mark > 0)) continue;
+              const isLong = sp.side === "BUY";
+              const fav = isLong ? mark > sp.maxFavorable : mark < sp.maxFavorable;
+              if (fav) { sp.maxFavorable = mark; dirty = true; }
+              const stopHit = isLong ? mark <= sp.stop : mark >= sp.stop;
+              const targetHit = sp.target ? (isLong ? mark >= sp.target : mark <= sp.target) : false;
+              if (stopHit || targetHit) {
+                sp.closedAt = Date.now();
+                sp.exitPrice = mark;
+                sp.exitKind = stopHit ? "stop" : "target";
+                const risk = Math.abs(sp.entry - sp.stop);
+                sp.pnlR = risk > 0 ? ((isLong ? mark - sp.entry : sp.entry - mark) / risk) : null;
+                dirty = true;
+                audit({ cmd: "auto-signal-shadow-exit", symbol: sp.symbol, kind: sp.exitKind,
+                        entry: sp.entry, exitPrice: mark, pnlR: sp.pnlR, grade: sp.grade });
+                ctx.feed(`👻 SHADOW ปิด ${sp.symbol} ${sp.exitKind} @ ${fmtPrice(mark)} = ${sp.pnlR == null ? "?" : sp.pnlR.toFixed(2)}R`, "sigma");
+              }
+            }
+            if (dirty) writeShadow(sq);
+          }
+        } catch (e) { ctx.log("binance: shadow resolve failed: " + e.message); }
+
         // Drawdown breaker, evaluated on every tick — not only when a new entry
         // is attempted. An open runner can bleed straight through the limit
         // while the entry-side check never runs, because no entry is attempted.
@@ -2464,7 +2535,7 @@ module.exports = (ctx) => {
           // (was phone spam every scan as price drifts, and it buried real trade alerts).
           // Closed-loop: if the owner enabled autoTradeSignal, place the trade
           // directly from the signal (through the full guard — same as autotrade).
-          if (cc.autoTradeSignal) {
+          if (cc.autoTradeSignal || cc.autoTradeSignalShadow) {
             try {
               const res = await executeAutoSignal(r);
               if (res.blocked) {
@@ -2795,6 +2866,38 @@ module.exports = (ctx) => {
       // newscheck — read the Pulse news cache and report whether a high-impact
       // event is near (the news gate uses the same cache). Lets agents/panel
       // see "is it safe to trade right now" without re-running the gate.
+      if (cmd === "shadow") {
+        // What autoTradeSignal WOULD have done. Reports the fire rate and the
+        // block-reason histogram — the two things that tell the owner whether
+        // unattended trading is even a big decision, before any expectancy math.
+        const sq = shadowPos();
+        const open = sq.filter((x) => !x.closedAt), closed = sq.filter((x) => x.closedAt);
+        let blocked = [];
+        try { blocked = JSON.parse(fs.readFileSync(noiseFile, "utf8")); } catch {}
+        const hist = {};
+        for (const b of blocked) {
+          if (b.cmd !== "auto-signal-blocked") continue;
+          const key = String(b.blocked || "?").split(/[:(]/)[0].trim().slice(0, 60);
+          hist[key] = (hist[key] || 0) + 1;
+        }
+        const rs = closed.map((x) => x.pnlR).filter((v) => typeof v === "number");
+        const expectancy = rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null;
+        const c2 = cfg();
+        return reply({
+          ok: true,
+          mode: c2.autoTradeSignal ? "LIVE" : (c2.autoTradeSignalShadow ? "SHADOW" : "OFF"),
+          fired: sq.length, open: open.length, closed: closed.length,
+          wins: rs.filter((v) => v > 0).length, losses: rs.filter((v) => v <= 0).length,
+          expectancyR: expectancy == null ? null : Math.round(expectancy * 1000) / 1000,
+          note: rs.length < 30 ? `n=${rs.length} — เล็กเกินกว่าจะสรุป expectancy ได้` : null,
+          blockedHistogram: hist,
+          positions: sq.slice(-20),
+          text: `👻 shadow: mode=${c2.autoTradeSignal ? "LIVE" : (c2.autoTradeSignalShadow ? "SHADOW" : "OFF")} · ยิงไปแล้ว ${sq.length} (เปิด ${open.length} / ปิด ${closed.length})` +
+            (rs.length ? ` · expectancy ${(expectancy).toFixed(3)}R จาก n=${rs.length}` + (rs.length < 30 ? " (n เล็กเกินไป ยังสรุปไม่ได้)" : "") : " · ยังไม่มีไม้ปิด") +
+            `\nถูกบล็อกบ่อยสุด: ${Object.entries(hist).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => k + " ×" + v).join(" · ") || "—"}`,
+        });
+      }
+
       if (cmd === "newscheck") {
         // Uses the SAME decider as the live gate, so what this command reports
         // is exactly what the gate will do. The old version had the same
