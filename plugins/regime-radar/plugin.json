@@ -1,0 +1,12 @@
+{
+  "id": "regime-radar",
+  "name": "🧭 Market Regime Radar",
+  "version": "0.1.0",
+  "description": "Deterministic market-regime classifier for Binance Futures. Reads klines + funding via the binance plugin and labels a symbol as Trend-Up / Trend-Down / Range / High-Vol from EMA slope + ADX/ATR + RSI regime + structure (fractals) + funding bias, with a confidence score and a per-symbol suitability note (which setups fit / to avoid). Advisory only — it does not trade.",
+  "commands": [
+    { "name": "regime", "args": "<symbol> [tf]", "desc": "Classify a symbol's market regime (Trend-Up/Trend-Down/Range/High-Vol) with confidence + suitability. e.g. regime ETHUSDT 1h. Pulls klines/funding from the binance plugin. Advisory only." },
+    { "name": "health", "args": "", "desc": "Check the engine is loaded and the binance data bridge is reachable." }
+  ],
+  "needsKeys": [],
+  "enabled": true
+}
