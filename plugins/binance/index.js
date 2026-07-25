@@ -3332,6 +3332,20 @@ module.exports = (ctx) => {
 // Exported for offline unit tests (daemon/tests/binance-safety.test.js).
 // Attaching to the factory function is inert — daemon/plugins.js only ever
 // calls factory({...ctx}); it never reads these. Same pattern as regime-radar.
+// Exported for the edge-validation harness (workspace/edge-validation/).
+// This is the ONLY honest way to backtest the live signal: the study must
+// replay the exact bytes the desk executes, not a re-implementation that can
+// drift. `analyzeSymbol` already takes `req` as a parameter, so the harness
+// injects a replay transport and nothing here touches the network.
+//
+// Safe to attach: lines 1-386 are pure module scope (every setInterval and fs
+// write lives inside the factory), and daemon/plugins.js only ever calls
+// factory({...ctx}) — it never reads these. Same pattern as regime-radar.
+module.exports.__research = {
+  analyzeSymbol, fractals, classifyStructure, pullbackReady,
+  atr, ema, emaSeries, avgVol, swingHigh, swingLow, DEFAULTS,
+};
+
 module.exports.__safety = {
   parseEventAt, newsGateDecide, auditTrim, tradesTodayDecide,
   makeDedup, emergencyOutcome, exitOutcome, AUDIT_MONEY_CMDS, isScheduledEvent,
