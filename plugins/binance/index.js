@@ -1309,6 +1309,24 @@ module.exports = (ctx) => {
   }
   // Read the Pulse news cache (workspace/news-cache.json) if present.
   // Returns the events array or []. Schema: [{title, at, impact, minutesUntil}].
+  // Freshness of the news cache, for the snapshot/heartbeat. Reported
+  // separately from the gate decision so the owner can see a dependency
+  // failing BEFORE it silently disarms the auto path.
+  function newsCacheAgeH() {
+    const nc = readNewsCache();
+    if (!nc.ok || !Number.isFinite(nc.mtimeMs)) return null;
+    return Math.round(((Date.now() - nc.mtimeMs) / 3600000) * 10) / 10;
+  }
+  function newsCacheStale() {
+    const g = cfg().newsGate || {};
+    if (!g.enabled) return false;
+    const nc = readNewsCache();
+    if (!nc.ok) return true;
+    const maxAgeH = g.maxCacheAgeH == null ? 24 : g.maxCacheAgeH;
+    if (!(maxAgeH > 0) || !Number.isFinite(nc.mtimeMs)) return false;
+    return Date.now() - nc.mtimeMs > maxAgeH * 3600000;
+  }
+
   // Returns {ok, events, mtimeMs}. `ok:false` is NOT the same as "no events" —
   // an unreadable cache while the gate is enabled means we cannot evaluate the
   // news risk at all, and newsGateDecide blocks on it.
@@ -1556,6 +1574,12 @@ module.exports = (ctx) => {
         autoTradeDisabledBy: c.autoTradeDisabledBy || null,
         autoTradeDisabledAt: c.autoTradeDisabledAt || null,
         pausedReason: c.tradePausedReason || null,
+        // News-cache freshness. A stale cache makes the gate fail closed, i.e.
+        // the desk quietly stops arming — which is an OPS condition (a
+        // dependency is down), not a trading one, so it belongs where the
+        // heartbeat can see it. Pulse refreshes this every 15 min.
+        newsCacheAgeH: newsCacheAgeH(),
+        newsCacheStale: newsCacheStale(),
       },
       caps,
       balance: null,
