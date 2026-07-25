@@ -925,6 +925,27 @@ module.exports = (ctx) => {
       writeJsonAtomic(noiseFile, log.slice(-200));
     } catch { /* noise must never break a trading path */ }
   };
+  /**
+   * Guard for PROTECTIVE operations — close, stoploss, cancel.
+   *
+   * The rule: pause stops the desk from OPENING; it must never stop it from
+   * managing or exiting what is already open. `close` and `stoploss` used to
+   * run through tradeGuard, whose first check is tradePaused — so hitting the
+   * kill switch also removed the ability to flatten a position or place a
+   * protective stop. That deadlock is on record in workspace/notes.md.
+   *
+   * Deliberately NOT checked here: tradePaused, tradeEnabled, and the symbol
+   * allowlist — a symbol removed from the allowlist after a position was opened
+   * must still be exitable. What remains is what genuinely must hold: the
+   * testnet lock and the presence of keys.
+   */
+  function protectiveGuard(o) {
+    const c = cfg();
+    if (!c.testnet) return "ปฏิเสธ: plugin อยู่ในโหมด MAINNET — ใช้ testnet เท่านั้นเพื่อความปลอดภัย";
+    if (!c.apiKey || !c.apiSecret) return "missing API key/secret (ตั้งใน panel ก่อน)";
+    return null;
+  }
+
   // Multi-layer guard. Returns null if allowed, or an error string explaining
   // why the trade is blocked. Every check is independent so the agent gets a
   // precise reason to act on.
@@ -965,8 +986,12 @@ module.exports = (ctx) => {
   }
   // Fetch today's realized PnL (income REALIZED_PNL since midnight) + current
   // unrealized PnL, to check the daily-loss limit. Returns {realized, unreal}.
+  // Returns {realized, unreal, complete}. `complete:false` means a page or the
+  // position read failed, so the number is NOT a usable measure of today's PnL.
+  // The old version swallowed every failure and returned 0 — i.e. an exchange
+  // outage read as "flat day" and the daily-loss limit could never trip.
   async function dailyPnl() {
-    let realized = 0, unreal = 0;
+    let realized = 0, unreal = 0, complete = true;
     try {
       const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
       // Realized: walk income pages for today (same pagination as the income cmd).
@@ -974,20 +999,80 @@ module.exports = (ctx) => {
       for (let page = 0; page < 5; page++) {
         const r = await req("GET", "/fapi/v1/income",
           { incomeType: "REALIZED_PNL", startTime: String(dayStart.getTime()), endTime: String(endTime), limit: "1000" }, true);
-        if (!r.ok) break;
+        if (!r.ok) { complete = false; break; }
         const rows = Array.isArray(r.json) ? r.json : [];
         realized += rows.reduce((s, x) => s + Number(x.income || 0), 0);
         if (rows.length < 1000) break;
         endTime = rows[0].time - 1;
       }
-    } catch {}
+    } catch { complete = false; }
     try {
       const pr = await req("GET", "/fapi/v2/positionRisk", null, true);
       if (pr.ok && Array.isArray(pr.json))
         unreal = pr.json.reduce((s, p) => s + Number(p.unRealizedProfit || 0), 0);
-    } catch {}
-    return { realized: Math.round(realized * 1e6) / 1e6, unreal: Math.round(unreal * 1e6) / 1e6 };
+      else complete = false;
+    } catch { complete = false; }
+    return { realized: Math.round(realized * 1e6) / 1e6, unreal: Math.round(unreal * 1e6) / 1e6, complete };
   }
+  /** The one authoritative read of what is actually open on the exchange.
+   *  {ok:false} on any failure — callers must block, never assume "nothing
+   *  open". Three guards used to each make their own read and each swallow its
+   *  own error, so one outage quietly relaxed three limits at once. */
+  async function livePositions() {
+    try {
+      const pr = await req("GET", "/fapi/v2/positionRisk", null, true);
+      if (!pr.ok || !Array.isArray(pr.json)) return { ok: false, open: [] };
+      return { ok: true, open: pr.json.filter((p) => Math.abs(Number(p.positionAmt || 0)) > 0) };
+    } catch { return { ok: false, open: [] }; }
+  }
+
+  /**
+   * The daily-loss circuit breaker, extracted so it can run from the MONITOR
+   * loop as well as from the entry guard.
+   *
+   * It used to live only inside autoTradeGuard, which meant it fired only when
+   * a new entry was attempted. Combined with onePositionAtATime, a single bad
+   * runner is exactly the case where no entry is attempted — so the breaker was
+   * guaranteed not to run in the one scenario it exists for.
+   *
+   * Returns {evaluable, tripped, ...}. Callers decide what an unevaluable
+   * result means: the entry path blocks (it has a trade to refuse), the monitor
+   * path does not (tripping off incomplete data would write config from noise).
+   */
+  async function dailyLossCheck({ trip = true } = {}) {
+    const c = cfg();
+    const equityBase = c.simulatedEquity || await accountEquity();
+    const { realized, unreal, complete } = await dailyPnl();
+    if (!complete) return { evaluable: false, tripped: false };
+    const dayPnl = realized + unreal;
+    const sr = c.scalping ? (c.scalpingRules || {}) : {};
+    const lossPct = c.scalping ? (sr.dailyLossPct || 3) : (c.dailyLossPct || 2);
+    const lossLimit = -Math.abs(equityBase * lossPct / 100);
+    if (dayPnl > lossLimit) return { evaluable: true, tripped: false, dayPnl, lossLimit };
+
+    const msg = tgAlert({
+      kind: "danger", title: "Daily Loss Limit ถึงแล้ว",
+      rows: [
+        { label: "PnL วันนี้", value: fmtUsd(dayPnl), accent: "❌ เกิน limit" },
+        { label: "Limit", value: `${lossPct}% = $${Math.abs(lossLimit).toFixed(2)}` },
+      ],
+      footer: "autoTrade ปิดอัตโนมัติ — หยุดเทรดทั้งวัน",
+    });
+    // Only announce on the transition. Once autoTrade is already off the
+    // breaker stays tripped silently; the heartbeat is what reminds the owner
+    // it is still disabled (there is deliberately no auto re-arm).
+    if (trip && c.autoTrade) {
+      saveCfg({
+        autoTrade: false, autoTradeDisabledBy: "daily-loss",
+        autoTradeDisabledAt: Date.now(), autoTradeDisabledPnl: dayPnl,
+      });
+      ctx.broadcast({ type: "trade.alert", plugin: "binance", kind: "daily-loss", pnl: dayPnl, limit: lossLimit });
+      ctx.feed(msg, "compass");
+      try { ctx.relay(msg); } catch {}
+    }
+    return { evaluable: true, tripped: true, msg, dayPnl, lossLimit };
+  }
+
   // Account equity (USDT balance + unrealized PnL) — the base for % limits.
   async function accountEquity() {
     let bal = 0;
@@ -1003,7 +1088,11 @@ module.exports = (ctx) => {
   }
   // Recent realized-PnL outcomes (win/loss) from income, newest first, within
   // a lookback window. Used by the loss-streak cooldown. Each item is {time, win}.
+  // Returns {ok, outcomes}. `ok:false` means the read failed — the old version
+  // returned [] on error, which reads as "no recent losses" and hands out
+  // permission to keep trading immediately after a bad run.
   async function recentOutcomes(windowMin) {
+    let ok = true;
     try {
       const since = Date.now() - windowMin * 60000;
       let endTime = Date.now();
@@ -1011,14 +1100,14 @@ module.exports = (ctx) => {
       for (let page = 0; page < 3; page++) {
         const r = await req("GET", "/fapi/v1/income",
           { incomeType: "REALIZED_PNL", startTime: String(since), endTime: String(endTime), limit: "1000" }, true);
-        if (!r.ok) break;
+        if (!r.ok) { ok = false; break; }
         const rows = Array.isArray(r.json) ? r.json : [];
         out.push(...rows);
         if (rows.length < 1000) break;
         endTime = rows[0].time - 1;
       }
-      return out.sort((a, b) => b.time - a.time).map((x) => ({ time: x.time, win: Number(x.income) > 0 }));
-    } catch { return []; }
+      return { ok, outcomes: out.sort((a, b) => b.time - a.time).map((x) => ({ time: x.time, win: Number(x.income) > 0 })) };
+    } catch { return { ok: false, outcomes: [] }; }
   }
   // Count the current consecutive-loss streak (from the newest outcome backward,
   // stopping at the first win). Returns { streak, lastLossTime }.
@@ -1562,19 +1651,24 @@ module.exports = (ctx) => {
       if (count >= rules.maxTradesPerDay)
         return `ถึง limit ${rules.maxTradesPerDay} ไม้/วัน แล้ว (วันนี้ ${count} ไม้)`;
     }
+    // ONE authoritative read of live exchange positions, shared by every guard
+    // below that needs to know what is open. Three separate guards used to make
+    // their own read (or worse, consult in-memory state) and each swallowed its
+    // own failure — so a Binance outage LOOSENED the risk envelope instead of
+    // tightening it. Now: one call, one failure mode, and that failure blocks.
+    const live = await livePositions();
+    if (!live.ok)
+      return "อ่าน position จาก exchange ไม่ได้ — ประเมินความเสี่ยงไม่ได้ จึงไม่เปิดไม้ (fail-closed)";
+
     // Max concurrent open positions — engine-wide exposure cap. Counts LIVE
     // exchange positions (authoritative), so it also respects the CEO's own
     // manual books (e.g. an open ETH SHORT). Adding to a symbol that's already
     // open isn't a new book, so only a brand-new symbol at the cap is blocked.
     const maxConc = c.maxConcurrentPositions || 0;
     if (maxConc) {
-      try {
-        const prc = await req("GET", "/fapi/v2/positionRisk", null, true);
-        const open = (prc.ok && Array.isArray(prc.json) ? prc.json : []).filter((p) => Math.abs(Number(p.positionAmt || 0)) > 0);
-        const already = open.some((p) => p.symbol === o.symbol);
-        if (!already && open.length >= maxConc)
-          return `ถึงเพดาน ${maxConc} position พร้อมกัน (เปิดอยู่ ${open.length}: ${open.map((p) => p.symbol).join(", ")}) — ปิดไม้เก่าก่อน`;
-      } catch {}
+      const already = live.open.some((p) => p.symbol === o.symbol);
+      if (!already && live.open.length >= maxConc)
+        return `ถึงเพดาน ${maxConc} position พร้อมกัน (เปิดอยู่ ${live.open.length}: ${live.open.map((p) => p.symbol).join(", ")}) — ปิดไม้เก่าก่อน`;
     }
     // Portfolio margin HARD CAP (Framework B) — worst-case total margin must
     // stay ≤ marginCapPct% of equity. Effective leverage is gated by stop width
@@ -1589,28 +1683,14 @@ module.exports = (ctx) => {
     // Daily loss limit. Scalping: scalpingRules.dailyLossPct (3%). Trend: top-level
     // dailyLossPct (2%). Sizing base for % is simulatedEquity (real capital), not
     // the testnet balance.
-    const equityBase = c.simulatedEquity || await accountEquity();
-    const { realized, unreal } = await dailyPnl();
-    const dayPnl = realized + unreal;
-    const sr = c.scalping ? (c.scalpingRules || {}) : {};
-    const lossPct = c.scalping ? (sr.dailyLossPct || 3) : (c.dailyLossPct || 2);
-    const lossLimit = -Math.abs(equityBase * lossPct / 100);
-    if (dayPnl <= lossLimit) {
-      // Auto-disable autoTrade + alert — a hard daily-stop.
-      saveCfg({ autoTrade: false });
-      const msg = tgAlert({
-        kind: "danger", title: "Daily Loss Limit ถึงแล้ว",
-        rows: [
-          { label: "PnL วันนี้", value: fmtUsd(dayPnl), accent: "❌ เกิน limit" },
-          { label: "Limit", value: `${lossPct}% = $${Math.abs(lossLimit).toFixed(2)}` },
-        ],
-        footer: "autoTrade ปิดอัตโนมัติ — หยุดเทรดทั้งวัน",
-      });
-      ctx.broadcast({ type: "trade.alert", plugin: "binance", kind: "daily-loss", pnl: dayPnl, limit: lossLimit });
-      ctx.feed(msg, "compass");
-      try { ctx.relay(msg); } catch {}
-      return msg;
-    }
+    // Entry side of the daily-loss breaker. `evaluable:false` means the PnL data
+    // was incomplete — on the ENTRY path that blocks, because we have a trade in
+    // hand to refuse. (The monitor side of the same check deliberately does NOT
+    // trip on incomplete data; see dailyLossCheck.)
+    const dl = await dailyLossCheck({ trip: true });
+    if (!dl.evaluable)
+      return "อ่าน PnL วันนี้ไม่ครบ — ประเมิน daily-loss limit ไม่ได้ จึงไม่เปิดไม้ (fail-closed)";
+    if (dl.tripped) return dl.msg;
     // Loss-streak cooldown. Scalping: uses scalpingRules (3 losses/30min). Trend:
     // uses top-level cooldownAfterLosses/cooldownMin (2 losses/60min). Either way
     // the goal is the same — stop revenge-trading after a bad run.
@@ -1618,7 +1698,12 @@ module.exports = (ctx) => {
     const cdMin = c.scalping ? (sr.cooldownMin || 30) : (c.cooldownMin || 60);
     const cdWindow = c.scalping ? (sr.cooldownWindowMin || 60) : 120;
     if (cdLosses) {
-      const outcomes = await recentOutcomes(cdWindow);
+      const oc = await recentOutcomes(cdWindow);
+      // recentOutcomes used to swallow read errors into [] — a streak of zero,
+      // i.e. permission to keep trading right after a bad run.
+      if (!oc.ok)
+        return "อ่านผลไม้ล่าสุดไม่ได้ — ประเมิน loss-streak cooldown ไม่ได้ จึงไม่เปิดไม้ (fail-closed)";
+      const outcomes = oc.outcomes;
       const { streak, lastLossTime } = lossStreak(outcomes);
       if (streak >= cdLosses && lastLossTime) {
         const cooledAt = lastLossTime + cdMin * 60000;
@@ -1685,8 +1770,13 @@ module.exports = (ctx) => {
     // No averaging down: if there's already a position on this symbol in the
     // same direction and it's losing, block adding to it.
     if (rules.noAveragingDown && o.symbol) {
-      const was = lastPositions[o.symbol];
-      if (was && was.pnl < 0) return `ห้ามเพิ่ม position ขาดทุน — ${o.symbol} กำลังขาดทุน $${was.pnl.toFixed(2)}`;
+      // Reads the authoritative exchange state. It used to read the monitor
+      // loop's in-memory cache, which is EMPTY until the first tick after every
+      // restart — so this guard was a silent no-op exactly when a restart had
+      // just lost the desk its context.
+      const cur = live.open.find((p) => p.symbol === o.symbol);
+      const upnl = cur ? Number(cur.unRealizedProfit || 0) : 0;
+      if (cur && upnl < 0) return `ห้ามเพิ่ม position ขาดทุน — ${o.symbol} กำลังขาดทุน $${upnl.toFixed(2)}`;
     }
     // Opt-in Copilot gate (requireCopilotApproval). Uses the unified
     // callCopilotDecision helper (correct http protocol — the old code had a
@@ -2003,6 +2093,20 @@ module.exports = (ctx) => {
             }
           }
         }
+        // Drawdown breaker, evaluated on every tick — not only when a new entry
+        // is attempted. An open runner can bleed straight through the limit
+        // while the entry-side check never runs, because no entry is attempted.
+        try {
+          const dl = await dailyLossCheck({ trip: true });
+          if (!dl.evaluable) {
+            HEALTH.dailyLossUnevaluable = (HEALTH.dailyLossUnevaluable || 0) + 1;
+            if (HEALTH.dailyLossUnevaluable === 10) {
+              const m = "⚠️ ประเมิน daily-loss limit ไม่ได้ 10 รอบติด (อ่าน PnL จาก exchange ไม่สำเร็จ) — เบรกเกอร์ตาบอดอยู่";
+              ctx.feed(m, "compass"); try { ctx.relay(m); } catch {}
+            }
+          } else HEALTH.dailyLossUnevaluable = 0;
+        } catch (e) { ctx.log("binance: dailyLossCheck in monitor failed: " + e.message); }
+
         // Only a FULLY successful tick counts as alive. Setting this at the top
         // would make a loop that throws every single tick look healthy.
         HEALTH.lastOkTickAt = Date.now();
@@ -2357,7 +2461,9 @@ module.exports = (ctx) => {
           if (amt === 0) return reply({ ok: false, msg: `ไม่มีสถานะเปิด ${symbol} ที่จะปิด` });
           const side = amt > 0 ? "SELL" : "BUY";   // opposite of the position
           const qty = Math.abs(amt);
-          const block = tradeGuard({ symbol });
+          // protectiveGuard, not tradeGuard: pausing the desk must never take
+          // away its ability to flatten a position.
+          const block = protectiveGuard({ symbol });
           if (block) { audit({ cmd: "close", symbol, side, qty, blocked: block }); return reply({ ok: false, blocked: true, msg: block }); }
           return req("POST", "/fapi/v1/order",
             { symbol, side, type: "MARKET", quantity: String(qty) }, true).then((r) => {
@@ -2382,7 +2488,9 @@ module.exports = (ctx) => {
           const amt = Number((pos && pos.positionAmt) || 0);
           if (amt === 0) return reply({ ok: false, msg: `ไม่มีสถานะเปิด ${symbol} — ตั้ง stop ไม่ได้` });
           const side = amt > 0 ? "SELL" : "BUY";   // stop closes the position
-          const block = tradeGuard({ symbol });
+          // protectiveGuard: a paused desk must still be able to PROTECT an
+          // open position. This was the sharpest edge of the pause deadlock.
+          const block = protectiveGuard({ symbol });
           if (block) { audit({ cmd: "stoploss", symbol, trigger, blocked: block }); return reply({ ok: false, blocked: true, msg: block }); }
           return placeStopAlgo(symbol, side, trigger).then((sl) => {
             audit({ cmd: "stoploss", symbol, trigger, side, ok: sl.ok, status: sl.status, resp: sl.resp });
@@ -2504,6 +2612,10 @@ module.exports = (ctx) => {
           const tp = tracked.find((x) => x.symbol === symbol);
           if (!tp) return reply({ ok: false, msg: `ไม่มี ${symbol} ใน position store` });
           const isLong = tp.side === "BUY" || tp.side === "LONG";
+          // This path had no guard at all. It gets the protective one — still
+          // exitable while paused, still refuses to touch a mainnet account.
+          const pmBlock = protectiveGuard({ symbol });
+          if (pmBlock) return reply({ ok: false, blocked: true, msg: pmBlock });
           return req("POST", "/fapi/v1/order",
             { symbol, side: isLong ? "SELL" : "BUY", type: "MARKET", quantity: String(tp.qty), reduceOnly: "true" }, true).then((cr) => {
               // A rejected close must NOT drop tracking — the old code removed it
@@ -2648,7 +2760,7 @@ module.exports = (ctx) => {
         const parts = String(args || "").trim().split(/\s+/);
         const orderId = parts[0], symbol = (parts[1] || "").toUpperCase();
         if (!orderId || !symbol) return reply({ ok: false, msg: "usage: cancel <orderId> <symbol>" });
-        const block = tradeGuard({ symbol });
+        const block = protectiveGuard({ symbol });
         if (block) return reply({ ok: false, blocked: true, msg: block });
         return req("DELETE", "/fapi/v1/order", { orderId, symbol }, true).then((r) => {
           audit({ cmd: "cancel", orderId, symbol, ok: r.ok, status: r.status });
