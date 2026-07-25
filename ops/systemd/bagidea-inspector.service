@@ -1,0 +1,7 @@
+[Unit]
+Description=Independent desk position inspector (read-only monitor -> Telegram)
+OnFailure=bagidea-alert@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/desk-inspector.sh

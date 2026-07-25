@@ -1,0 +1,6 @@
+[Unit]
+Description=Telegram alert for failed unit %i
+
+[Service]
+Type=oneshot
+ExecStart=%h/notify-telegram.sh "⚠️ javis-server: %i ล้มเหลว — เช็ค journalctl --user -u %i"

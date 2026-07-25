@@ -1,0 +1,7 @@
+[Unit]
+Description=BagIdea desk liveness heartbeat (out-of-process watch)
+OnFailure=bagidea-alert@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/desk-heartbeat.sh

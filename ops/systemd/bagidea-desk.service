@@ -1,0 +1,20 @@
+[Unit]
+Description=BagIdea Trading Desk daemon (testnet, ETH forward test)
+After=network-online.target
+# A crash-loop under Restart=always never reaches `failed`, so OnFailure can
+# never fire and the loop is invisible. With a start limit, systemd gives up
+# after 5 restarts in 5 minutes and pages. That is safe: an open position is
+# protected by the exchange-side STOP_MARKET, not by this daemon.
+OnFailure=bagidea-alert@%n.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+WorkingDirectory=%h/bagidea-desk
+ExecStart=/usr/bin/env node daemon/server.js
+Environment=OEP_PORT=8787
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,86 @@
+{
+  "_comment": "Acceptance criteria for the BagIdea desk auto-signal edge study. RATIFIED BEFORE ANY RESULT EXISTED — the study had not been run, the shadow ledger held zero closed entries, and the backtest data was still downloading. That order is the whole point: a bar set after seeing the outcome is not a bar. Changing any number here after a result is known invalidates the study and requires a new one.",
+  "decided_by": "CREATOR:2026-07-25 (Tin / aonizai) — ratified in-session, pre-registration, no study result in existence at the time",
+  "strategy": "bagidea-auto-signal-v1 (analyzeSymbol grade gate + regimeGate longOnly + BE/partial/trail manager, as executed by executeAutoSignal)",
+  "also_evaluated": "smc-radar-fvg-v1 (plugins/smc-radar/engine.js analyzeAsOf setups) — scored against the SAME criteria, separately, never pooled",
+  "symbol": "15-coin universe (BTC ETH SOL BNB XRP DOGE ADA AVAX LINK LTC DOT TRX ATOM NEAR APT) — deliberately 3x the tradeable allowlist",
+  "timeframe": "15m signal / 1h context",
+
+  "data_windows": {
+    "in_sample": {"from": "2023-01-01", "to": "2025-06-30"},
+    "out_of_sample": {"from": "2025-07-01", "to": "2026-03-31"},
+    "final_holdout": {"from": "2026-04-01", "to": "2026-06-30"},
+    "walk_forward": {"train_months": 12, "test_months": 3, "step_months": 3}
+  },
+
+  "conservative_costs": {
+    "_comment": "Deliberately HARSHER than backtest_lite's defaults (0.0004/0.0002/0.0002). A wall that assumes the good case is not a wall. RD-VERDICT lesson #2: transaction cost is the killer.",
+    "taker_fee_per_side": 0.0006,
+    "maker_fee_per_side": 0.0003,
+    "base_slippage_per_side": 0.0003,
+    "stress_multiplier": 1.5,
+    "funding": "REAL Binance USD-M per-symbol series REQUIRED — never fabricated, never zero-substituted; fetched through END+1 day so the exit bar's boundary is covered"
+  },
+
+  "liquidation_check": {
+    "_comment": "The engine sizes risk-first and is unlevered. Collateral = notional / assumed_leverage_x, set to the desk's live maxLeverage so the estimate matches the tier the strategy would actually run under.",
+    "assumed_leverage_x": 3.0
+  },
+
+  "evidence_minimum": {
+    "_comment": "The recorded false positive was n=6 (+10.4%/trade, beat the signal-blind control) that went negative at n=20-24 when the universe widened from 5 coins to 15. The prior grade-A measurement was N=14 and the research log itself called it inconclusive. 200 is the number at which a +0.15R claim stops being noise at the observed r_std.",
+    "oos_trades": 200,
+    "holdout_trades": 60,
+    "oos_plus_holdout_trades": 260,
+    "each_enabled_direction": 100
+  },
+
+  "validated_candidate_requires_all": {
+    "net_profit_factor_min": 1.20,
+    "expectancy_r_min": 0.15,
+    "holdout_net_pnl_positive": true,
+    "max_drawdown_pct_max": 12.0,
+    "liquidation_count": 0,
+    "profitable_walk_forward_folds_min_pct": 60.0,
+    "no_single_trade_over_pct_of_total_pnl": 25.0,
+    "no_single_month_over_pct_of_total_pnl": 40.0,
+    "stress_profit_factor_min": 1.00,
+    "stress_expectancy_r_min": 0.0,
+    "one_bar_delay_keeps_expectancy_nonnegative": true,
+    "no_unresolved_lookahead_or_data_finding": true
+  },
+
+  "reviewer_checked_also_required": {
+    "_comment": "Criteria the machine does NOT auto-check. Every one of them is here because it is the specific test that killed a previous candidate on this desk. A machine VALIDATED_CANDIDATE on the subset above is necessary but NOT sufficient.",
+    "t_stat_abs_min": 2.5,
+    "t_stat_note": "t = r_sharpe * sqrt(n-1), NOT sqrt(n) — metrics_v1._pop_std is a population std. ~12 hypotheses have been tested; at 12 looks P(some |t|>2 by luck) is about 43%, at 2.5 about 14%. This is the multiple-comparisons tax the desk has earned.",
+    "beat_signal_blind_control_r_min": 0.10,
+    "beat_signal_blind_control_note": "Must exceed the 95th percentile of >=200 seeded draws matched on trade COUNT and holding-period distribution, not the mean. Beating the mean is exactly what regime-Donchian did immediately before it died.",
+    "beat_gate_only_control_r_min": 0.10,
+    "beat_gate_only_control_note": "Control C2 keeps the regime gate and every risk gate but discards the scanner grade. If C2 matches the strategy, the edge is the regime gate and not the signal — that is the isolation that killed the last lead.",
+    "per_symbol_trades_min": 10,
+    "per_symbol_symbols_passing_min": 8,
+    "per_tier_trades_min": 50,
+    "per_tier_below_min_verdict": "INCONCLUSIVE — never PASS",
+    "universe_expansion_rule": "The 15-coin pooled result must satisfy every criterion on its own, and the 5-coin result must not exceed the 15-coin result by more than 2x. The 15-coin number is the headline; the 5-coin number is reported beside it as what a narrow study would have claimed.",
+    "param_sweep_sign_flips_max": 0,
+    "param_sweep_positive_points_min_pct": 80.0,
+    "cost_stress_expectancy_r_min_at_1_25x": 0.05,
+    "forming_bar_sign_agreement_required": true,
+    "forming_bar_note": "Closed-bar and forming-bar replay must agree in SIGN. The live loop decides every 30s against a forming candle; the engine enforces closed-bar next-bar execution. Disagreement means the result is an artifact of cadence, not an edge.",
+    "peak_from_sign_agreement_required": true,
+    "peak_from_note": "The trail is simulated with peak_from=high (optimistic; the live monitor never sees intrabar wicks) and peak_from=close (pessimistic; a 30s poll only sees closes). Truth is between them. Sign disagreement means the execution cannot be modelled honestly.",
+    "data_provenance_required": "mainnet archive from data.binance.vision, checksum-verified, dataset sha256 pinned in the run manifest, zero synthesized candles. Testnet klines are NOT admissible as evidence.",
+    "golden_parity_required": "A week of the live shadow ledger must replay through the harness in forming-bar mode and reproduce the same fired signals and the same block reasons. Until this passes, no verdict is publishable.",
+    "lookahead_attestation_required": "explicit human statement"
+  },
+
+  "structural_rules": {
+    "no_go_is_the_default": "If any criterion is INSUFFICIENT_EVIDENCE the verdict is NO-GO. There is no such thing as 'passed the ones we could measure'.",
+    "a_full_pass_is_not_a_switch_flip": "GO means: run shadow mode for 30 days or >=30 signals, whichever is later; if forward expectancy sits within 1 SE of the backtest, the owner MAY THEN consider flipping autoTradeSignal. Ratifying these thresholds authorizes nothing about that switch.",
+    "no_go_closes_the_line": "The correct response to NO-GO is to close the hypothesis and record it, not to retune parameters. Re-running with new parameters until something passes is the noise-mining the desk has already warned itself about.",
+    "changing_a_number_invalidates_the_study": "These were set before any result existed. Editing one afterwards means the study must be re-run from a fresh holdout."
+  },
+
+  "calibration_self_test": "These numbers reject the desk's own best-ever result. Regime-gated Donchian at n=6 — which beat the signal-blind control out-of-sample before dying at n=20-24 — fails the minimum-n criterion alone, before anyone looks at its return. A threshold set that would have admitted the known false positive would be worthless."
+}

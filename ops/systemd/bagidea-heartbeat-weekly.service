@@ -1,0 +1,7 @@
+[Unit]
+Description=BagIdea desk weekly alive-ping (also the alert-channel canary)
+OnFailure=bagidea-alert@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/desk-heartbeat.sh weekly
