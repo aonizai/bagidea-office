@@ -384,7 +384,158 @@ async function analyzeSymbol(symbol, req, entryTf = "15m", ctxTf = "1h", opts = 
   };
 }
 
+/* ------------------------------------------------------------------------
+ * SAFETY DECIDERS — pure, module scope, exported for tests.
+ *
+ * These hold the decisions that decide whether real money moves. They live
+ * out here (rather than inside the factory) for one reason: a 2400-line file
+ * that talks to an exchange on every path had zero test coverage, and the only
+ * way to test a decision is to be able to call it without a network.
+ *
+ * House rule for every one of them: when the input needed to make the decision
+ * is MISSING, the answer is the safe one, not the convenient one. An exchange
+ * outage must tighten the risk envelope, never loosen it.
+ * ---------------------------------------------------------------------- */
+
+/** Event times arrive as ISO strings from the news cache and as epoch ms from
+ *  some feeds. The old code did `ev.at - now` on a string, got NaN, and every
+ *  comparison after it was false — so a gate marked `enabled: true` never once
+ *  blocked a trade. Returns epoch ms, or null when it genuinely cannot tell. */
+function parseEventAt(ev) {
+  const v = ev && ev.at;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const t = Date.parse(v);
+    if (Number.isFinite(t)) return t;
+  }
+  return null;
+}
+
+/** Returns null to allow, or a human reason string to BLOCK.
+ *  Fails closed three ways: unparseable event time, unreadable cache, stale
+ *  cache. A cached `minutesUntil` is deliberately ignored — it was computed at
+ *  fetch time and reusing it just tells the same lie more slowly. */
+function newsGateDecide({ events, nowMs, gate, cacheOk, cacheMtimeMs }) {
+  if (!gate || !gate.enabled) return null;
+  if (!cacheOk) return "news gate: อ่าน news-cache ไม่ได้ — ประเมินข่าวไม่ได้ (fail-closed)";
+  const maxAgeH = gate.maxCacheAgeH == null ? 24 : gate.maxCacheAgeH;
+  if (maxAgeH > 0 && Number.isFinite(cacheMtimeMs) && nowMs - cacheMtimeMs > maxAgeH * 3600000)
+    return `news gate: news-cache เก่ากว่า ${maxAgeH} ชม. — ประเมินข่าวไม่ได้ (fail-closed)`;
+  for (const ev of events || []) {
+    if (gate.highImpactOnly && ev.impact !== "high") continue;
+    const at = parseEventAt(ev);
+    if (at == null)
+      return `news gate: อ่านเวลาข่าว "${(ev && ev.title) || "?"}" ไม่ได้ — fail-closed`;
+    const mins = Math.round((at - nowMs) / 60000);
+    if (mins >= -(gate.blockAfterMin || 0) && mins <= (gate.blockBeforeMin || 0)) {
+      const when = mins >= 0 ? `อีก ${mins} นาที (ก่อนข่าว)` : `${-mins} นาทีที่แล้ว (หลังข่าว)`;
+      return `news gate: ${(ev && ev.title) || "ข่าวใหญ่"} ${when} — รอให้ความผันผวนเคลียร์`;
+    }
+  }
+  return null;
+}
+
+// Entries that are part of the money trail. Everything else (blocked signals,
+// dry runs, monitor errors) is noise and gets its own quota so it can never
+// crowd real fills out of the ring.
+const AUDIT_MONEY_CMDS = new Set([
+  "order", "autotrade", "autotrade-stop", "auto-signal", "auto-signal-shadow",
+  "exit", "exit-failed", "emergency-close", "close", "stoploss", "pause", "leverage-auto",
+]);
+
+function auditTrim(log, { maxMoney = 400, maxOther = 100 } = {}) {
+  const money = [], other = [];
+  for (const e of Array.isArray(log) ? log : [])
+    (AUDIT_MONEY_CMDS.has(e && e.cmd) ? money : other).push(e);
+  return money.slice(-maxMoney).concat(other.slice(-maxOther))
+    .sort((a, b) => ((a && a.ts) || 0) - ((b && b.ts) || 0));
+}
+
+/** Today's executed entries, plus whether that count can be TRUSTED.
+ *  The audit log is a ring buffer, so once it has been trimmed past midnight
+ *  the count is only a lower bound — and a lower bound is exactly what you
+ *  must not compare against a daily cap. `complete:false` ⇒ the caller blocks. */
+function tradesTodayDecide(log, nowMs) {
+  if (!Array.isArray(log)) return { count: 0, complete: false };
+  const d = new Date(nowMs); d.setHours(0, 0, 0, 0);
+  const dayStart = d.getTime();
+  let count = 0, oldest = Infinity;
+  for (const e of log) {
+    if (!e || !Number.isFinite(e.ts)) continue;
+    if (e.ts < oldest) oldest = e.ts;
+    if (e.ts < dayStart) continue;
+    if ((e.cmd === "order" && e.ok) ||
+        ((e.cmd === "autotrade" || e.cmd === "auto-signal") && e.orderOk)) count++;
+  }
+  // Nothing on file at all ⇒ nothing was trimmed ⇒ zero is the true count.
+  const complete = log.length === 0 ? true : oldest <= dayStart;
+  return { count, complete };
+}
+
+/** Per-key dedup with a TTL. The old dedup was a single module-scope string, so
+ *  with two qualifying signals in one tick the key rotated and both re-fired on
+ *  the next tick — the mechanism behind a logged open/emergency-close churn
+ *  loop. Dedup can only ever SUPPRESS, so a bug here cannot cause an entry. */
+function makeDedup({ ttlMs = 3600000, max = 200 } = {}) {
+  const seen = new Map();
+  return {
+    fresh(key, nowMs) {
+      const prev = seen.get(key);
+      if (prev != null && nowMs - prev < ttlMs) return false;
+      seen.set(key, nowMs);
+      if (seen.size > max)
+        for (const [k, v] of seen) if (nowMs - v >= ttlMs) seen.delete(k);
+      return true;
+    },
+    size: () => seen.size,
+  };
+}
+
+/** Did the emergency close actually flatten the position?
+ *  `flat:true` requires POSITIVE proof. A rejected close, a failed verification
+ *  read, or any remaining quantity all mean the same thing operationally:
+ *  assume the position is still open and still naked. unknown ≡ naked. */
+function emergencyOutcome({ closeOk, verifyOk, verifyAmt }) {
+  if (!closeOk) return { flat: false, reason: "close-rejected" };
+  if (!verifyOk) return { flat: false, reason: "verify-failed" };
+  if (Math.abs(Number(verifyAmt) || 0) > 0) return { flat: false, reason: "still-open" };
+  return { flat: true, reason: null };
+}
+
+/** What to do after firing an exit order.
+ *  A rejected close must NOT drop tracking and must NOT write a journal row —
+ *  the old code did both unconditionally, leaving a live position untracked and
+ *  a ledger claiming a realised PnL that never happened. */
+function exitOutcome({ orderOk, avgPrice, mark }) {
+  if (!orderOk) return { shouldRemove: false, exitPrice: null, pnlSource: null };
+  const avg = Number(avgPrice);
+  if (Number.isFinite(avg) && avg > 0) return { shouldRemove: true, exitPrice: avg, pnlSource: "fill" };
+  return { shouldRemove: true, exitPrice: mark, pnlSource: "estimated-from-mark" };
+}
+
 module.exports = (ctx) => {
+  // Live-loop registry. Hung on globalThis so it SURVIVES the require-cache
+  // delete that /plugins/reload does — a module-scope counter would reset on
+  // every reload and could never detect the leak it exists to detect.
+  // Surfaced in the snapshot as health.loops; anything above 1 means a previous
+  // instance was never disposed and two engines are racing the same account.
+  const LOOPS = (globalThis.__bagideaBinanceLoops =
+    globalThis.__bagideaBinanceLoops || { monitor: 0, scanner: 0 });
+
+  // Set by dispose(). clearInterval alone is not enough: a tick is async, so
+  // one already in flight survives disposal and would keep placing orders
+  // alongside the fresh instance. A disposed instance may finish READING; it
+  // must never WRITE. Every order POST inside a loop is gated on this.
+  let disposed = false;
+
+  // Liveness counters, surfaced in the snapshot for the out-of-process
+  // heartbeat. A desk that is flat and a desk that is dead look identical from
+  // a phone unless something publishes "the loop ticked and it was fine".
+  const HEALTH = {
+    lastOkTickAt: null, lastTickErrorAt: null, lastTickError: null,
+    consecutiveTickErrors: 0, lastTickErrorAlertAt: 0, startedAt: Date.now(),
+  };
+
   const cfgFile = path.join(ctx.dataDir, "config.json");
   try {
     fs.mkdirSync(ctx.dataDir, { recursive: true });
@@ -728,13 +879,51 @@ module.exports = (ctx) => {
   // Append every order attempt to data/orders.json so there's a durable trail
   // (kept under the testnet cap — auto-trimmed to the last 200 entries).
   const auditFile = path.join(ctx.dataDir, "orders.json");
+  const noiseFile = path.join(ctx.dataDir, "blocked.json");
+  const archiveFile = () =>
+    path.join(ctx.dataDir, "orders-" + new Date().toISOString().slice(0, 7) + ".jsonl");
+
+  // Atomic: a crash mid-write used to be able to truncate the money trail (and
+  // the same helper protects positions.json and config.json, which holds keys).
+  const writeJsonAtomic = (file, data) => {
+    const tmp = file + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+    fs.renameSync(tmp, file);
+  };
+
+  let lastArchivedDay = null;
   const audit = (entry) => {
     try {
       let log = [];
       try { log = JSON.parse(fs.readFileSync(auditFile, "utf8")); } catch {}
       log.push({ ts: Date.now(), ...entry });
-      fs.writeFileSync(auditFile, JSON.stringify(log.slice(-200), null, 2));
+      // Trimming used to mean DESTROYING. Append the older tail to a monthly
+      // JSONL once a day so the ring stays small without losing history.
+      const today = new Date().toISOString().slice(0, 10);
+      if (lastArchivedDay !== today) {
+        lastArchivedDay = today;
+        const cut = new Date(); cut.setHours(0, 0, 0, 0);
+        const old = log.filter((e) => e && e.ts < cut.getTime());
+        if (old.length) {
+          try { fs.appendFileSync(archiveFile(), old.map((e) => JSON.stringify(e)).join("\n") + "\n"); }
+          catch (e) { ctx.log("binance: audit archive failed: " + e.message); }
+        }
+      }
+      writeJsonAtomic(auditFile, auditTrim(log));
     } catch (e) { ctx.log("binance: audit write failed: " + e.message); }
+  };
+
+  // Blocked signals, dry runs and monitor errors go here instead of competing
+  // with real fills for space in the money trail. 79 of the 200 slots in the
+  // old single ring were `auto-signal-blocked` — enough to trim a whole day's
+  // fills out from under maxTradesPerDay.
+  const auditNoise = (entry) => {
+    try {
+      let log = [];
+      try { log = JSON.parse(fs.readFileSync(noiseFile, "utf8")); } catch {}
+      log.push({ ts: Date.now(), ...entry });
+      writeJsonAtomic(noiseFile, log.slice(-200));
+    } catch { /* noise must never break a trading path */ }
   };
   // Multi-layer guard. Returns null if allowed, or an error string explaining
   // why the trade is blocked. Every check is independent so the agent gets a
@@ -764,13 +953,15 @@ module.exports = (ctx) => {
   // manual `order` fills log {cmd:"order", ok}, while autotrade / auto-signal
   // fills log {cmd:"autotrade"|"auto-signal", orderOk} — counting only "order"
   // let auto fills bypass maxTradesPerDay. Blocked attempts never count.
+  // Returns {count, complete}. `complete:false` means the count is only a lower
+  // bound (unreadable log, or the ring already trimmed past midnight) — the
+  // caller must treat that as "cannot prove we are under the cap" and block.
+  // The old version returned 0 on any read error, which turned an unreadable
+  // audit log into a free pass.
   function tradesToday() {
-    try {
-      const log = JSON.parse(fs.readFileSync(auditFile, "utf8"));
-      const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-      return log.filter((e) => e.ts >= dayStart.getTime() &&
-        ((e.cmd === "order" && e.ok) || ((e.cmd === "autotrade" || e.cmd === "auto-signal") && e.orderOk))).length;
-    } catch { return 0; }
+    let log = null;
+    try { log = JSON.parse(fs.readFileSync(auditFile, "utf8")); } catch { log = null; }
+    return tradesTodayDecide(log, Date.now());
   }
   // Fetch today's realized PnL (income REALIZED_PNL since midnight) + current
   // unrealized PnL, to check the daily-loss limit. Returns {realized, unreal}.
@@ -841,12 +1032,19 @@ module.exports = (ctx) => {
   }
   // Read the Pulse news cache (workspace/news-cache.json) if present.
   // Returns the events array or []. Schema: [{title, at, impact, minutesUntil}].
+  // Returns {ok, events, mtimeMs}. `ok:false` is NOT the same as "no events" —
+  // an unreadable cache while the gate is enabled means we cannot evaluate the
+  // news risk at all, and newsGateDecide blocks on it.
   function readNewsCache() {
     try {
       const p = path.join(ctx.workspace, "news-cache.json");
-      const j = JSON.parse(fs.readFileSync(p, "utf8"));
-      return Array.isArray(j.events) ? j.events : (Array.isArray(j) ? j : []);
-    } catch { return []; }
+      const raw = fs.readFileSync(p, "utf8");
+      const j = JSON.parse(raw);
+      const events = Array.isArray(j.events) ? j.events : (Array.isArray(j) ? j : []);
+      let mtimeMs = NaN;
+      try { mtimeMs = fs.statSync(p).mtimeMs; } catch { /* age unknown → not stale-checked */ }
+      return { ok: true, events, mtimeMs };
+    } catch { return { ok: false, events: [], mtimeMs: NaN }; }
   }
   // --- Position store (data/positions.json) --------------------------------
   // Tracks active positions for the auto-exit manager: entry/stop/target/
@@ -859,6 +1057,37 @@ module.exports = (ctx) => {
     arr.push(p); writePos(arr);
   };
   const removePos = (symbol) => writePos(readPos().filter((x) => x.symbol !== symbol));
+
+  /**
+   * An exit order was rejected. Keep the position tracked (the next tick will
+   * re-evaluate and try again), write NO journal row, and escalate to a human
+   * after a bounded number of attempts rather than looping orders forever.
+   *
+   * The old behaviour was the opposite on all three counts: it dropped the
+   * position from tracking, wrote a journal row claiming a realised PnL that
+   * never happened, and left a live position that nothing was managing.
+   */
+  function recordExitFailure(tp, kind, resp) {
+    const attempts = ((tp.exitFailed && tp.exitFailed.attempts) || 0) + 1;
+    const err = (resp && resp.json && resp.json.msg) || (resp && resp.body) || "unknown";
+    tp.exitFailed = { at: Date.now(), kind, attempts, err };
+    try { upsertPos(tp); } catch (e) { ctx.log("binance: exit-failure persist failed: " + e.message); }
+    audit({ cmd: "exit-failed", symbol: tp.symbol, kind, attempts, err, status: resp && resp.status });
+
+    // Throttle: one alert per symbol per 10 min, and one hard escalation.
+    const lastAlert = (tp.exitFailed && tp.exitFailed.lastAlertAt) || 0;
+    if (Date.now() - lastAlert > 600000 || attempts >= 3) {
+      tp.exitFailed.lastAlertAt = Date.now();
+      try { upsertPos(tp); } catch {}
+      const msg = attempts >= 3
+        ? `🚨 ${tp.symbol} ปิดไม้ (${kind}) ไม่สำเร็จ ${attempts} ครั้ง — หยุดพยายามแล้ว เดสก์ pause · ต้องจัดการด้วยมือ\n(${err})`
+        : `⚠️ ${tp.symbol} ปิดไม้ (${kind}) ไม่สำเร็จ ครั้งที่ ${attempts} — ยังติดตาม position อยู่ จะลองใหม่รอบหน้า\n(${err})`;
+      ctx.feed(msg, "compass"); try { ctx.relay(msg); } catch {}
+    }
+    if (attempts >= 3) {
+      try { setPause(true, "auto", `exit-failed:${tp.symbol}:${kind}`); } catch {}
+    }
+  }
   // --- Trade journal (workspace/trades/) -----------------------------------
   // Append a human-readable + machine-parseable line per closed trade. The
   // position manager calls this on every exit so the journal is always current.
@@ -1025,8 +1254,22 @@ module.exports = (ctx) => {
       environment: c.testnet ? "TESTNET" : "MAINNET",
       paused: !!c.tradePaused,
       autoTrade: !!c.autoTrade,
+      autoTradeSignal: !!c.autoTradeSignal,
       tradeEnabled: !!c.tradeEnabled,
       scalping: !!c.scalping,
+      // Liveness. loops must be {monitor:1, scanner:1} — anything higher means a
+      // previous instance was never disposed and two engines are racing this
+      // account. This is the production regression detector for that bug.
+      health: {
+        loops: { monitor: LOOPS.monitor, scanner: LOOPS.scanner },
+        monitorMs: c.monitorMs, startedAt: HEALTH.startedAt,
+        lastOkTickAt: HEALTH.lastOkTickAt,
+        lastTickErrorAt: HEALTH.lastTickErrorAt, lastTickError: HEALTH.lastTickError,
+        consecutiveTickErrors: HEALTH.consecutiveTickErrors,
+        autoTradeDisabledBy: c.autoTradeDisabledBy || null,
+        autoTradeDisabledAt: c.autoTradeDisabledAt || null,
+        pausedReason: c.tradePausedReason || null,
+      },
       caps,
       balance: null,
       positions: [],
@@ -1152,7 +1395,66 @@ module.exports = (ctx) => {
   // has enabled autoTradeSignal, place the autotrade DIRECTLY. This reuses the
   // exact same orderBody+guard+stop path as the `autotrade` command — no
   // shortcut around safety. Returns the fill result or a blocked reason.
+  /**
+   * Last line of defence: the stop could not be placed, so flatten immediately
+   * rather than run a naked position.
+   *
+   * The old code fired this and threw the result away, then returned BEFORE
+   * upsertPos — so a close that failed (rate limit, -2022, a timeout) left a
+   * position that was naked AND untracked AND reported to the phone as closed.
+   * That is the worst reachable state in the system, and it was silent.
+   *
+   * Now the outcome must be PROVEN: the close is verified with a fresh
+   * positionRisk read, and anything short of "confirmed flat" is treated as
+   * still-open-and-naked — the position gets tracked so the monitor can see it,
+   * the desk pauses so it stops opening more, and the message says what really
+   * happened. There is deliberately no retry: re-firing a market order inside a
+   * failure path is how you end up double-closed and reversed.
+   */
+  async function emergencyClose({ symbol, closeSide, qty, source, reason, intendedStop, stopResp }) {
+    const cr = await req("POST", "/fapi/v1/order",
+      { symbol, side: closeSide, type: "MARKET", quantity: String(qty), reduceOnly: "true" }, true);
+
+    let verifyOk = false, verifyAmt = 0;
+    const vr = await req("GET", "/fapi/v2/positionRisk", { symbol }, true);
+    if (vr.ok && Array.isArray(vr.json)) {
+      verifyOk = true;
+      verifyAmt = vr.json.reduce((s, p) => s + Math.abs(Number(p.positionAmt) || 0), 0);
+    }
+    const outcome = emergencyOutcome({ closeOk: cr.ok, verifyOk, verifyAmt });
+
+    audit({
+      cmd: "emergency-close", symbol, source, reason,
+      closeOk: cr.ok, verified: verifyOk, remainingQty: verifyAmt,
+      flat: outcome.flat, outcome: outcome.reason,
+      resp: stopResp || (cr.json || cr.body),
+    });
+    ctx.broadcast({ type: "trade.alert", plugin: "binance", kind: "stop-failed", symbol, flat: outcome.flat });
+
+    if (outcome.flat) {
+      const msg = `🚨 ${symbol} STOP วางไม่ติด → ปิดไม้แล้ว (ยืนยัน flat จาก exchange)`;
+      ctx.feed(msg, "compass"); try { ctx.relay(msg); } catch {}
+      return { flat: true, msg: "stop วางไม่ติด — ปิด position ฉุกเฉินแล้ว (ยืนยันแล้ว)" };
+    }
+
+    // Could not prove flat ⇒ assume open and unprotected.
+    try {
+      upsertPos({
+        symbol, side: closeSide === "SELL" ? "BUY" : "SELL", qty: Math.abs(Number(qty)) || 0,
+        entry: 0, stop: intendedStop != null ? intendedStop : null, initialStop: intendedStop != null ? intendedStop : null,
+        openedAt: Date.now(), maxFavorable: 0, source: "emergency-orphan",
+        managed: true, needsAttention: true, emergencyReason: outcome.reason,
+      });
+    } catch (e) { ctx.log("binance: emergency upsertPos failed: " + e.message); }
+    try { setPause(true, "auto", "emergency-close-failed:" + symbol); } catch {}
+    const msg = `🚨🚨 ${symbol} ปิดไม้ฉุกเฉิน "${outcome.reason}" — ยืนยันไม่ได้ว่าปิดแล้ว\n` +
+      `position อาจยังเปิดอยู่และไม่มี stop · เดสก์ถูก pause อัตโนมัติ · ต้องเช็คด้วยตาเดี๋ยวนี้`;
+    ctx.feed(msg, "compass"); try { ctx.relay(msg); } catch {}
+    return { flat: false, reason: outcome.reason, msg: "ปิดไม้ฉุกเฉินไม่สำเร็จ/ยืนยันไม่ได้ — เดสก์ pause แล้ว เช็คด่วน" };
+  }
+
   async function executeAutoSignal(r) {
+    if (disposed) return { blocked: "instance disposed" };
     const c = cfg();
     const rules = c.autoTradeSignalRules || {};
     // Grade floor.
@@ -1187,7 +1489,11 @@ module.exports = (ctx) => {
     // Dynamic leverage guardrail (Option B): gate effective leverage by stop
     // width before opening. Reject only if even the lowest tier fails the buffer.
     const lg = await applyLeverageGuard(r.symbol, r.entry, r.stop, null);
-    if (!lg.ok) { audit({ cmd: "auto-signal-blocked", symbol: r.symbol, grade: r.grade, blocked: lg.reason }); return { blocked: lg.reason }; }
+    if (!lg.ok) { auditNoise({ cmd: "auto-signal-blocked", symbol: r.symbol, grade: r.grade, blocked: lg.reason }); return { blocked: lg.reason }; }
+    // Last gate before real money: a reload may have disposed this instance
+    // during the awaits above, and a disposed engine must never place an order
+    // alongside its replacement.
+    if (disposed) return { blocked: "instance disposed" };
     // Place MARKET order (scalp = speed) + mandatory stop.
     const or = await req("POST", "/fapi/v1/order",
       { symbol: r.symbol, side, type: "MARKET", quantity: String(q) }, true);
@@ -1198,13 +1504,11 @@ module.exports = (ctx) => {
     const stopSide = side === "BUY" ? "SELL" : "BUY";
     const sl = await placeStopAlgo(r.symbol, stopSide, r.stop);
     if (!sl.ok) {
-      await req("POST", "/fapi/v1/order",
-        { symbol: r.symbol, side: stopSide, type: "MARKET", quantity: String(q), reduceOnly: "true" }, true);
-      audit({ cmd: "emergency-close", symbol: r.symbol, reason: "stop placement failed", resp: sl.resp });
-      const emsg = `🚨 ${r.symbol} STOP วางไม่ติด → ปิดไม้ทันที (mandatoryStop, ไม่เปิดไม้เปลือย)`;
-      ctx.broadcast({ type: "trade.alert", plugin: "binance", kind: "stop-failed", symbol: r.symbol });
-      ctx.feed(emsg, "compass"); try { ctx.relay(emsg); } catch {}
-      return { blocked: "stop วางไม่ติด — ปิด position ฉุกเฉินแล้ว" };
+      const ec = await emergencyClose({
+        symbol: r.symbol, closeSide: stopSide, qty: q, source: "auto-signal",
+        reason: "stop placement failed", intendedStop: r.stop, stopResp: sl.resp,
+      });
+      return { blocked: ec.msg, naked: !ec.flat };
     }
     // entry=0 fix: a MARKET response carries price:"0" (truthy) — guard >0 so tp.entry is real.
     const fillPrice = Number(or.json.avgPrice) > 0 ? Number(or.json.avgPrice)
@@ -1250,8 +1554,13 @@ module.exports = (ctx) => {
     const rules = c.autoTradeRules || {};
     // Daily trade cap.
     if (rules.maxTradesPerDay) {
-      const n = tradesToday();
-      if (n >= rules.maxTradesPerDay) return `ถึง limit ${rules.maxTradesPerDay} ไม้/วัน แล้ว (วันนี้ ${n} ไม้)`;
+      const { count, complete } = tradesToday();
+      // Fail closed: an unreadable or already-trimmed audit log means we cannot
+      // prove we are under the cap, so we treat ourselves as AT the cap.
+      if (!complete)
+        return `นับไม้วันนี้ไม่ครบ (audit log อ่านไม่ได้/ถูกตัดข้ามเที่ยงคืน) — ถือว่าถึง limit ${rules.maxTradesPerDay} ไม้/วัน`;
+      if (count >= rules.maxTradesPerDay)
+        return `ถึง limit ${rules.maxTradesPerDay} ไม้/วัน แล้ว (วันนี้ ${count} ไม้)`;
     }
     // Max concurrent open positions — engine-wide exposure cap. Counts LIVE
     // exchange positions (authoritative), so it also respects the CEO's own
@@ -1324,6 +1633,9 @@ module.exports = (ctx) => {
             footer: "ระบบหยุด auto-trade ชั่วคราว — survival mode",
           });
           ctx.broadcast({ type: "trade.alert", plugin: "binance", kind: "cooldown", streak, waitMin });
+          // The desk going quiet for up to an hour used to be broadcast-only —
+          // indistinguishable from "no setups" on the phone.
+          ctx.feed(msg, "compass"); try { ctx.relay(msg); } catch {}
           return msg;
         }
       }
@@ -1355,18 +1667,13 @@ module.exports = (ctx) => {
     }
     // News event gate: block around high-impact scheduled events so the desk
     // isn't holding a scalp through a CPI/FOMC spike. Pulse feeds the cache.
-    if (c.newsGate && c.newsGate.enabled) {
-      const events = readNewsCache();
-      const now = Date.now();
-      for (const ev of events) {
-        if (c.newsGate.highImpactOnly && ev.impact !== "high") continue;
-        const minsUntil = ev.at ? Math.round((ev.at - now) / 60000) : null;
-        if (minsUntil == null) continue;
-        if (minsUntil >= -c.newsGate.blockAfterMin && minsUntil <= c.newsGate.blockBeforeMin) {
-          const when = minsUntil >= 0 ? `อีก ${minsUntil} นาที (ก่อนข่าว)` : `${-minsUntil} นาทีที่แล้ว (หลังข่าว)`;
-          return `news gate: ${ev.title || "ข่าวใหญ่"} ${when} — รอให้ความผันผวนเคลียร์`;
-        }
-      }
+    {
+      const nc = readNewsCache();
+      const newsBlock = newsGateDecide({
+        events: nc.events, nowMs: Date.now(), gate: c.newsGate,
+        cacheOk: nc.ok, cacheMtimeMs: nc.mtimeMs,
+      });
+      if (newsBlock) return newsBlock;
     }
     // Setup grade: only A/B.
     if (rules.requireSetupGrade && o.grade) {
@@ -1417,7 +1724,11 @@ module.exports = (ctx) => {
   let monitorTimer = null;
   let lastScan = null;       // {at, entryTf, ranked[]} — cached scan result
   let scanTimer = null;      // background scanner loop handle
-  let lastSignalKey = "";    // dedup: only broadcast a signal once per symbol+grade+dir
+  // Dedup per symbol+grade+dir, with a TTL. This used to be a SINGLE string, so
+  // with two qualifying signals in one tick the key rotated and both re-fired
+  // on the next tick — the mechanism behind a logged open-then-emergency-close
+  // churn loop. Bounded by the allowlist size.
+  const signalDedup = makeDedup({ ttlMs: 3600000 });
   // R-multiple helper: how many R is the position currently up (or down)?
   // R = favorable excursion / initial risk (entry - initialStop). Uses
   // initialStop (never the live/moved stop) so the R count is stable.
@@ -1431,11 +1742,12 @@ module.exports = (ctx) => {
   }
 
   const startMonitor = () => {
-    if (monitorTimer) clearInterval(monitorTimer);
+    if (monitorTimer) { clearInterval(monitorTimer); monitorTimer = null; LOOPS.monitor--; }
     const ms = cfg().monitorMs;
     if (!ms || !cfg().apiKey) return;   // off or no key
     const beInFlight = new Set();   // per-symbol BE-transition lock (no naked interleave)
     monitorTimer = setInterval(async () => {
+      if (disposed) return;
       const c = cfg();
       if (!c.apiKey) return;
       // Positions: detect open/close transitions.
@@ -1492,6 +1804,10 @@ module.exports = (ctx) => {
           const tr3 = c.trendRules || {};
           const tracked = readPos();
           for (const tp of tracked) {
+            // Re-checked per position, not just per tick: dispose() can land
+            // between two positions' awaits, and everything below this line
+            // (breakeven re-place, partial TP, trail close) writes real orders.
+            if (disposed) break;
             const live = now[tp.symbol];   // may be undefined if Binance closed it (stop hit)
             const mark = live ? live.mark : null;
             // If the position is gone from Binance (stop filled, or manual close),
@@ -1608,11 +1924,14 @@ module.exports = (ctx) => {
                   // Trail hit → close the runner.
                   const closeSide = isLong ? "SELL" : "BUY";
                   const cr = await req("POST", "/fapi/v1/order",
-                    { symbol: tp.symbol, side: closeSide, type: "MARKET", quantity: String(Math.abs(live.size)) }, true);
-                  const pnl = (isLong ? mark - tp.entry : tp.entry - mark) * Math.abs(live.size);
-                  audit({ cmd: "exit", symbol: tp.symbol, kind: "trail", entry: tp.entry, exitPrice: mark, pnl: Math.round(pnl * 1e6) / 1e6, ok: cr.ok });
+                    { symbol: tp.symbol, side: closeSide, type: "MARKET", quantity: String(Math.abs(live.size)), reduceOnly: "true" }, true);
+                  const out = exitOutcome({ orderOk: cr.ok, avgPrice: cr.json && cr.json.avgPrice, mark });
+                  if (!out.shouldRemove) { recordExitFailure(tp, "trail", cr); continue; }
+                  const exitPx = out.exitPrice;
+                  const pnl = (isLong ? exitPx - tp.entry : tp.entry - exitPx) * Math.abs(live.size);
+                  audit({ cmd: "exit", symbol: tp.symbol, kind: "trail", entry: tp.entry, exitPrice: exitPx, pnl: Math.round(pnl * 1e6) / 1e6, ok: true, pnlSource: out.pnlSource });
                   removePos(tp.symbol);
-                  journalLine(tp, mark, "trail", pnl);
+                  journalLine(tp, exitPx, "trail", pnl);
                   const tmsg = tgAlert({
                     kind: "exit", title: `${tp.symbol} · 🔁 Trailing Stop`,
                     rows: [
@@ -1656,11 +1975,14 @@ module.exports = (ctx) => {
               // Close at market (opposite side).
               const closeSide = isLong ? "SELL" : "BUY";
               const cr = await req("POST", "/fapi/v1/order",
-                { symbol: tp.symbol, side: closeSide, type: "MARKET", quantity: String(Math.abs(live.size)) }, true);
-              const pnl = (isLong ? mark - tp.entry : tp.entry - mark) * Math.abs(live.size);
-              audit({ cmd: "exit", symbol: tp.symbol, kind: exitKind, entry: tp.entry, exitPrice: mark, pnl: Math.round(pnl * 1e6) / 1e6, ok: cr.ok });
+                { symbol: tp.symbol, side: closeSide, type: "MARKET", quantity: String(Math.abs(live.size)), reduceOnly: "true" }, true);
+              const out = exitOutcome({ orderOk: cr.ok, avgPrice: cr.json && cr.json.avgPrice, mark });
+              if (!out.shouldRemove) { recordExitFailure(tp, exitKind, cr); continue; }
+              const exitPx = out.exitPrice;
+              const pnl = (isLong ? exitPx - tp.entry : tp.entry - exitPx) * Math.abs(live.size);
+              audit({ cmd: "exit", symbol: tp.symbol, kind: exitKind, entry: tp.entry, exitPrice: exitPx, pnl: Math.round(pnl * 1e6) / 1e6, ok: true, pnlSource: out.pnlSource });
               removePos(tp.symbol);
-              journalLine(tp, mark, exitKind, pnl);
+              journalLine(tp, exitPx, exitKind, pnl);
               const exitKindLabel = { target: "🎯 Take Profit", trail: "🔁 Trailing Stop", time: "⏰ Time Stop", manual: "✋ Manual" }[exitKind] || exitKind;
               const msg = tgAlert({
                 kind: "exit", title: `${tp.symbol} · ${exitKindLabel}`,
@@ -1681,9 +2003,29 @@ module.exports = (ctx) => {
             }
           }
         }
-      } catch {}
+        // Only a FULLY successful tick counts as alive. Setting this at the top
+        // would make a loop that throws every single tick look healthy.
+        HEALTH.lastOkTickAt = Date.now();
+        HEALTH.consecutiveTickErrors = 0;
+      } catch (e) {
+        // This used to be a bare `catch {}` — a persistent throw was completely
+        // silent and looked exactly like a quiet market.
+        HEALTH.consecutiveTickErrors++;
+        HEALTH.lastTickErrorAt = Date.now();
+        HEALTH.lastTickError = e && e.message ? e.message : String(e);
+        ctx.log("binance: monitor tick error (#" + HEALTH.consecutiveTickErrors + "): " + HEALTH.lastTickError);
+        auditNoise({ cmd: "monitor-error", err: HEALTH.lastTickError, streak: HEALTH.consecutiveTickErrors });
+        // Page once at 3 in a row, then hourly — enough to notice, not enough to mute.
+        if (HEALTH.consecutiveTickErrors === 3 || (HEALTH.consecutiveTickErrors > 3 &&
+            Date.now() - (HEALTH.lastTickErrorAlertAt || 0) > 3600000)) {
+          HEALTH.lastTickErrorAlertAt = Date.now();
+          const m = `🚨 monitor loop พังต่อเนื่อง ${HEALTH.consecutiveTickErrors} รอบ — ไม้ที่เปิดอยู่ไม่ถูกจัดการ\n(${HEALTH.lastTickError})`;
+          ctx.feed(m, "compass"); try { ctx.relay(m); } catch {}
+        }
+      }
     }, ms);
-    ctx.log("binance: monitor loop started (" + ms + "ms)");
+    LOOPS.monitor++;
+    ctx.log("binance: monitor loop started (" + ms + "ms, live loops: " + LOOPS.monitor + ")");
   };
   startMonitor();
 
@@ -1692,11 +2034,12 @@ module.exports = (ctx) => {
   // a signal only when a NEW A/B-graded opportunity appears (dedup by
   // symbol+grade+dir). Advisory — never places orders itself.
   const startScanner = () => {
-    if (scanTimer) clearInterval(scanTimer);
+    if (scanTimer) { clearInterval(scanTimer); scanTimer = null; LOOPS.scanner--; }
     const c = cfg();
     const ms = c.scanIntervalMs || 0;
     if (!ms || !c.apiKey) return;
     scanTimer = setInterval(async () => {
+      if (disposed) return;
       try {
         const cc = cfg();
         if (!cc.apiKey) return;
@@ -1714,8 +2057,7 @@ module.exports = (ctx) => {
         for (const r of ranked) {
           if (r.grade !== "A" && r.grade !== "B") continue;
           const key = `${r.symbol}:${r.grade}:${r.dir}`;
-          if (key === lastSignalKey) continue;   // already announced this exact setup
-          lastSignalKey = key;
+          if (!signalDedup.fresh(key, Date.now())) continue;   // already announced this exact setup
           const dirArrows = r.dir === "bull" ? "LONG 📈" : "SHORT 📉";
           const targetLabel = r.target ? "$" + fmtPrice(r.target) : "ปล่อยวิ่ง";
           const msg = tgAlert({
@@ -1742,14 +2084,15 @@ module.exports = (ctx) => {
               if (res.blocked) {
                 const bm = `🚫 signal ${r.symbol} ถูก block: ${res.blocked}`;
                 ctx.feed(bm, "compass");
-                audit({ cmd: "auto-signal-blocked", symbol: r.symbol, grade: r.grade, blocked: res.blocked });
+                auditNoise({ cmd: "auto-signal-blocked", symbol: r.symbol, grade: r.grade, blocked: res.blocked });
               }
             } catch (e) { ctx.log("binance: auto-signal error: " + e.message); }
           }
         }
       } catch (e) { ctx.log("binance: scan loop error: " + e.message); }
     }, ms);
-    ctx.log("binance: scanner loop started (" + ms + "ms)");
+    LOOPS.scanner++;
+    ctx.log("binance: scanner loop started (" + ms + "ms, live loops: " + LOOPS.scanner + ")");
   };
   startScanner();
 
@@ -1942,7 +2285,7 @@ module.exports = (ctx) => {
           // dry / preview: return the computed sizing + leverage + margin WITHOUT
           // placing. Passes through the same price + sizeByRisk + tradeGuard path.
           if (o.dry) {
-            audit({ cmd: "order-dry", symbol: o.symbol, side: o.side, qty, usdValue, sizing, leverage: levPreview, margin: marginChk });
+            auditNoise({ cmd: "order-dry", symbol: o.symbol, side: o.side, qty, usdValue, sizing, leverage: levPreview, margin: marginChk });
             const levMsg = levPreview.skipped ? "" : levPreview.reject
               ? ` — ⛔ ${levPreview.reason}`
               : ` — lev ${levPreview.effLev}x (stop ${levPreview.stopPct}% → tier ${levPreview.tierLev}x, liq ~${levPreview.liqPct}% ≥ ${levPreview.liqNeededPct}%)`;
@@ -2061,21 +2404,44 @@ module.exports = (ctx) => {
       // event is near (the news gate uses the same cache). Lets agents/panel
       // see "is it safe to trade right now" without re-running the gate.
       if (cmd === "newscheck") {
+        // Uses the SAME decider as the live gate, so what this command reports
+        // is exactly what the gate will do. The old version had the same
+        // ISO-string NaN bug and cheerfully answered "safe to trade" minutes
+        // before an event — it must now be able to say "cannot evaluate".
         const ng = cfg().newsGate || {};
-        const events = readNewsCache().filter((e) => !ng.highImpactOnly || e.impact === "high");
+        const nc = readNewsCache();
         const now = Date.now();
+        const block = newsGateDecide({
+          events: nc.events, nowMs: now, gate: { ...ng, enabled: true },
+          cacheOk: nc.ok, cacheMtimeMs: nc.mtimeMs,
+        });
+        const evaluable = nc.ok && nc.events.every((e) => parseEventAt(e) != null);
         const near = [];
-        for (const ev of events) {
-          const mins = ev.at ? Math.round((ev.at - now) / 60000) : null;
-          if (mins != null && mins >= -(ng.blockAfterMin || 5) && mins <= (ng.blockBeforeMin || 5))
+        for (const ev of nc.events) {
+          if (ng.highImpactOnly && ev.impact !== "high") continue;
+          const at = parseEventAt(ev);
+          if (at == null) continue;
+          const mins = Math.round((at - now) / 60000);
+          if (mins >= -(ng.blockAfterMin || 5) && mins <= (ng.blockBeforeMin || 5))
             near.push({ title: ev.title, impact: ev.impact, minutesUntil: mins });
         }
+        const upcoming = nc.events
+          .map((e) => ({ title: e.title, impact: e.impact, at: parseEventAt(e) }))
+          .filter((e) => e.at != null && e.at > now)
+          .sort((a, b) => a.at - b.at)
+          .slice(0, 3)
+          .map((e) => ({ ...e, inMin: Math.round((e.at - now) / 60000) }));
         return reply({
-          ok: true, gateEnabled: !!ng.enabled,
+          ok: true, gateEnabled: !!ng.enabled, evaluable,
+          cacheOk: nc.ok, cacheAgeH: Number.isFinite(nc.mtimeMs) ? Math.round((now - nc.mtimeMs) / 3600000) : null,
           blockBeforeMin: ng.blockBeforeMin || 5, blockAfterMin: ng.blockAfterMin || 5,
           highImpactOnly: ng.highImpactOnly !== false,
-          near, safe: near.length === 0,
-          msg: near.length ? `🚫 มีข่าวใกล้: ${near.map((n) => n.title + " (" + (n.minutesUntil >= 0 ? "+" : "") + n.minutesUntil + "m)").join(", ")}` : "✓ ไม่มีข่าวใหญ่ใกล้ — เทรดได้",
+          near, upcoming,
+          safe: !block,
+          blocked: block,
+          msg: block ? `🚫 ${block}`
+            : evaluable ? `✓ ไม่มีข่าวใหญ่ใกล้ — เทรดได้${upcoming.length ? ` (ถัดไป: ${upcoming[0].title} อีก ${upcoming[0].inMin} นาที)` : ""}`
+            : "⚠️ ประเมินข่าวไม่ได้ — อย่าถือว่าปลอดภัย",
         });
       }
 
@@ -2139,11 +2505,18 @@ module.exports = (ctx) => {
           if (!tp) return reply({ ok: false, msg: `ไม่มี ${symbol} ใน position store` });
           const isLong = tp.side === "BUY" || tp.side === "LONG";
           return req("POST", "/fapi/v1/order",
-            { symbol, side: isLong ? "SELL" : "BUY", type: "MARKET", quantity: String(tp.qty) }, true).then((cr) => {
-              audit({ cmd: "exit", symbol, kind: "manual", entry: tp.entry, ok: cr.ok, status: cr.status });
+            { symbol, side: isLong ? "SELL" : "BUY", type: "MARKET", quantity: String(tp.qty), reduceOnly: "true" }, true).then((cr) => {
+              // A rejected close must NOT drop tracking — the old code removed it
+              // regardless, leaving a live position that nothing managed.
+              const out = exitOutcome({ orderOk: cr.ok, avgPrice: cr.json && cr.json.avgPrice, mark: null });
+              if (!out.shouldRemove) {
+                recordExitFailure(tp, "manual", cr);
+                return reply({ ok: false, msg: "close ล้มเหลว — ยังติดตาม position อยู่: " + ((cr.json && cr.json.msg) || cr.body) });
+              }
+              audit({ cmd: "exit", symbol, kind: "manual", entry: tp.entry, exitPrice: out.exitPrice, ok: true, status: cr.status, pnlSource: out.pnlSource });
               removePos(symbol);
               ctx.broadcast({ type: "trade.exit", plugin: "binance", symbol, kind: "manual" });
-              reply({ ok: cr.ok, msg: cr.ok ? `ปิด ${symbol} แล้ว (manual)` : "close ล้มเหลว: " + ((cr.json && cr.json.msg) || cr.body) });
+              reply({ ok: true, msg: `ปิด ${symbol} แล้ว (manual)` });
             });
         }
         return reply({ ok: false, msg: "usage: positions-manage [status|close <sym>|target <sym> <price>|trail <sym> <pct>]" });
@@ -2362,21 +2735,12 @@ module.exports = (ctx) => {
             audit({ cmd: "autotrade-stop", symbol: o.symbol, stopPrice: o.stopPrice, side: stopSide, ok: sr.ok, status: sr.status, resp: sr.resp });
             if (!sr.ok) {
               // mandatoryStop: never leave a naked position — emergency-close now.
-              await req("POST", "/fapi/v1/order",
-                { symbol: o.symbol, side: stopSide, type: "MARKET", quantity: String(o.qty), reduceOnly: "true" }, true);
-              audit({ cmd: "emergency-close", symbol: o.symbol, reason: "autotrade stop placement failed", resp: sr.resp });
-              const msg = tgAlert({
-              kind: "warn", title: `Stop ตั้งไม่ได้ — ปิด position ฉุกเฉินแล้ว`,
-              rows: [
-                { label: "Symbol", value: o.symbol },
-                { label: "การกระทำ", value: "ปิด position ทันที (mandatoryStop) — ไม่เปิดไม้เปลือย", accent: "🚨" },
-              ],
-              footer: "position ถูกปิดอัตโนมัติ",
-            });
-              ctx.broadcast({ type: "trade.alert", plugin: "binance", kind: "stop-failed", symbol: o.symbol });
-              ctx.feed(msg, "compass");
-              try { ctx.relay(msg); } catch {}
-              return reply({ ok: false, msg: "stop วางไม่ติด — ปิด position ฉุกเฉินแล้ว (ไม่เปิดไม้เปลือย)" });
+              // Shared with the auto-signal path so both verify the close.
+              const ec = await emergencyClose({
+                symbol: o.symbol, closeSide: stopSide, qty: o.qty, source: "autotrade",
+                reason: "autotrade stop placement failed", intendedStop: o.stopPrice, stopResp: sr.resp,
+              });
+              return reply({ ok: false, naked: !ec.flat, msg: ec.msg });
             }
           }
           // Success: broadcast + alert.
@@ -2425,5 +2789,23 @@ module.exports = (ctx) => {
     },
     // HTTP routes for the read-only dashboard bridge. See buildSnapshot/setPause.
     routes,
+    // Plugin lifecycle (daemon/plugins.js calls this before a reload rebuilds
+    // the map). Synchronous by contract. Without it every /plugins/reload left
+    // the previous generation's monitor + scanner ticking forever, racing this
+    // one on the same account with its own dedup state and its own locks.
+    dispose() {
+      disposed = true;
+      if (monitorTimer) { clearInterval(monitorTimer); monitorTimer = null; LOOPS.monitor--; }
+      if (scanTimer) { clearInterval(scanTimer); scanTimer = null; LOOPS.scanner--; }
+      ctx.log("binance: disposed (live loops: monitor " + LOOPS.monitor + ", scanner " + LOOPS.scanner + ")");
+    },
   };
+};
+
+// Exported for offline unit tests (daemon/tests/binance-safety.test.js).
+// Attaching to the factory function is inert — daemon/plugins.js only ever
+// calls factory({...ctx}); it never reads these. Same pattern as regime-radar.
+module.exports.__safety = {
+  parseEventAt, newsGateDecide, auditTrim, tradesTodayDecide,
+  makeDedup, emergencyOutcome, exitOutcome, AUDIT_MONEY_CMDS,
 };

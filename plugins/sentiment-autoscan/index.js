@@ -317,5 +317,9 @@ module.exports = (ctx) => {
           return reply({ ok: false, msg: "unknown command" });
       }
     },
+    // Plugin lifecycle — see daemon/plugins.js. The host has no other way to
+    // reach this closure's interval once a reload replaces the module, so
+    // without this every reload stacked another scanner.
+    dispose() { stopTimer(); },
   };
 };

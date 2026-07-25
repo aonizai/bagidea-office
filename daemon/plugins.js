@@ -56,7 +56,29 @@ module.exports = function initPlugins(ctx) {
   // Exposed so /plugins/reload can report a clear failure instead of "ok".
   let lastLoad = { loaded: 0, failed: [] };
 
+  // Tear down the previous generation before rebuilding the map. Without this,
+  // a plugin that owns a setInterval keeps ticking forever after a reload: the
+  // old closure is unreachable, so nothing can clear its handle, and the fresh
+  // instance's own `if (timer) clearInterval(timer)` only ever sees its own
+  // null. Every /plugins/reload used to ADD a loop — the binance plugin was
+  // observed running 7 concurrent monitor + 7 scanner loops in one process,
+  // each with its own dedup state and its own concurrency locks.
+  //
+  // Contract: a plugin factory MAY return dispose(). It MUST be synchronous and
+  // fast (clearInterval, close handles). A returned promise is NOT awaited —
+  // load() is called from five places in server.js and making it async would
+  // ripple through all of them. A dispose() that throws is logged and the
+  // plugin is dropped anyway; a plugin without dispose() is left alone.
+  function disposeAll() {
+    for (const [id, p] of Object.entries(plugins)) {
+      if (!p.mod || typeof p.mod.dispose !== "function") continue;
+      try { p.mod.dispose(); }
+      catch (err) { ctx.log("[plugin] dispose fail " + id + ": " + err.message); }
+    }
+  }
+
   function load() {
+    disposeAll();
     plugins = {};
     const failed = [];
     let loadedCount = 0;
@@ -207,5 +229,5 @@ module.exports = function initPlugins(ctx) {
   // assume plugins/<id>. Returns null if no loaded plugin has that id.
   function dirOf(id) { return plugins[id] ? plugins[id].dir : null; }
 
-  return { load, list, handleHttp, agentNote, dirOf, lastLoad: () => lastLoad };
+  return { load, disposeAll, list, handleHttp, agentNote, dirOf, lastLoad: () => lastLoad };
 };
