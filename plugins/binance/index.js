@@ -82,7 +82,7 @@ const DEFAULTS = {
   },
   maxConcurrentPositions: 3,  // mandate floor — Framework-B 10 retired with the sprint.
   sameDirectionMax: 2,        // mandate floor — avg pairwise corr 0.65 makes same-direction = one bet
-  minStopPct: 0.6,            // mandate floor — cost-in-R = 0.18/stop%; tighter geometry cannot pay
+  minStopPct: 1.0,            // mandate floor — cost-in-R = 0.18/stop%; below 1% the round trip alone eats >=0.18R
                               // Worst-case grade-A %-risk margin = 5.0%/trade (notional
                               // ≤$5002 ÷ effLev 20x), so 10 = 50% worst-case — 30% under
                               // the 80% hard cap. Practical ceiling is ~5 (allowlist size
@@ -2889,7 +2889,11 @@ module.exports = (ctx) => {
               entry, notional: usd2(sized.notional), notionalCap: usd2(sized.notionalCap), capped: sized.capped, equity: usd2(sized.equity) };
           }
           const usdValue = (o.price || price) * qty;
-          const block = tradeGuard({ symbol: o.symbol, usdValue });
+          // entry + stop must ride along or the cost floor inside tradeGuard is
+          // blind on this door — the live dry-run proof caught exactly that: a
+          // 0.8% stop sailed through because this call passed only {symbol,
+          // usdValue}. "Every door" has to mean every door.
+          const block = tradeGuard({ symbol: o.symbol, usdValue, entry: o.price || price, stopPrice: o.stop });
           if (block) { audit({ cmd: "order", ...o, qty, usdValue, blocked: block }); return reply({ ok: false, blocked: true, msg: block }); }
           // Dynamic leverage guardrail preview (Option B) — only when a stop is
           // known (explicit-qty orders with no stop can't be gated by stop width).

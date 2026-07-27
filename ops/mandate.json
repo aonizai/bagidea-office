@@ -49,6 +49,13 @@
       "ruling": "On TESTNET, yes — as an experience, not as evidence. Grade-A practice trades may size at the full grade-A risk ceiling (riskPctMaxGradeA 2% = $100 risk) via a grade-aware notional cap maxNotionalPctGradeA 150 (grade B/C stay at 40). The runner-friendly exits already in place (no fixed target, trail 1.5%) are what make a winner FAT when it wins: +5R = +$500 on one trade.",
       "honest_arithmetic_stated_up_front": "The signal has measured expectancy -0.19R, so at $100 risk the AVERAGE grade-A practice trade costs ~$19. A thick winner, when it comes, is luck wearing a seatbelt — recorded here so nobody later mistakes one green trade for edge.",
       "guard_interactions": "Margin for one full-size grade-A ($7,500 notional at 3x) = $2,500 = 50% of equity, inside marginCapPct 80. A SECOND full-size same-direction trade would breach the margin cap and is blocked — so at most one thick position plus one smaller. dailyLossPct 10% = 5 full grade-A losses. HWM ladder unchanged: 4% DD kills autoTrade regardless."
+    },
+    "deep_stops_2026_07_27": {
+      "date": "2026-07-27",
+      "question": "Owner asks for deeper stop losses. Sound?",
+      "ruling": "Yes — it is the measured cost lever, and with risk-led sizing a deeper stop does NOT add risk: dollar risk stays at the grade ceiling while the position shrinks. Cost-in-R = 0.18/stop%: at 1.4% (old median) 0.13R, at 3% it halves to 0.06R, funding on multi-day holds ~0.006R/day (negligible at current rates), margin drops 48%->22%. Practice guidance: place stops at 1h STRUCTURE (deeper swing low - 0.3 ATR), preferred width 2-4%. Cost floor minStopPct raised 0.6 -> 1.0: below 1% the round trip alone eats >=0.18R and the desk has measured what that does.",
+      "tradeoff_stated": "Slower trades: breakeven triggers at +1R = +stop% of price, so a 3% stop means the runner must move +3% before the stop moves up — holds measured in days. Fewer trades per week. That is the deal being chosen: pay less per attempt, wait longer per attempt.",
+      "explicitly_not_done": "NO backtest of deeper stops on the closed directional line — stopMult tuning is named in the reopen rules as forbidden retuning. This ruling is posted-price arithmetic applied to the practice layer, not signal research."
     }
   },
   "pinned_config": {
@@ -71,7 +78,7 @@
     "newsGate.maxCacheAgeH": 6,
     "regimeGate.enabled": true,
     "trendRules.beBufferPct": 0.225,
-    "minStopPct": 0.6,
+    "minStopPct": 1.0,
     "maxNotionalPctGradeA": 150
   },
   "hwm_ladder": {
