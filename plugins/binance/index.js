@@ -1588,6 +1588,52 @@ module.exports = (ctx) => {
     } catch (e) { ctx.log("binance: regime-radar call failed (" + e.message + ")"); return null; }
   }
 
+  // SL-hazard advisory (mandate: liquidity_hazard_2026_07_28). Runs AFTER a
+  // fill completes, fire-and-forget: reads smc-radar's pool map and says
+  // whether the stop just landed inside (or within raid reach of) a visible
+  // stop cluster. Observation only — never gates, never resizes, never moves
+  // an order; a failure here costs one log line, not a trade. It fails OPEN
+  // precisely because it is not a guard: guards keep failing closed.
+  async function slHazardSnapshot({ symbol, side, entry, stop, source }) {
+    try {
+      // Mirror smc-radar's own self-bust so both consumers reload the same math.
+      const engPath = require.resolve(path.join(__dirname, "..", "smc-radar", "engine.js"));
+      try { delete require.cache[engPath]; } catch {}
+      const eng = require(engPath);
+      const fetchCandles = async (interval, limit) => {
+        const r = await req("GET", "/fapi/v1/klines", { symbol, interval, limit });
+        if (!r.ok || !Array.isArray(r.json)) return null;
+        return r.json.map((k) => ({ t: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
+          low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]), closeT: Number(k[6]) }));
+      };
+      const [c15, c1h] = await Promise.all([fetchCandles("15m", 300), fetchCandles("1h", 200)]);
+      if (!c15) throw new Error("no candles");
+      const x = eng.analyze(c15, c1h || [], { tf: "15m", htfTf: "1h", nowMs: Date.now() });
+      if (!x.ok) throw new Error("analyze: " + (x.msg || "not ok"));
+      const h = eng.slHazardDecide({ side, entry, stop,
+        pools: (x.liquidity && x.liquidity.pools) || [], atr: x.atr });
+      const snap = { ts: Date.now(), symbol, side, entry, stop, source,
+        hazard: h.hazard, mode: h.mode || null, gapAtr: h.gapAtr ?? null,
+        distPct: h.distPct ?? null, pool: h.pool || null, atr: x.atr, price: x.price };
+      try { fs.appendFileSync(path.join(ctx.dataDir, "liquidity-snapshots.jsonl"), JSON.stringify(snap) + "\n"); } catch {}
+      audit({ cmd: "sl-hazard", symbol, side, stop, hazard: h.hazard, mode: h.mode || null,
+        poolLevel: h.pool ? h.pool.level : null });
+      if (h.hazard === "high" || h.hazard === "mid") {
+        const what = h.mode === "in-band" ? "อยู่ในแบนด์กอง stop"
+          : h.mode === "pierce-reach" ? `ลึกกว่ากองแค่ ${h.gapAtr}×ATR (ระยะกวาดถึง ${1.5}×ATR)`
+          : `ตื้นกว่ากอง ${h.gapAtr}×ATR — อยู่บนเส้นทางถ้าตลาดลงไปแตะกอง`;
+        const m = `🪝 SL-hazard ${symbol}: stop $${stop} ${what} · pool ${h.pool.level}×${h.pool.count} (${h.pool.strength})\n` +
+          `บริบทเท่านั้น ไม่ใช่คำสั่ง — ระบบไม่แก้ไม้ให้เอง · แนวปฏิบัติ: ไม้หน้าเลือก stop พ้น bandLo ≥1.5×ATR (ไซส์หดเองตาม risk)`;
+        ctx.feed(m, "compass");
+        try { ctx.relay(m); } catch {}
+      }
+      return h;
+    } catch (e) {
+      ctx.log("binance: sl-hazard advisory failed (trade unaffected): " + e.message);
+      return null;
+    }
+  }
+
   // Regime gate for breakout/trend auto-arm. Returns null to ALLOW, or a reason
   // string to BLOCK. r.dir is "bull"/"bear". FAIL-CLOSED: a missing regime blocks.
   async function regimeGateCheck(r) {
@@ -2030,6 +2076,9 @@ module.exports = (ctx) => {
     ctx.broadcast({ type: "trade.fill", plugin: "binance", symbol: r.symbol, side, size: q, entry: fillPrice, auto: true, grade: r.grade, source: "signal" });
     ctx.feed(msg, "blitz");
     try { ctx.relay(msg); } catch {}
+    // Post-fill liquidity-hazard read (mandate: liquidity_hazard_2026_07_28,
+    // advisory only, off the money path).
+    slHazardSnapshot({ symbol: r.symbol, side, entry: fillPrice, stop: r.stop, source: "auto-signal" });
     return { ok: true, fillPrice, qty: q };
   }
   // The full auto-trade gate. Returns null if allowed, or a reason string.
@@ -2682,6 +2731,7 @@ module.exports = (ctx) => {
                 `[PRACTICE NUDGE — สัญญาณเกรด A เพิ่งพิมพ์] ${r.symbol} ${r.dir} score ${r.score} · entry ~${r.entry} · stop โครงสร้าง 15m ${r.stop}`,
                 `ประเมินตาม PRACTICE-TRADE LAYER เดี๋ยวนี้: เช็ค regime 1h ให้เป็น Trend-Up ก่อน แล้วถ้าเข้าเงื่อนไข`,
                 `ใช้ \`autotrade ${r.symbol} BUY risk A <stop>\` โดยวาง stop จากโครงสร้าง 1h (swing low ลึก − 0.3×ATR, กว้าง 2-4%)`,
+                `ก่อนเคาะ stop ให้เช็ค \`levels ${r.symbol}\` (smc-radar): อย่าวาง stop ในแบนด์กระจุก SSL (ก้นเท่ากัน) และอย่าตื้นกว่ากอง — ถ้าติดกอง เลื่อนลงพ้น bandLo ≥1.5×ATR แล้วปล่อยให้ risk sizing หดไซส์เอง ($ เสี่ยงเท่าเดิม)`,
                 `server จะคิดขนาดเองที่เพดานเกรด A (~$100 risk) · ถ้าไม่เข้าเงื่อนไขให้บอกเหตุผลสั้น ๆ แล้วจบ ห้ามฝืน`,
               ].join("\n"));
               ctx.log(`binance: practice nudge fired → main (${r.symbol} grade A)`);
@@ -3452,6 +3502,10 @@ module.exports = (ctx) => {
           });
           reply({ ok: true, auto: true, orderId: or.json.orderId, status: or.json.status,
             symbol: o.symbol, side: o.side, qty: o.qty, fillPrice, stopPrice: o.stopPrice, grade: o.grade });
+          // Post-fill, off the money path: liquidity-hazard read on the stop
+          // we just placed (mandate: liquidity_hazard_2026_07_28, advisory only).
+          slHazardSnapshot({ symbol: o.symbol, side: o.side, entry: fillPrice,
+            stop: o.stopPrice, source: "autotrade" });
         })().catch((e) => reply({ ok: false, msg: "autotrade error: " + e.message }));
       }
 

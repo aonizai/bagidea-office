@@ -1342,6 +1342,63 @@ function buildEdgeBands(core, cfg) {
   return { resistance: mk(dr.rangeHigh, "BSL"), support: mk(dr.rangeLow, "SSL") };
 }
 
+/* ------------------------------------------------------------ SL hazard --
+ * slHazardDecide — is a proposed stop-loss part of (or within raid reach of)
+ * a visible liquidity pool? Observation-only by mandate
+ * (liquidity_hazard_2026_07_28): the one measured external dataset on this
+ * idea (MiroFish/SMT, n=990) shows marked pools touched LESS than mirrored
+ * controls, so this must never gate or move an order — it prices the cheap
+ * insurance of not parking a stop inside the crowd's pile, and produces the
+ * log that could one day justify more.
+ *
+ * `pools` uses the REPORTED shape from analyze().liquidity.pools
+ * ({side, level, bandLo, bandHi, count, strength, swept}); `atr` is the
+ * top-level analyze().atr. unknown ≠ clear: bad inputs must not read as safe.
+ */
+function slHazardDecide({ side, entry, stop, pools, atr }) {
+  const s = String(side || "").toUpperCase();
+  if (!Number.isFinite(entry) || !Number.isFinite(stop) || !Number.isFinite(atr) || atr <= 0 ||
+      !Array.isArray(pools) || (s !== "BUY" && s !== "SELL"))
+    return { hazard: "unknown", reason: "bad-inputs" };
+  const long = s === "BUY";
+  if (long ? stop >= entry : stop <= entry) return { hazard: "unknown", reason: "stop-wrong-side" };
+  // The crowd's stops pile beyond the pool on OUR side of the trade:
+  // long stops under SSL (equal lows), short stops over BSL (equal highs).
+  // A lone "weak" pivot is not a pile — same realOnly rule as nearestPool
+  // (weak-eq/strong = equal touches; major = range extreme, a pile even alone).
+  const rel = pools.filter((p) => p && !p.swept && p.strength !== "weak" &&
+    p.side === (long ? "SSL" : "BSL") &&
+    Number.isFinite(p.level) && Number.isFinite(p.bandLo) && Number.isFinite(p.bandHi) &&
+    (long ? p.level < entry : p.level > entry));
+  if (!rel.length) return { hazard: "none" };
+  const pad = 0.25 * atr;      // band slack — the pile's edge still counts as the pile
+  const pierce = CFG.maxPierceAtr * atr; // deepest raid detectSweeps still calls a sweep
+  const approach = 1.0 * atr;  // pool just beyond the stop → stop sits on the raid path
+  const RANK = { high: 3, mid: 2, clear: 1 };
+  let best = null;
+  for (const p of rel) {
+    // Signed geometry, oriented so "deeper than the pool" is the safe side.
+    const beyond = long ? p.bandLo - stop : stop - p.bandHi;   // >0: stop deeper than band
+    const before = long ? stop - p.bandHi : p.bandLo - stop;   // >0: stop shallower than band
+    let mode, gapAtr;
+    if (beyond >= -pad && beyond <= pad && before <= pad) { mode = "in-band"; gapAtr = 0; }
+    else if (before > pad) {
+      if (before - pad > approach) continue;                   // pool far beyond the stop — irrelevant
+      mode = "on-approach"; gapAtr = before / atr;             // raid to the pool runs through our stop
+    } else if (beyond > pad && beyond <= pierce) { mode = "pierce-reach"; gapAtr = beyond / atr; }
+    else if (beyond > pierce) { mode = "beyond-pierce"; gapAtr = beyond / atr; }
+    else { mode = "in-band"; gapAtr = 0; }                     // inside the padded band
+    const hazard = mode === "in-band" ? "high" : mode === "beyond-pierce" ? "clear" : "mid";
+    const cand = { hazard, mode, gapAtr: r2(gapAtr),
+      distPct: r2(Math.abs(stop - p.level) / entry * 100),
+      pool: { side: p.side, level: p.level, bandLo: p.bandLo, bandHi: p.bandHi,
+              count: p.count, strength: p.strength } };
+    if (!best || RANK[hazard] > RANK[best.hazard] ||
+        (RANK[hazard] === RANK[best.hazard] && cand.gapAtr < best.gapAtr)) best = cand;
+  }
+  return best || { hazard: "none" };
+}
+
 /** Backtest hook: the analysis exactly as it would have read at bar k. */
 function analyzeAsOf(candles, htfCandles, k, opts = {}) {
   const c = (Array.isArray(candles) ? candles : []).slice(0, k + 1);
@@ -1353,6 +1410,7 @@ function analyzeAsOf(candles, htfCandles, k, opts = {}) {
 module.exports = {
   analyze,
   analyzeAsOf,
+  slHazardDecide,
   _fvg: { findFvgs, updateZoneState, overlapFrac, formGrade },
   _struct: { swings, fractalsStrict, scanBreaks, classifyStructure, dealingRange, rangePos, pdZone },
   _liq: { buildPools, detectSweeps, nearestPool, unbrokenExtremes },

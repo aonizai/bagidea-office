@@ -435,3 +435,86 @@ test("a bare FVG with no structural story is never a setup", () => {
   }
   assert.ok(out.watchlist.some((w) => w.reject === "no-structural-story") || out.zones.length < 3);
 });
+
+/* ---------------------------------------------------------- SL hazard ----
+ * slHazardDecide (mandate: liquidity_hazard_2026_07_28) — pure geometry over
+ * REPORTED pool objects. The one rule that must never regress: unknown ≠
+ * clear. Bad inputs read as "cannot assess", never as safety.
+ */
+const pool = (side, level, tol, extra = {}) => ({
+  side, level, bandLo: level - tol, bandHi: level + tol, count: 3, strength: "strong", swept: false, ...extra,
+});
+
+test("slHazard: stop inside an SSL band is HIGH for a long", () => {
+  const h = eng.slHazardDecide({ side: "BUY", entry: 100, stop: 94.9,
+    pools: [pool("SSL", 95, 0.2)], atr: 1 });
+  assert.equal(h.hazard, "high");
+  assert.equal(h.mode, "in-band");
+  assert.equal(h.pool.level, 95);
+});
+
+test("slHazard: stop below the band but inside sweep-pierce reach is MID", () => {
+  // bandLo = 94.8, stop 94.2 → 0.6 ATR beyond: a 1.5-ATR raid still takes it out.
+  const h = eng.slHazardDecide({ side: "BUY", entry: 100, stop: 94.2,
+    pools: [pool("SSL", 95, 0.2)], atr: 1 });
+  assert.equal(h.hazard, "mid");
+  assert.equal(h.mode, "pierce-reach");
+});
+
+test("slHazard: stop beyond max pierce is CLEAR", () => {
+  const h = eng.slHazardDecide({ side: "BUY", entry: 100, stop: 93.0,
+    pools: [pool("SSL", 95, 0.2)], atr: 1 });
+  assert.equal(h.hazard, "clear");
+  assert.equal(h.mode, "beyond-pierce");
+});
+
+test("slHazard: stop shallower than a nearby pool sits on the raid path (MID)", () => {
+  // Pool at 94 (bandHi 94.2), stop 94.9 → price must chew through our stop to raid the pool.
+  const h = eng.slHazardDecide({ side: "BUY", entry: 100, stop: 94.9,
+    pools: [pool("SSL", 94, 0.2)], atr: 1 });
+  assert.equal(h.hazard, "mid");
+  assert.equal(h.mode, "on-approach");
+});
+
+test("slHazard: a pool far beyond the stop is irrelevant (NONE)", () => {
+  const h = eng.slHazardDecide({ side: "BUY", entry: 100, stop: 97,
+    pools: [pool("SSL", 90, 0.2)], atr: 1 });
+  assert.equal(h.hazard, "none");
+});
+
+test("slHazard: swept pools are spent liquidity and ignored", () => {
+  const h = eng.slHazardDecide({ side: "BUY", entry: 100, stop: 94.9,
+    pools: [pool("SSL", 95, 0.2, { swept: true })], atr: 1 });
+  assert.equal(h.hazard, "none");
+});
+
+test("slHazard: SELL mirrors against BSL pools above", () => {
+  const h = eng.slHazardDecide({ side: "SELL", entry: 100, stop: 105.1,
+    pools: [pool("BSL", 105, 0.2)], atr: 1 });
+  assert.equal(h.hazard, "high");
+  assert.equal(h.mode, "in-band");
+});
+
+test("slHazard: worst pool wins when several are visible", () => {
+  const h = eng.slHazardDecide({ side: "BUY", entry: 100, stop: 94.9,
+    pools: [pool("SSL", 92, 0.2), pool("SSL", 95, 0.2)], atr: 1 });
+  assert.equal(h.hazard, "high");
+  assert.equal(h.pool.level, 95);
+});
+
+test("slHazard: bad inputs are UNKNOWN, never clear", () => {
+  assert.equal(eng.slHazardDecide({ side: "BUY", entry: 100, stop: 95, pools: [], atr: 0 }).hazard, "unknown");
+  assert.equal(eng.slHazardDecide({ side: "HOLD", entry: 100, stop: 95, pools: [], atr: 1 }).hazard, "unknown");
+  assert.equal(eng.slHazardDecide({ side: "BUY", entry: 100, stop: 101, pools: [], atr: 1 }).hazard, "unknown",
+    "a long stop above entry is nonsense and must not read as safe");
+  assert.equal(eng.slHazardDecide({ side: "BUY", entry: 100, stop: 95, pools: [], atr: 1 }).hazard, "none");
+});
+
+test("slHazard: a lone weak pivot is not a pile and creates no hazard", () => {
+  const h = eng.slHazardDecide({ side: "BUY", entry: 100, stop: 94.9,
+    pools: [pool("SSL", 95, 0.2, { count: 1, strength: "weak" })], atr: 1 });
+  assert.equal(h.hazard, "none");
+  const maj = eng.slHazardDecide({ side: "BUY", entry: 100, stop: 94.9,
+    pools: [pool("SSL", 95, 0.2, { count: 1, strength: "major" })], atr: 1 });
+  assert.equal(maj.hazard, "high", "a range extreme is a pile even with one touch");
+});
