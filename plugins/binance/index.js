@@ -57,8 +57,8 @@ const DEFAULTS = {
   // does NOT bind a normal setup: a 0.5% stop sizes to exactly ~equity notional,
   // which equals the cap (strict `>`), so it passes. Tighter-than-0.5% stops get
   // trimmed to ~$5000. Bounds BOTH manual orders (tradeGuard) and the auto path.
-  maxNotionalPct: 100,        // ~$5000 backstop @ $5002 base (was 60/$3000)
-  maxLeverage: 20,            // hard CEILING on leverage (was flat 5x). Effective
+  maxNotionalPct: 40,         // mandate floor (ops/mandate.json) — was Framework-B 100
+  maxLeverage: 3,             // mandate floor — was Framework-B 20. Effective
                               // leverage is squeezed BELOW this by dynamicLeverage
                               // (Option B) based on stop width — see below.
   leverageDefault: 3,         // desk default leverage (set via `leverage` cmd; cap = maxLeverage)
@@ -80,7 +80,9 @@ const DEFAULTS = {
       { maxStopPct: 100, maxLev: 7 },
     ],
   },
-  maxConcurrentPositions: 10, // Framework B (accelerate sample): hold up to 10 at once.
+  maxConcurrentPositions: 3,  // mandate floor — Framework-B 10 retired with the sprint.
+  sameDirectionMax: 2,        // mandate floor — avg pairwise corr 0.65 makes same-direction = one bet
+  minStopPct: 0.6,            // mandate floor — cost-in-R = 0.18/stop%; tighter geometry cannot pay
                               // Worst-case grade-A %-risk margin = 5.0%/trade (notional
                               // ≤$5002 ÷ effLev 20x), so 10 = 50% worst-case — 30% under
                               // the 80% hard cap. Practical ceiling is ~5 (allowlist size
@@ -98,7 +100,7 @@ const DEFAULTS = {
   // confirming each one. Still testnet-only + capped + audited.
   autoTrade: false,
   autoTradeRules: {
-    maxTradesPerDay: 300,     // Framework B (accelerate sample ~100x) — was 3. Non-binding
+    maxTradesPerDay: 3,       // mandate floor — Framework-B 300 retired. Non-binding
                               // headroom: real rate is gated by the daily-loss circuit-
                               // breaker + the 80% margin cap, not this counter.
     requireSetupGrade: "B",   // A or B only
@@ -185,6 +187,7 @@ const DEFAULTS = {
     riskPct: 0.5,            // default risk/trade = 0.5% = ~$25 from $5002 base
     riskPctMax: 1,           // ceiling for a normal (grade B/C) setup
     riskPctMaxGradeA: 2,     // higher ceiling reserved for grade-A setups only
+    beBufferPct: 0.225,      // mandate floor — must cover the 0.18% round trip (x1.25)
     atrStopMult: 2,          // stop = 2×ATR (wider than scalp 1.5)
     fixedTargetR: 0,         // 0 = no fixed target, let winners run; >0 = TP at that R
     partialTpR: 2,           // take partial profit at +2R
@@ -1203,6 +1206,14 @@ module.exports = (ctx) => {
       return `notional $${Number(o.usdValue).toFixed(2)} เกิน cap $${notionalCap.toFixed(0)} (${c.maxNotionalPct}% ของ equity $${equityBase})`;
     if (o.leverage && c.maxLeverage && o.leverage > c.maxLeverage)
       return `leverage ${o.leverage}x เกิน cap ${c.maxLeverage}x`;
+    // Cost floor here (not only in autoTradeGuard) so the manual `order` path
+    // cannot route around it: with a stop attached, geometry that cannot pay
+    // for itself is refused on every door. Orders without a stop pass this
+    // check and are handled by the naked-position machinery instead.
+    {
+      const cf = costFloorDecide({ entry: o.entry || o.price, stop: o.stopPrice, minStopPct: c.minStopPct });
+      if (cf) return cf;
+    }
     return null;   // allowed
   }
 
@@ -2678,19 +2689,40 @@ module.exports = (ctx) => {
       if (cmd === "setkeys") {
         const p = payload || {};
         const patch = {};
+        // Governance gate: keys pinned in ops/mandate.json cannot be changed
+        // here — only re-affirmed. Changing them IS a mandate change and goes
+        // through git (edit ops/mandate.json with a reason, then config).
+        // Before this gate, any agent with curl could flip autoTradeSignal or
+        // the testnet lock, both of which the mandate marks NEVER-delegated;
+        // the sentinel would page within 15 minutes, but a 15-minute window
+        // on the arming switch is a hole, not a safeguard.
+        let pinned = {};
+        try {
+          pinned = JSON.parse(fs.readFileSync(
+            path.join(ctx.pluginDir, "..", "..", "ops", "mandate.json"), "utf8")).pinned_config || {};
+        } catch { /* no mandate file -> no gate (dev checkouts) */ }
+        const resolvePinned = (obj, dotted) => dotted.split(".").reduce(
+          (cur, part) => (cur && typeof cur === "object" ? cur[part] : undefined), obj);
+        const refused = [];
+        const gate = (key, val) => {
+          if (!(key in pinned) && !(key + "" in pinned)) return true;
+          if (JSON.stringify(val) === JSON.stringify(pinned[key])) return true;
+          refused.push(key);
+          return false;
+        };
         if (typeof p.apiKey === "string") patch.apiKey = p.apiKey.trim();
         if (typeof p.apiSecret === "string") patch.apiSecret = p.apiSecret.trim();
-        if (typeof p.testnet === "boolean") patch.testnet = p.testnet;
+        if (typeof p.testnet === "boolean" && gate("testnet", p.testnet)) patch.testnet = p.testnet;
         if (Array.isArray(p.allowedSymbols)) patch.allowedSymbols = p.allowedSymbols;
-        if (typeof p.tradeEnabled === "boolean") patch.tradeEnabled = p.tradeEnabled;
-        if (typeof p.maxNotionalPct === "number") patch.maxNotionalPct = p.maxNotionalPct;
-        if (typeof p.maxLeverage === "number") patch.maxLeverage = p.maxLeverage;
+        if (typeof p.tradeEnabled === "boolean" && gate("tradeEnabled", p.tradeEnabled)) patch.tradeEnabled = p.tradeEnabled;
+        if (typeof p.maxNotionalPct === "number" && gate("maxNotionalPct", p.maxNotionalPct)) patch.maxNotionalPct = p.maxNotionalPct;
+        if (typeof p.maxLeverage === "number" && gate("maxLeverage", p.maxLeverage)) patch.maxLeverage = p.maxLeverage;
         if (typeof p.leverageDefault === "number") patch.leverageDefault = p.leverageDefault;
-        if (typeof p.maxConcurrentPositions === "number") patch.maxConcurrentPositions = p.maxConcurrentPositions;
+        if (typeof p.maxConcurrentPositions === "number" && gate("maxConcurrentPositions", p.maxConcurrentPositions)) patch.maxConcurrentPositions = p.maxConcurrentPositions;
         if (typeof p.marginCapPct === "number") patch.marginCapPct = p.marginCapPct;
-        if (typeof p.dailyLossPct === "number") patch.dailyLossPct = p.dailyLossPct;
+        if (typeof p.dailyLossPct === "number" && gate("dailyLossPct", p.dailyLossPct)) patch.dailyLossPct = p.dailyLossPct;
         if (typeof p.autoTrade === "boolean") patch.autoTrade = p.autoTrade;
-        if (typeof p.autoTradeSignal === "boolean") patch.autoTradeSignal = p.autoTradeSignal;
+        if (typeof p.autoTradeSignal === "boolean" && gate("autoTradeSignal", p.autoTradeSignal)) patch.autoTradeSignal = p.autoTradeSignal;
         if (typeof p.tradePaused === "boolean") patch.tradePaused = p.tradePaused;
         if (typeof p.officePauseToken === "string") patch.officePauseToken = p.officePauseToken.trim();
         if (typeof p.monitorMs === "number") patch.monitorMs = p.monitorMs;
@@ -2700,7 +2732,8 @@ module.exports = (ctx) => {
         if (typeof p.monitorMs === "number") startMonitor();
         ctx.broadcast({ type: "plugin.event", plugin: "binance", event: "config" });
         // Never echo the secret back.
-        return reply({ ok: true, testnet: c.testnet, hasKey: !!c.apiKey, hasSecret: !!c.apiSecret,
+        return reply({ ok: true, refusedByMandate: refused.length ? refused : undefined,
+          testnet: c.testnet, hasKey: !!c.apiKey, hasSecret: !!c.apiSecret,
           tradeEnabled: c.tradeEnabled, autoTrade: c.autoTrade, autoTradeSignal: c.autoTradeSignal,
           scalping: c.scalping, tradePaused: c.tradePaused, hasPauseToken: !!c.officePauseToken,
           allowedSymbols: c.allowedSymbols, maxNotionalPct: c.maxNotionalPct, maxLeverage: c.maxLeverage,
