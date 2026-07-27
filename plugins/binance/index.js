@@ -544,6 +544,23 @@ function sameDirectionDecide({ open, side, max }) {
   return null;
 }
 
+/**
+ * Cost-floor on stop width. Round-trip cost is a fixed % of notional, so
+ * cost-in-R = RT% / stop-width%. A 0.27% stop pays 0.67R per trade just to
+ * play (yesterday's live practice trade did exactly that); no realistic edge
+ * survives it. Returns a reason string to BLOCK, or null.
+ */
+function costFloorDecide({ entry, stop, minStopPct, rtPct = 0.18 }) {
+  if (!minStopPct || !(entry > 0) || stop == null) return null;
+  const stopPct = Math.abs(entry - stop) / entry * 100;
+  if (!(stopPct > 0)) return null;   // degenerate stops are rejected elsewhere
+  if (stopPct < minStopPct) {
+    const costR = (rtPct / stopPct).toFixed(2);
+    return `stop แคบ ${stopPct.toFixed(2)}% < พื้น ${minStopPct}% — ต้นทุนไปกลับ ${rtPct}% ของ notional = ${costR}R ต่อไม้ เรขาคณิตนี้จ่ายไม่ออก`;
+  }
+  return null;
+}
+
 /** Did the emergency close actually flatten the position?
  *  `flat:true` requires POSITIVE proof. A rejected close, a failed verification
  *  read, or any remaining quantity all mean the same thing operationally:
@@ -2033,6 +2050,11 @@ module.exports = (ctx) => {
       if (!already && live.open.length >= maxConc)
         return `ถึงเพดาน ${maxConc} position พร้อมกัน (เปิดอยู่ ${live.open.length}: ${live.open.map((p) => p.symbol).join(", ")}) — ปิดไม้เก่าก่อน`;
     }
+    // Cost floor: block geometry that cannot pay for itself, regardless of edge.
+    {
+      const cf = costFloorDecide({ entry: o.entry, stop: o.stopPrice, minStopPct: c.minStopPct });
+      if (cf) return cf;
+    }
     // Same-direction cap: slot counting by correlation, not by symbol count.
     if (!live.open.some((p) => p.symbol === o.symbol)) {
       const sdBlock = sameDirectionDecide({ open: live.open, side: o.side, max: c.sameDirectionMax });
@@ -3422,5 +3444,5 @@ module.exports.__safety = {
   parseEventAt, newsGateDecide, auditTrim, tradesTodayDecide,
   makeDedup, emergencyOutcome, exitOutcome, AUDIT_MONEY_CMDS, isScheduledEvent,
   makeClientOrderId, isDeskTagged, classifyPosition, stopCoverage, reconcileDecide,
-  hwmDecide, sameDirectionDecide,
+  hwmDecide, sameDirectionDecide, costFloorDecide,
 };

@@ -1,7 +1,6 @@
 {
   "_comment": "THE MANDATE — the single source of truth for what this desk is allowed to be. The config-drift sentinel compares the live config against this file every heartbeat; any divergence pages. Changing a value here IS the change-control act: it must be committed to git with a reason, which is what makes drift auditable. The desk's three recorded loss modes were all silent config drift.",
   "ratified_by": "CREATOR:2026-07-25 caps; CREATOR:2026-07-27 delegation (see delegation block)",
-
   "delegation": {
     "granted": "2026-07-27",
     "text_of_grant": "ฉันขอพูดตรง บางอย่างคุณทำได้เลยไม่ต้องถามฉัน ทุกเรื่อง เพราะรันบน TESTNET",
@@ -13,7 +12,6 @@
       "re-arming autoTradeSignal outside the ratified GO process"
     ]
   },
-
   "rulings": {
     "autotrade_command_door": {
       "date": "2026-07-27",
@@ -31,16 +29,28 @@
       "written_before_the_exit_fix_shipped": true,
       "commitment": "Option (a): the fixed-exit variant of H-AUTO-1 runs EXACTLY ONCE, pre-registered as look #17 (H-AUTO-1-R1), same signals pipeline, same ratified gates, charged to the look ledger. No second variant, no parameter exploration, regardless of how close the result lands to zero.",
       "sober_prior": "Even perfect cost recovery lands near +0.08R gross at t~1.6 — below every gate. The expected outcome is a cleaner NO-GO, not a GO."
+    },
+    "sizing_coherence_2026_07_27": {
+      "date": "2026-07-27",
+      "question": "Owner observed position sizes feel fearfully small. Is that caution or a defect?",
+      "finding": "A defect, measured: riskPct 0.5% intends $25 risk/trade, but maxNotionalPct 1 ($50 cap) clamped EVERY one of 987 replayed trades to ~$0.33-0.70 actual risk — 1/50th of stated intent. The two knobs were fighting; the cap always won.",
+      "ruling": "Make sizing RISK-led: maxNotionalPct 1 -> 40 so the 0.5% risk sizing actually binds for normal stops (1.39% median stop -> ~$1,800 notional, $25 risk), while the cap still protects against tight-stop blowups (a 0.5% stop caps at $2,000 notional = $10 risk, not $25). At maxLeverage 3 the margin for a full-size position is ~$667 = 13% of equity, well inside marginCapPct 80.",
+      "frequency_unchanged": "Trade FREQUENCY stays capped (3/day, grade A, regimeGate) — measured: every no-edge trade pays 0.13-0.24R in costs; more frequency is faster bleed, not more opportunity.",
+      "cost_floor": "New guard minStopPct 0.6%: entries whose stop is tighter are blocked because cost-in-R = 0.18/stop% exceeds 0.30R — unwinnable geometry. Yesterday's XRPUSDT practice trade (0.27% stop = 0.67R cost) would have been blocked."
+    },
+    "sizing_at_go_ladder": {
+      "date": "2026-07-27",
+      "question": "Owner's real fear: when a validated entry finally arrives, will the desk size it too small?",
+      "policy": "Pre-written so size follows evidence, not mood: when a strategy passes the ratified GO + 30-day shadow, live sizing starts at 1/4 of study sizing for the first 30 trades; scales to 1/2 if realized expectancy is within 1 SE of backtest; full size after 60 trades still tracking. Any deviation from this ladder is a mandate change requiring a committed reason. Scaling DOWN on divergence is automatic; scaling UP is never automatic."
     }
   },
-
   "pinned_config": {
     "_comment": "Values the sentinel enforces against plugins/binance/data/config.json. null = must be absent/false.",
     "testnet": true,
     "autoTradeSignal": false,
     "autoTradeSignalShadow": false,
     "tradeEnabled": true,
-    "maxNotionalPct": 1,
+    "maxNotionalPct": 40,
     "maxLeverage": 3,
     "maxConcurrentPositions": 3,
     "sameDirectionMax": 2,
@@ -53,16 +63,28 @@
     "newsGate.enabled": true,
     "newsGate.maxCacheAgeH": 6,
     "regimeGate.enabled": true,
-    "trendRules.beBufferPct": 0.225
+    "trendRules.beBufferPct": 0.225,
+    "minStopPct": 0.6
   },
-
   "hwm_ladder": {
     "_comment": "Drawdown governance beyond the daily breaker (which resets at midnight and cannot stop a multi-day grind). Measured from the persisted equity high-water mark. Actions only ever TIGHTEN; nothing here re-arms anything automatically.",
     "ratified": "2026-07-27 under delegation, revisable by the owner at any time",
     "levels": [
-      { "drawdown_pct": 4, "action": "autoTrade off + page", "rationale": "two max daily losses back-to-back is a pattern, not luck" },
-      { "drawdown_pct": 8, "action": "tradePaused on + page", "rationale": "practice layer stands down; exits stay allowed (protectiveGuard)" },
-      { "drawdown_pct": 12, "action": "stay paused + daily reminder until the owner writes a note here", "rationale": "12% is the ratified study max-DD gate; breaching it live means the system is outside anything that was ever accepted" }
+      {
+        "drawdown_pct": 4,
+        "action": "autoTrade off + page",
+        "rationale": "two max daily losses back-to-back is a pattern, not luck"
+      },
+      {
+        "drawdown_pct": 8,
+        "action": "tradePaused on + page",
+        "rationale": "practice layer stands down; exits stay allowed (protectiveGuard)"
+      },
+      {
+        "drawdown_pct": 12,
+        "action": "stay paused + daily reminder until the owner writes a note here",
+        "rationale": "12% is the ratified study max-DD gate; breaching it live means the system is outside anything that was ever accepted"
+      }
     ]
   }
 }

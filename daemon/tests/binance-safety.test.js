@@ -379,3 +379,16 @@ test("sameDirectionDecide counts direction, not symbols — 0.65 corr makes them
   assert.strictEqual(S.sameDirectionDecide({ open, side: "BUY", max: 0 }), null, "unset cap = no rule");
   assert.strictEqual(S.sameDirectionDecide({ open: null, side: "BUY", max: 2 }), null, "no data, no block (the livePositions gate already failed closed upstream)");
 });
+
+test("costFloorDecide blocks geometry that cannot pay for itself", () => {
+  // Yesterday's live practice trade: XRPUSDT stop 0.27% wide = 0.67R round-trip
+  // cost. No realistic edge survives that; the floor blocks it with arithmetic.
+  assert.ok(S.costFloorDecide({ entry: 1.1077, stop: 1.1047, minStopPct: 0.6 }),
+    "a 0.27% stop must be blocked at a 0.6% floor");
+  assert.strictEqual(S.costFloorDecide({ entry: 100, stop: 98.6, minStopPct: 0.6 }), null,
+    "a 1.4% stop passes");
+  assert.strictEqual(S.costFloorDecide({ entry: 100, stop: 98.6, minStopPct: 0 }), null,
+    "no floor configured = no rule");
+  assert.strictEqual(S.costFloorDecide({ entry: 100, stop: null, minStopPct: 0.6 }), null,
+    "a missing stop is someone else's rejection (mandatoryStop), not a false block here");
+});
