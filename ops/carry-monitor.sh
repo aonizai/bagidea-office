@@ -42,6 +42,33 @@ for s in SYMS:
     except Exception:
         rows[s] = None   # unreachable is reported, never guessed
 
+# Perp-vs-quarterly basis (look #16: the one delta-neutral structure holdable
+# entirely inside USD-M — quarterlies exist on the desk's own testnet). At the
+# 2024 regime (~25%/yr annualized at 90DTE) the trade clearly pays; at today's
+# ~5% it nets cents. Watch the number; the season announces itself.
+basis = {}
+try:
+    info = json.load(urllib.request.urlopen("https://fapi.binance.com/fapi/v1/exchangeInfo", timeout=20))
+    quarterlies = [x["symbol"] for x in info["symbols"]
+                   if x.get("contractType") in ("CURRENT_QUARTER", "NEXT_QUARTER")
+                   and x["symbol"].startswith(("BTCUSDT_", "ETHUSDT_"))]
+    prem = {x["symbol"]: float(x["markPrice"]) for x in
+            json.load(urllib.request.urlopen("https://fapi.binance.com/fapi/v1/premiumIndex", timeout=20))}
+    for q in sorted(quarterlies):
+        perp = q.split("_")[0]
+        if q in prem and perp in prem and prem[perp] > 0:
+            yymmdd = q.split("_")[1]
+            import datetime as _dt
+            expiry = _dt.datetime(2000 + int(yymmdd[:2]), int(yymmdd[2:4]), int(yymmdd[4:6]),
+                                  tzinfo=_dt.timezone.utc)
+            dte = max(1.0, (expiry.timestamp() - time.time()) / 86400)
+            spread_pct = (prem[q] / prem[perp] - 1) * 100
+            basis[q] = {"spread_pct": round(spread_pct, 3),
+                        "annualized_pct": round(spread_pct * 365 / dte, 2),
+                        "dte": round(dte, 1)}
+except Exception:
+    basis = {"error": "fetch failed"}
+
 ts = int(time.time() * 1000)
 ok = {k: v for k, v in rows.items() if v is not None}
 snapshot = {
@@ -49,13 +76,19 @@ snapshot = {
     "cross_sectional_mean": round(sum(ok.values()) / len(ok), 2) if ok else None,
     "alert_threshold": ALERT_ANNUALIZED,
     "above_threshold": sorted([k for k, v in ok.items() if v >= ALERT_ANNUALIZED]),
+    "quarterly_basis": basis,
+    "basis_alert_threshold_ann": 12.0,
     "fetch_failures": sorted([k for k, v in rows.items() if v is None]),
 }
 with open(LOGF, "a") as f:
     f.write(json.dumps(snapshot) + "\n")
 json.dump(snapshot, open(OUTF, "w"), indent=1)
 
-hot = snapshot["above_threshold"]
+basis_hot = [k for k, v in (basis.items() if isinstance(basis, dict) else [])
+             if isinstance(v, dict) and v.get("annualized_pct", 0) >= 12.0]
+if basis_hot:
+    snapshot["basis_above_threshold"] = basis_hot
+hot = snapshot["above_threshold"] + basis_hot
 print(json.dumps({"mean": snapshot["cross_sectional_mean"], "hot": hot,
                   "failures": snapshot["fetch_failures"]}))
 # Alert only on majors crossing — alt funding spikes are noise and would train
