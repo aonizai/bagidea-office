@@ -22,7 +22,7 @@
     "xsec_momentum_class": {
       "date": "2026-07-27",
       "question": "Is cross-sectional beta-netted momentum a new hypothesis class, or directional TA in new clothing?",
-      "ruling": "NEW CLASS (it nets market direction; the closed line predicted direction), BUT any test must be pre-registered single-spec (k=60 only), multiplicity-adjusted for the 4-k peek already on the ledger (look #14), and must state universe survivorship as a known optimistic bias. NOT scheduled — parked until a survivorship-corrected universe exists."
+      "ruling": "NEW CLASS (it nets market direction; the closed line predicted direction), BUT any test must be pre-registered single-spec (k=60 only), multiplicity-adjusted for the 4-k peek already on the ledger (look #14), and must state universe survivorship as a known optimistic bias. NOT scheduled — parked until a survivorship-corrected universe exists. → RESOLVED 2026-07-27: the survivorship-corrected universe was built (look #18, one pre-registered shot) and the class FAILED every gate — PIT net t=-0.16 vs survivor t=1.47; the entire apparent edge was survivorship bias. CLASS CLOSED."
     },
     "reopen_precommit_H_AUTO_1": {
       "date": "2026-07-27",
