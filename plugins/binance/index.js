@@ -2670,6 +2670,23 @@ module.exports = (ctx) => {
           ctx.broadcast({ type: "scan.signal", plugin: "binance", symbol: r.symbol, grade: r.grade, dir: r.dir,
             entry: r.entry, stop: r.stop, target: r.target, signals: r.signals });
           ctx.feed(msg.replace(/<[^>]+>/g, ""), "scout");
+          // PRACTICE NUDGE (mandate: full_throttle_2026_07_27): a grade-A signal
+          // wakes the practice agent NOW instead of waiting up to 30 minutes for
+          // the polling job. The agent still decides and every guard still binds
+          // — this changes reaction latency, not authority. Rate-limited by the
+          // same per-symbol dedup that gated this very broadcast (1h TTL), and
+          // long-only to match the regime gate so we never nudge a dead-end.
+          if (cc.practiceNudge && r.grade === "A" && r.dir === "bull" && !cc.autoTradeSignal) {
+            try {
+              ctx.runClaude("main", [
+                `[PRACTICE NUDGE — สัญญาณเกรด A เพิ่งพิมพ์] ${r.symbol} ${r.dir} score ${r.score} · entry ~${r.entry} · stop โครงสร้าง 15m ${r.stop}`,
+                `ประเมินตาม PRACTICE-TRADE LAYER เดี๋ยวนี้: เช็ค regime 1h ให้เป็น Trend-Up ก่อน แล้วถ้าเข้าเงื่อนไข`,
+                `ใช้ \`autotrade ${r.symbol} BUY risk A <stop>\` โดยวาง stop จากโครงสร้าง 1h (swing low ลึก − 0.3×ATR, กว้าง 2-4%)`,
+                `server จะคิดขนาดเองที่เพดานเกรด A (~$100 risk) · ถ้าไม่เข้าเงื่อนไขให้บอกเหตุผลสั้น ๆ แล้วจบ ห้ามฝืน`,
+              ].join("\n"));
+              ctx.log(`binance: practice nudge fired → main (${r.symbol} grade A)`);
+            } catch (e) { ctx.log("binance: practice nudge failed: " + e.message); }
+          }
           // scan signals stay on the overlay/dashboard only — NOT relayed to Telegram
           // (was phone spam every scan as price drifts, and it buried real trade alerts).
           // Closed-loop: if the owner enabled autoTradeSignal, place the trade

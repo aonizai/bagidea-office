@@ -56,6 +56,13 @@
       "ruling": "Yes — it is the measured cost lever, and with risk-led sizing a deeper stop does NOT add risk: dollar risk stays at the grade ceiling while the position shrinks. Cost-in-R = 0.18/stop%: at 1.4% (old median) 0.13R, at 3% it halves to 0.06R, funding on multi-day holds ~0.006R/day (negligible at current rates), margin drops 48%->22%. Practice guidance: place stops at 1h STRUCTURE (deeper swing low - 0.3 ATR), preferred width 2-4%. Cost floor minStopPct raised 0.6 -> 1.0: below 1% the round trip alone eats >=0.18R and the desk has measured what that does.",
       "tradeoff_stated": "Slower trades: breakeven triggers at +1R = +stop% of price, so a 3% stop means the runner must move +3% before the stop moves up — holds measured in days. Fewer trades per week. That is the deal being chosen: pay less per attempt, wait longer per attempt.",
       "explicitly_not_done": "NO backtest of deeper stops on the closed directional line — stopMult tuning is named in the reopen rules as forbidden retuning. This ruling is posted-price arithmetic applied to the practice layer, not signal research."
+    },
+    "full_throttle_2026_07_27": {
+      "date": "2026-07-27",
+      "question": "Owner said 'เดินหน้าใส่เต็มเหนี่ยวไปเลย' (full throttle). What does that authorize?",
+      "ruling": "Full throttle = REACTION SPEED, not switch-flipping. A grade-A signal now triggers the practice agent within seconds (practiceNudge) instead of waiting up to 30 minutes for the polling job. The agent still decides, every guard still binds, sizing is already at the grade-A ceiling ($100 risk, deep stops). What 'full throttle' does NOT reopen: autoTradeSignal stays never-delegated (measured -0.19R, owner-closed), caps stay pinned, and the HWM ladder stays armed.",
+      "speed_limit_stated": "At $100/trade the 4% HWM rung = $200 = TWO consecutive full losses stands the desk down (autoTrade off, manual re-arm). That is the seatbelt working, not a bug — recorded here so the stand-down does not surprise anyone mid-excitement.",
+      "nudge_rate_limit": "Piggybacks the existing per-symbol signal dedup (1h TTL) — at most one nudge per symbol+grade+dir per hour, grade A only, and only when the regime gate direction matches (no nudging shorts in longOnly)."
     }
   },
   "pinned_config": {
@@ -79,7 +86,8 @@
     "regimeGate.enabled": true,
     "trendRules.beBufferPct": 0.225,
     "minStopPct": 1.0,
-    "maxNotionalPctGradeA": 150
+    "maxNotionalPctGradeA": 150,
+    "practiceNudge": true
   },
   "hwm_ladder": {
     "_comment": "Drawdown governance beyond the daily breaker (which resets at midnight and cannot stop a multi-day grind). Measured from the persisted equity high-water mark. Actions only ever TIGHTEN; nothing here re-arms anything automatically.",
