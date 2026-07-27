@@ -548,6 +548,16 @@ function sameDirectionDecide({ open, side, max }) {
 }
 
 /**
+ * Grade-aware notional cap. Grade-A practice trades may size to the full
+ * grade-A risk ceiling (mandate ruling showcase_grade_a_sizing_2026_07_27);
+ * everything else keeps the base cap. Returns a PERCENT of equity.
+ */
+function notionalCapPctFor(c, grade) {
+  if (grade === "A" && Number(c.maxNotionalPctGradeA) > 0) return Number(c.maxNotionalPctGradeA);
+  return Number(c.maxNotionalPct) || 40;
+}
+
+/**
  * Cost-floor on stop width. Round-trip cost is a fixed % of notional, so
  * cost-in-R = RT% / stop-width%. A 0.27% stop pays 0.67R per trade just to
  * play (yesterday's live practice trade did exactly that); no realistic edge
@@ -917,7 +927,7 @@ module.exports = (ctx) => {
   // otherwise); manual passes the plain trend ceiling. Returns
   // { qty, riskPct, riskUsd, stopDist, notional, notionalCap, capped, equity }
   // or { blocked } with a precise reason.
-  async function sizeByRisk({ symbol, entry, stop, riskPct, riskCeil }) {
+  async function sizeByRisk({ symbol, entry, stop, riskPct, riskCeil, grade }) {
     const c = cfg();
     const equity = c.simulatedEquity || await accountEquity();
     const tr = c.trendRules || {};
@@ -932,7 +942,7 @@ module.exports = (ctx) => {
     // the stop is tighter than ~0.5% (e.g. $25 risk / $0.10 stop); the cap is a
     // HARD ceiling — shrink qty so qty×entry <= cap. A normal 0.5% stop sizes to
     // exactly ~equity notional = the cap, so it passes (strict `>`) untrimmed.
-    const notionalCap = equity * (c.maxNotionalPct || 100) / 100;
+    const notionalCap = equity * notionalCapPctFor(c, grade) / 100;
     const maxQtyByCap = notionalCap / entry;
     let capped = false;
     if (qty > maxQtyByCap) { qty = maxQtyByCap; capped = true; }
@@ -1201,7 +1211,7 @@ module.exports = (ctx) => {
     // Notional cap = equity x maxNotionalPct%. equityBase uses simulatedEquity
     // (the locked $5002 real base) so the check stays sync + deterministic.
     const equityBase = c.simulatedEquity || 0;
-    const notionalCap = equityBase * (c.maxNotionalPct || 0) / 100;
+    const notionalCap = equityBase * notionalCapPctFor(c, o.grade) / 100;
     if (notionalCap && o.usdValue && o.usdValue > notionalCap)
       return `notional $${Number(o.usdValue).toFixed(2)} เกิน cap $${notionalCap.toFixed(0)} (${c.maxNotionalPct}% ของ equity $${equityBase})`;
     if (o.leverage && c.maxLeverage && o.leverage > c.maxLeverage)
@@ -1929,7 +1939,7 @@ module.exports = (ctx) => {
     const sr = c.scalping ? (c.scalpingRules || {}) : {};
     const riskPct0 = c.scalping ? (sr.riskPct || 0.5) : (tr.riskPct || 0.5);
     const riskCeil = r.grade === "A" ? (tr.riskPctMaxGradeA || 2) : (tr.riskPctMax || 1);
-    const sized = await sizeByRisk({ symbol: r.symbol, entry: r.entry, stop: r.stop, riskPct: riskPct0, riskCeil });
+    const sized = await sizeByRisk({ symbol: r.symbol, entry: r.entry, stop: r.stop, riskPct: riskPct0, riskCeil, grade: r.grade });
     if (sized.blocked) return { blocked: sized.blocked };
     const q = sized.qty;
     const side = r.dir === "bull" ? "BUY" : "SELL";
@@ -3352,7 +3362,7 @@ module.exports = (ctx) => {
           if (o.mode === "risk") {
             const tr = cfg().trendRules || {};
             const riskCeil = o.grade === "A" ? (tr.riskPctMaxGradeA || 2) : (tr.riskPctMax || 1);
-            const sized = await sizeByRisk({ symbol: o.symbol, entry: o.entry, stop: o.stop, riskPct: o.riskPct, riskCeil });
+            const sized = await sizeByRisk({ symbol: o.symbol, entry: o.entry, stop: o.stop, riskPct: o.riskPct, riskCeil, grade: o.grade });
             if (sized.blocked) { audit({ cmd: "autotrade", ...o, blocked: sized.blocked }); return reply({ ok: false, blocked: true, msg: sized.blocked }); }
             o.qty = sized.qty;
             o.sizing = { riskPct: sized.riskPct, riskUsd: usd2(sized.riskUsd), notional: usd2(sized.notional), capped: sized.capped };
@@ -3477,5 +3487,5 @@ module.exports.__safety = {
   parseEventAt, newsGateDecide, auditTrim, tradesTodayDecide,
   makeDedup, emergencyOutcome, exitOutcome, AUDIT_MONEY_CMDS, isScheduledEvent,
   makeClientOrderId, isDeskTagged, classifyPosition, stopCoverage, reconcileDecide,
-  hwmDecide, sameDirectionDecide, costFloorDecide,
+  hwmDecide, sameDirectionDecide, costFloorDecide, notionalCapPctFor,
 };

@@ -392,3 +392,12 @@ test("costFloorDecide blocks geometry that cannot pay for itself", () => {
   assert.strictEqual(S.costFloorDecide({ entry: 100, stop: null, minStopPct: 0.6 }), null,
     "a missing stop is someone else's rejection (mandatoryStop), not a false block here");
 });
+
+test("notionalCapPctFor: grade A gets the showcase cap, everything else the base", () => {
+  const c = { maxNotionalPct: 40, maxNotionalPctGradeA: 150 };
+  assert.strictEqual(S.notionalCapPctFor(c, "A"), 150);
+  assert.strictEqual(S.notionalCapPctFor(c, "B"), 40);
+  assert.strictEqual(S.notionalCapPctFor(c, "C"), 40);
+  assert.strictEqual(S.notionalCapPctFor(c, undefined), 40, "no grade (manual order) = base cap");
+  assert.strictEqual(S.notionalCapPctFor({ maxNotionalPct: 40 }, "A"), 40, "no showcase key = no showcase");
+});

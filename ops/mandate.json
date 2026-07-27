@@ -42,6 +42,13 @@
       "date": "2026-07-27",
       "question": "Owner's real fear: when a validated entry finally arrives, will the desk size it too small?",
       "policy": "Pre-written so size follows evidence, not mood: when a strategy passes the ratified GO + 30-day shadow, live sizing starts at 1/4 of study sizing for the first 30 trades; scales to 1/2 if realized expectancy is within 1 SE of backtest; full size after 60 trades still tracking. Any deviation from this ladder is a mandate change requiring a committed reason. Scaling DOWN on divergence is automatic; scaling UP is never automatic."
+    },
+    "showcase_grade_a_sizing_2026_07_27": {
+      "date": "2026-07-27",
+      "question": "Owner wants to see one THICK profitable trade. Can the desk deliver that honestly?",
+      "ruling": "On TESTNET, yes — as an experience, not as evidence. Grade-A practice trades may size at the full grade-A risk ceiling (riskPctMaxGradeA 2% = $100 risk) via a grade-aware notional cap maxNotionalPctGradeA 150 (grade B/C stay at 40). The runner-friendly exits already in place (no fixed target, trail 1.5%) are what make a winner FAT when it wins: +5R = +$500 on one trade.",
+      "honest_arithmetic_stated_up_front": "The signal has measured expectancy -0.19R, so at $100 risk the AVERAGE grade-A practice trade costs ~$19. A thick winner, when it comes, is luck wearing a seatbelt — recorded here so nobody later mistakes one green trade for edge.",
+      "guard_interactions": "Margin for one full-size grade-A ($7,500 notional at 3x) = $2,500 = 50% of equity, inside marginCapPct 80. A SECOND full-size same-direction trade would breach the margin cap and is blocked — so at most one thick position plus one smaller. dailyLossPct 10% = 5 full grade-A losses. HWM ladder unchanged: 4% DD kills autoTrade regardless."
     }
   },
   "pinned_config": {
@@ -64,7 +71,8 @@
     "newsGate.maxCacheAgeH": 6,
     "regimeGate.enabled": true,
     "trendRules.beBufferPct": 0.225,
-    "minStopPct": 0.6
+    "minStopPct": 0.6,
+    "maxNotionalPctGradeA": 150
   },
   "hwm_ladder": {
     "_comment": "Drawdown governance beyond the daily breaker (which resets at midnight and cannot stop a multi-day grind). Measured from the persisted equity high-water mark. Actions only ever TIGHTEN; nothing here re-arms anything automatically.",
