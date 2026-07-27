@@ -1,0 +1,19 @@
+{
+  "look": 18,
+  "hypothesis": "Cross-sectional momentum k=60 survives a point-in-time universe (the survivorship fix that unparks the mandate ruling xsec_momentum_class)",
+  "class": "cross-sectional market-neutral (ruled NEW CLASS 2026-07-27; parked pending exactly this universe fix)",
+  "spec_frozen_before_any_data_contact": {
+    "signal": "trailing 60-day return, skipping the most recent day",
+    "portfolio": "long top-3 / short bottom-3, equal weight 1/6 per leg, weekly Monday-close rebalance, weights earn from t+1",
+    "universe_rule": "top-15 USD-M perps by trailing-30-day DOLLAR volume, recomputed at every rebalance date, from a ~35-symbol candidate pool that INCLUDES perps that later died or were delisted (MATIC, FTM, etc.) — membership decided only from data available at that date",
+    "costs": "ratified: taker 0.06% + slip 0.03% per side on traded notional |dw|",
+    "splits": "IS 2023-03..2025-06, OOS 2025-07..2026-06, full-period reported alongside",
+    "controls": "200 seeded random 3v3 portfolios, identical structure and costs; strategy must beat net-Sharpe p95",
+    "no_other_k_no_other_topN": "k=60 and 3v3 ONLY. Look #14 already peeked 4 k-values on the survivor universe; this is the single pre-registered confirmation shot."
+  },
+  "replay": ["true"],
+  "signals": "n/a (portfolio study; verdict from the study script, gates below)",
+  "gates": "net |t| >= 2.5 on daily returns, beats control p95, no IS/OOS sign flip. Anything less = the class closes like the others.",
+  "expected_prior": "Look #14 on the SURVIVOR universe gave +22.3%/yr net, t=1.47. Survivorship inflates momentum (dead coins are disproportionately past losers that kept losing — exactly what the short leg earns from), so the PIT result should be WEAKER, not stronger. Honest expectation: t drops below 1.47 and the class closes. If instead it strengthens or holds with |t|>=2.5, that is a real candidate.",
+  "one_shot": "This runs once. No k-sweep, no top-N sweep, no rebalance-frequency sweep afterward regardless of outcome."
+}
