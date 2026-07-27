@@ -22,13 +22,17 @@ DASH_OUT="$HOME/bagidea-dashboard-data/heartbeat.json"
 NOTIFY="$HOME/notify-telegram.sh"
 mkdir -p "$STATE_DIR"
 
+# Mandate drift check — the desk's three recorded loss modes were all silent
+# config drift, so this runs before anything else and its output rides along.
+DRIFT=$("$HOME/bagidea-desk/ops/config-sentinel.sh" 2>/dev/null || true)
+
 health_json=$(curl -s --max-time 10 "http://127.0.0.1:$PORT/health" 2>/dev/null || true)
 snap_json=$(curl -s --max-time 15 "http://127.0.0.1:$PORT/plugin/binance/snapshot" 2>/dev/null || true)
 
 WEEKLY="${1:-}"
 
 HEALTH="$health_json" SNAP="$snap_json" STATE_FILE="$STATE" DASH="$DASH_OUT" \
-NOTIFY_SH="$NOTIFY" MODE="$WEEKLY" python3 <<'PY'
+NOTIFY_SH="$NOTIFY" MODE="$WEEKLY" DRIFT_RESULT="$DRIFT" python3 <<'PY'
 import json, os, subprocess, time
 
 now = time.time()
@@ -110,6 +114,9 @@ if snap is not None:
     # WITHOUT anything else looking wrong. That is a dependency being down
     # (Pulse refreshes every 15 min), not a market condition — which is why it
     # is allowed here despite the no-trading-metrics rule.
+    drift = os.environ.get("DRIFT_RESULT", "")
+    checks.append(("mandate-drift", drift != "clean" and drift != "", 1, 21600,
+                   "🚨 config หลุดจาก mandate:\n%s\n(mandate = ops/mandate.json ใน git; แก้ config กลับ หรือแก้ mandate พร้อม commit เหตุผล)" % drift))
     checks.append(("news-cache-stale", h.get("newsCacheStale") is True, 1, 21600,
                    "⚠️ news-cache เก่าเกินเพดาน (%s ชม.) — Pulse น่าจะไม่ทำงาน · newsGate fail-closed แปลว่าเดสก์จะไม่ arm ไม้ใหม่จนกว่าจะแก้"
                    % h.get("newsCacheAgeH")))

@@ -512,6 +512,38 @@ function makeDedup({ ttlMs = 3600000, max = 200 } = {}) {
   };
 }
 
+/**
+ * Drawdown ladder decision, measured from the persisted equity high-water mark.
+ * The daily-loss breaker resets at midnight, so a losing streak can grind
+ * 2%/day indefinitely without ever tripping it — this ladder cannot be waited
+ * out. Actions only ever TIGHTEN. Levels live in ops/mandate.json.
+ * Returns the most severe breached level, or null.
+ */
+function hwmDecide({ equity, hwm, levels }) {
+  if (!(equity > 0) || !(hwm > 0) || !Array.isArray(levels)) return null;
+  const ddPct = ((hwm - equity) / hwm) * 100;
+  let hit = null;
+  for (const lv of levels) {
+    if (ddPct >= lv.drawdown_pct && (!hit || lv.drawdown_pct > hit.drawdown_pct)) hit = lv;
+  }
+  return hit ? { ...hit, ddPct: Math.round(ddPct * 100) / 100 } : null;
+}
+
+/**
+ * Same-direction concurrency. Measured: the 5 tradeable symbols have average
+ * pairwise daily correlation 0.65 (PC1 = 72% of variance), so 3 concurrent
+ * same-direction positions are ~ONE bet at 2.9x size wearing three names.
+ * Returns a reason string to BLOCK, or null.
+ */
+function sameDirectionDecide({ open, side, max }) {
+  if (!max || !Array.isArray(open)) return null;
+  const dir = side === "BUY" ? 1 : -1;
+  const same = open.filter((p) => Math.sign(Number(p.positionAmt) || 0) === dir).length;
+  if (same >= max)
+    return `ทิศเดียวกันเปิดอยู่แล้ว ${same} ไม้ (เพดาน ${max}) — corr เฉลี่ย 0.65 ทำให้ไม้ทิศเดียวกันคือเดิมพันเดียวกัน`;
+  return null;
+}
+
 /** Did the emergency close actually flatten the position?
  *  `flat:true` requires POSITIVE proof. A rejected close, a failed verification
  *  read, or any remaining quantity all mean the same thing operationally:
@@ -2001,6 +2033,11 @@ module.exports = (ctx) => {
       if (!already && live.open.length >= maxConc)
         return `ถึงเพดาน ${maxConc} position พร้อมกัน (เปิดอยู่ ${live.open.length}: ${live.open.map((p) => p.symbol).join(", ")}) — ปิดไม้เก่าก่อน`;
     }
+    // Same-direction cap: slot counting by correlation, not by symbol count.
+    if (!live.open.some((p) => p.symbol === o.symbol)) {
+      const sdBlock = sameDirectionDecide({ open: live.open, side: o.side, max: c.sameDirectionMax });
+      if (sdBlock) return sdBlock;
+    }
     // Portfolio margin HARD CAP (Framework B) — worst-case total margin must
     // stay ≤ marginCapPct% of equity. Effective leverage is gated by stop width
     // (same tier table applyLeverageGuard will set before opening), so the margin
@@ -2273,7 +2310,14 @@ module.exports = (ctx) => {
                 beInFlight.add(tp.symbol);
                 try {
                 const stopSide = isLong ? "SELL" : "BUY";
-                const buf = tr3.breakevenBuffer || 0.001;   // tiny buffer above entry to cover fees
+                // The buffer must cover the FULL round trip (entry taker+slip +
+                // exit taker+slip = 0.18% ratified), or "breakeven" is a
+                // guaranteed loss — measured live on 2026-07-27: a scratch exit
+                // booked -$0.06, and 256 of the 987 replayed trades were BE
+                // stops that all flipped to losers at the old 0.10% buffer.
+                // 0.225% = 0.18% cost x 1.25 safety. Pinned in ops/mandate.json.
+                const buf = (tr3.beBufferPct != null ? tr3.beBufferPct / 100 : null)
+                         || tr3.breakevenBuffer || 0.00225;
                 const bePrice = isLong ? tp.entry * (1 + buf) : tp.entry * (1 - buf);
                 // closePosition stops can't coexist on the same symbol/direction (demo-fapi -4130),
                 // so cancel the existing stop FIRST, then place the breakeven stop. If placement
@@ -2469,6 +2513,34 @@ module.exports = (ctx) => {
             if (dirty) writeShadow(sq);
           }
         } catch (e) { ctx.log("binance: shadow resolve failed: " + e.message); }
+
+        // HWM drawdown ladder — the daily breaker resets at midnight and can be
+        // ground through 2%/day forever; this one is measured from the equity
+        // high-water mark and cannot be waited out. Levels: ops/mandate.json.
+        try {
+          const eq = await accountEquity();
+          if (eq > 0) {
+            const hwmFile = path.join(ctx.dataDir, "hwm-state.json");
+            let st = {}; try { st = JSON.parse(fs.readFileSync(hwmFile, "utf8")); } catch {}
+            if (!(st.hwm > 0) || eq > st.hwm) st = { hwm: eq, since: st.since || Date.now() };
+            st.equity = eq; st.updatedAt = Date.now();
+            let ladder = [];
+            try { ladder = JSON.parse(fs.readFileSync(path.join(ctx.pluginDir, "..", "..", "ops", "mandate.json"), "utf8")).hwm_ladder.levels; } catch {}
+            const hit = hwmDecide({ equity: eq, hwm: st.hwm, levels: ladder });
+            const c2 = cfg();
+            if (hit && hit.drawdown_pct >= 8 && !c2.tradePaused) {
+              try { setPause(true, "auto", `hwm-ladder:${hit.drawdown_pct}%`); } catch {}
+              const m = `🚨 drawdown ${hit.ddPct}% จาก HWM — เดสก์ pause (ladder ${hit.drawdown_pct}%) · ปิดไม้ยังทำได้เสมอ`;
+              ctx.feed(m, "compass"); try { ctx.relay(m); } catch {}
+            } else if (hit && hit.drawdown_pct >= 4 && c2.autoTrade) {
+              saveCfg({ autoTrade: false, autoTradeDisabledBy: "hwm-ladder", autoTradeDisabledAt: Date.now() });
+              const m = `⚠️ drawdown ${hit.ddPct}% จาก HWM — autoTrade ปิด (ladder 4%) · ไม่มี auto re-arm`;
+              ctx.feed(m, "compass"); try { ctx.relay(m); } catch {}
+            }
+            if (hit) st.lastHit = { at: Date.now(), level: hit.drawdown_pct, ddPct: hit.ddPct };
+            writeJsonAtomic(hwmFile, st);
+          }
+        } catch (e) { ctx.log("binance: hwm ladder failed: " + e.message); }
 
         // Drawdown breaker, evaluated on every tick — not only when a new entry
         // is attempted. An open runner can bleed straight through the limit
@@ -3350,4 +3422,5 @@ module.exports.__safety = {
   parseEventAt, newsGateDecide, auditTrim, tradesTodayDecide,
   makeDedup, emergencyOutcome, exitOutcome, AUDIT_MONEY_CMDS, isScheduledEvent,
   makeClientOrderId, isDeskTagged, classifyPosition, stopCoverage, reconcileDecide,
+  hwmDecide, sameDirectionDecide,
 };

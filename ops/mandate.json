@@ -1,0 +1,68 @@
+{
+  "_comment": "THE MANDATE — the single source of truth for what this desk is allowed to be. The config-drift sentinel compares the live config against this file every heartbeat; any divergence pages. Changing a value here IS the change-control act: it must be committed to git with a reason, which is what makes drift auditable. The desk's three recorded loss modes were all silent config drift.",
+  "ratified_by": "CREATOR:2026-07-25 caps; CREATOR:2026-07-27 delegation (see delegation block)",
+
+  "delegation": {
+    "granted": "2026-07-27",
+    "text_of_grant": "ฉันขอพูดตรง บางอย่างคุณทำได้เลยไม่ต้องถามฉัน ทุกเรื่อง เพราะรันบน TESTNET",
+    "meaning": "The operator (Claude) may make and execute desk decisions on TESTNET without per-decision approval, including governance rulings recorded below, PROVIDED every ruling is written to git before it takes effect.",
+    "never_delegated": [
+      "anything touching MAINNET or real funds — always the owner",
+      "removing or weakening the testnet lock in tradeGuard",
+      "editing ratified study thresholds after a result exists",
+      "re-arming autoTradeSignal outside the ratified GO process"
+    ]
+  },
+
+  "rulings": {
+    "autotrade_command_door": {
+      "date": "2026-07-27",
+      "question": "After the directional line closed (H-AUTO-1), may office agents still open trades via the agent-invoked `autotrade` command?",
+      "ruling": "OPEN, as the Practice-Trade Layer the owner endorsed on 21 Jul ('แบบนี้แหละที่ต้องการ') — testnet practice within the caps below is training, not edge-seeking. The caps in this file bind it; drift pages.",
+      "note": "The 2026-07-27 XRPUSDT trade (-$0.06, scratch fee-bleed) was within mandate and is the motivating example for the BE-buffer fix."
+    },
+    "xsec_momentum_class": {
+      "date": "2026-07-27",
+      "question": "Is cross-sectional beta-netted momentum a new hypothesis class, or directional TA in new clothing?",
+      "ruling": "NEW CLASS (it nets market direction; the closed line predicted direction), BUT any test must be pre-registered single-spec (k=60 only), multiplicity-adjusted for the 4-k peek already on the ledger (look #14), and must state universe survivorship as a known optimistic bias. NOT scheduled — parked until a survivorship-corrected universe exists."
+    },
+    "reopen_precommit_H_AUTO_1": {
+      "date": "2026-07-27",
+      "written_before_the_exit_fix_shipped": true,
+      "commitment": "Option (a): the fixed-exit variant of H-AUTO-1 runs EXACTLY ONCE, pre-registered as look #17 (H-AUTO-1-R1), same signals pipeline, same ratified gates, charged to the look ledger. No second variant, no parameter exploration, regardless of how close the result lands to zero.",
+      "sober_prior": "Even perfect cost recovery lands near +0.08R gross at t~1.6 — below every gate. The expected outcome is a cleaner NO-GO, not a GO."
+    }
+  },
+
+  "pinned_config": {
+    "_comment": "Values the sentinel enforces against plugins/binance/data/config.json. null = must be absent/false.",
+    "testnet": true,
+    "autoTradeSignal": false,
+    "autoTradeSignalShadow": false,
+    "tradeEnabled": true,
+    "maxNotionalPct": 1,
+    "maxLeverage": 3,
+    "maxConcurrentPositions": 3,
+    "sameDirectionMax": 2,
+    "dailyLossPct": 10,
+    "dailyLossAutoPause": false,
+    "autoTradeRules.maxTradesPerDay": 3,
+    "autoTradeRules.requireSetupGrade": "A",
+    "autoTradeRules.mandatoryStop": true,
+    "autoTradeRules.noAveragingDown": true,
+    "newsGate.enabled": true,
+    "newsGate.maxCacheAgeH": 6,
+    "regimeGate.enabled": true,
+    "trendRules.beBufferPct": 0.225
+  },
+
+  "hwm_ladder": {
+    "_comment": "Drawdown governance beyond the daily breaker (which resets at midnight and cannot stop a multi-day grind). Measured from the persisted equity high-water mark. Actions only ever TIGHTEN; nothing here re-arms anything automatically.",
+    "ratified": "2026-07-27 under delegation, revisable by the owner at any time",
+    "levels": [
+      { "drawdown_pct": 4, "action": "autoTrade off + page", "rationale": "two max daily losses back-to-back is a pattern, not luck" },
+      { "drawdown_pct": 8, "action": "tradePaused on + page", "rationale": "practice layer stands down; exits stay allowed (protectiveGuard)" },
+      { "drawdown_pct": 12, "action": "stay paused + daily reminder until the owner writes a note here", "rationale": "12% is the ratified study max-DD gate; breaching it live means the system is outside anything that was ever accepted" }
+    ]
+  }
+}

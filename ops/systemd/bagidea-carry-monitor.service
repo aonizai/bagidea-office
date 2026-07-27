@@ -1,0 +1,7 @@
+[Unit]
+Description=BagIdea funding-regime monitor (daily, information-only)
+OnFailure=bagidea-alert@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/bagidea-desk/ops/carry-monitor.sh

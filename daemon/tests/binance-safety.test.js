@@ -350,3 +350,32 @@ test("unverified coverage never triggers an action, and only alerts after severa
   }
   assert.ok(alerted, "persistent inability to verify must eventually be reported");
 });
+
+/* ------------------------------------------------- portfolio + drawdown */
+
+test("hwmDecide returns the most severe breached level and never acts on garbage", () => {
+  const levels = [
+    { drawdown_pct: 4, action: "autoTrade off" },
+    { drawdown_pct: 8, action: "pause" },
+    { drawdown_pct: 12, action: "stay paused" },
+  ];
+  assert.strictEqual(S.hwmDecide({ equity: 5000, hwm: 5000, levels }), null, "no drawdown, no action");
+  assert.strictEqual(S.hwmDecide({ equity: 4850, hwm: 5000, levels }), null, "3% is under the first rung");
+  assert.strictEqual(S.hwmDecide({ equity: 4790, hwm: 5000, levels }).drawdown_pct, 4);
+  assert.strictEqual(S.hwmDecide({ equity: 4400, hwm: 5000, levels }).drawdown_pct, 12, "most severe rung wins");
+  // Missing data must never trigger a tightening built on garbage.
+  assert.strictEqual(S.hwmDecide({ equity: 0, hwm: 5000, levels }), null);
+  assert.strictEqual(S.hwmDecide({ equity: 5000, hwm: NaN, levels }), null);
+});
+
+test("sameDirectionDecide counts direction, not symbols — 0.65 corr makes them one bet", () => {
+  const open = [
+    { symbol: "BTCUSDT", positionAmt: "0.01" },   // long
+    { symbol: "ETHUSDT", positionAmt: "1" },      // long
+    { symbol: "SOLUSDT", positionAmt: "-5" },     // short
+  ];
+  assert.ok(S.sameDirectionDecide({ open, side: "BUY", max: 2 }), "third same-direction long is blocked");
+  assert.strictEqual(S.sameDirectionDecide({ open, side: "SELL", max: 2 }), null, "a second short is a different bet");
+  assert.strictEqual(S.sameDirectionDecide({ open, side: "BUY", max: 0 }), null, "unset cap = no rule");
+  assert.strictEqual(S.sameDirectionDecide({ open: null, side: "BUY", max: 2 }), null, "no data, no block (the livePositions gate already failed closed upstream)");
+});

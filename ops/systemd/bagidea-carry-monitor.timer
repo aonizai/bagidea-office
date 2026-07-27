@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily funding-regime check (08:30 local, after the 00:00 UTC funding print)
+
+[Timer]
+OnCalendar=*-*-* 08:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
