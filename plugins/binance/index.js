@@ -1302,6 +1302,13 @@ module.exports = (ctx) => {
     const c = cfg();
     const sr = c.scalping ? (c.scalpingRules || {}) : {};
     const lossPct = c.scalping ? (sr.dailyLossPct || 3) : (c.dailyLossPct || 2);
+    // ONE day boundary for every basis. Both the income window and the
+    // equity-snapshot baseline key are anchored to LOCAL midnight — anchoring
+    // one to UTC (toISOString) made the two whole-account bases measure
+    // different 7h windows on a UTC+7 host (audit 2026-07-29: false-trip
+    // 00:00-07:00, missed-loss 07:00-24:00).
+    const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+    const today = `${dayStart.getFullYear()}-${String(dayStart.getMonth() + 1).padStart(2, "0")}-${String(dayStart.getDate()).padStart(2, "0")}`;
 
     // Three independent reads, each judged on its own — no all-or-nothing
     // (mandate: daily_loss_multibasis_2026_07_28).
@@ -1315,7 +1322,6 @@ module.exports = (ctx) => {
     } catch {}
     let incomeOk = true, realized = 0;
     try {
-      const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
       let endTime = Date.now();
       for (let page = 0; page < 5; page++) {
         const r = await req("GET", "/fapi/v1/income",
@@ -1337,9 +1343,9 @@ module.exports = (ctx) => {
     } catch {}
 
     // Day-equity baseline: captured at the first whole-account read after
-    // midnight. With it, daily loss is measurable from balance+positions alone
-    // — the income endpoint flapping no longer blinds the breaker.
-    const today = new Date().toISOString().slice(0, 10);
+    // LOCAL midnight (same `today` key the income window uses). With it, daily
+    // loss is measurable from balance+positions alone — the income endpoint
+    // flapping no longer blinds the breaker.
     let baseline = null;
     try { baseline = JSON.parse(fs.readFileSync(dayEqFile, "utf8")); } catch {}
     if (balOk && prOk && (!baseline || baseline.date !== today)) {
@@ -1356,9 +1362,13 @@ module.exports = (ctx) => {
         ok: balOk && prOk && !!baseline && baseline.date === today,
         dayPnl: baseline ? (bal + unreal) - baseline.equity : NaN },
       // Desk's own exit journal (trailing 24h — can over-count yesterday's
-      // late losses, which only errs toward caution) + live unrealized.
-      { name: "local-ledger", whole: false, ok: prOk,
-        dayPnl: performanceStats(1).totalPnl + unreal },
+      // late losses, which only errs toward caution) + live unrealized. Drops
+      // out if any exit in the window lacks a recorded PnL: an under-counting
+      // ledger would read SAFER than reality, the one direction a breaker must
+      // never err.
+      ((ps) => ({ name: "local-ledger", whole: false,
+        ok: prOk && ps.readOk && ps.pnlMissing === 0,
+        dayPnl: ps.totalPnl + unreal }))(performanceStats(1)),
     ];
     const d = dailyLossBasisDecide({ bases, lossPct, equityBase });
     if (!d.evaluable) return { evaluable: false, tripped: false, reason: d.reason };
@@ -1391,18 +1401,24 @@ module.exports = (ctx) => {
   }
 
   // Account equity (USDT balance + unrealized PnL) — the base for % limits.
-  async function accountEquity() {
-    let bal = 0;
+  // Returns a bare number for the many sizing callers that only need a value,
+  // but exposes completeness via accountEquity.read() for the HWM ladder — a
+  // failed balance/position read must not masquerade as full equity (audit
+  // 2026-07-29: the ladder was reading bal+0 on a positionRisk outage,
+  // understating drawdown exactly when the desk was blind).
+  async function accountEquityRead() {
+    let bal = 0, balOk = false;
     try {
       const r = await req("GET", "/fapi/v2/balance", null, true);
       if (r.ok && Array.isArray(r.json)) {
         const u = r.json.find((b) => b.asset === "USDT");
-        if (u) bal = Number(u.balance);
+        if (u) { bal = Number(u.balance); balOk = true; }
       }
     } catch {}
-    const { unreal } = await dailyPnl();
-    return bal + unreal;
+    const { unreal, complete } = await dailyPnl();
+    return { equity: bal + unreal, complete: balOk && complete };
   }
+  async function accountEquity() { return (await accountEquityRead()).equity; }
   // Recent realized-PnL outcomes (win/loss) from income, newest first, within
   // a lookback window. Used by the loss-streak cooldown. Each item is {time, win}.
   // Returns {ok, outcomes}. `ok:false` means the read failed — the old version
@@ -1546,7 +1562,7 @@ module.exports = (ctx) => {
   // Count wins/losses + total PnL from today's realized exits. Used by Sigma
   // and the dashboard performance card.
   function performanceStats(days = 1) {
-    let wins = 0, losses = 0, totalPnl = 0, exits = 0;
+    let wins = 0, losses = 0, totalPnl = 0, exits = 0, pnlMissing = 0, readOk = true;
     try {
       const log = JSON.parse(fs.readFileSync(auditFile, "utf8"));
       const since = Date.now() - days * 86400000;
@@ -1556,11 +1572,15 @@ module.exports = (ctx) => {
         if (typeof e.pnl === "number") {
           totalPnl += e.pnl;
           if (e.pnl > 0) wins++; else if (e.pnl < 0) losses++;
-        }
+        } else pnlMissing++;   // an exit with no recorded PnL — totalPnl under-reports
       }
-    } catch {}
+    } catch { readOk = false; }
     const total = wins + losses;
-    return { days, exits, wins, losses, winRate: total ? Math.round(wins / total * 1000) / 10 : null, totalPnl: Math.round(totalPnl * 1e6) / 1e6 };
+    // pnlMissing/readOk let the daily-loss local-ledger basis refuse to provide
+    // FALSE COMFORT: a window with unaccounted exits under-reports losses, so
+    // that basis drops out rather than reading safer than reality (audit 2026-07-29).
+    return { days, exits, wins, losses, winRate: total ? Math.round(wins / total * 1000) / 10 : null,
+      totalPnl: Math.round(totalPnl * 1e6) / 1e6, pnlMissing, readOk };
   }
 
   // --- Read-only snapshot + pause (dashboard bridge) -----------------------
@@ -2727,8 +2747,25 @@ module.exports = (ctx) => {
         // ground through 2%/day forever; this one is measured from the equity
         // high-water mark and cannot be waited out. Levels: ops/mandate.json.
         try {
-          const eq = await accountEquity();
-          if (eq > 0) {
+          const eqRead = await accountEquityRead();
+          const eq = eqRead.equity;
+          // Blind read must not compute drawdown from a partial equity nor
+          // persist it as the high-water mark. Fail-closed + page like the
+          // daily-loss breaker below; silence on a blind backstop is the bug.
+          if (!eqRead.complete || !(eq > 0)) {
+            HEALTH.hwmUnevaluable = (HEALTH.hwmUnevaluable || 0) + 1;
+            const n = HEALTH.hwmUnevaluable;
+            if (n === 1 || n === 10) ctx.log("binance: hwm equity unevaluable x" + n);
+            if (n === 10 || (n > 10 && n % 60 === 0)) {
+              const m = "⚠️ HWM ladder ประเมินไม่ได้ (อ่าน balance/positions ไม่สำเร็จ) — backstop drawdown ตาบอด · ไม่อัปเดต high-water mark";
+              ctx.feed(m, "compass"); try { ctx.relay(m); } catch {}
+            }
+          } else {
+            if ((HEALTH.hwmUnevaluable || 0) >= 10) {
+              const m = "✅ HWM ladder กลับมามองเห็นแล้ว";
+              ctx.feed(m, "compass"); try { ctx.relay(m); } catch {}
+            }
+            HEALTH.hwmUnevaluable = 0;
             const hwmFile = path.join(ctx.dataDir, "hwm-state.json");
             let st = {}; try { st = JSON.parse(fs.readFileSync(hwmFile, "utf8")); } catch {}
             if (!(st.hwm > 0) || eq > st.hwm) st = { hwm: eq, since: st.since || Date.now() };
