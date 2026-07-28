@@ -1,0 +1,20 @@
+{
+  "id": "trade-teams",
+  "name": "🏟 Trade Teams Arena",
+  "version": "0.1.0",
+  "description": "สนามซ้อม paper trading: ทีม AI ธรรมนูญต่างกันเทรดสมุดเงินสมมติ $10,000 บนราคา testnet จริง แข่งกับ 'กรรมการสุ่ม' (บอทสุ่มเข้า ต้นทุนเท่ากัน) — ทีมที่แพ้บอทสุ่มคือ dispersion ไม่ใช่ฝีมือ อ่านอย่างเดียวเชิงโครงสร้าง: ปลั๊กอินนี้สั่งได้แค่ price/klines/funding/status ยิงออเดอร์จริงไม่ได้ (mandate: trade_teams_2026_07_28)",
+  "commands": [
+    { "name": "tt-board", "args": "", "desc": "กระดานทีมเทรด: equity, %P&L, win rate, avg R, cost-in-R ต่อทีม + ตัววัดสำคัญ 'ชนะกรรมการสุ่มกี่ทีม'" },
+    { "name": "tt-book", "args": "<team>", "desc": "สมุดบัญชีทีม: ไม้เปิด, limit ค้าง, สถิติ, ธรรมนูญปัจจุบัน (team: structure|trend|limitonly|control)" },
+    { "name": "tt-order", "args": "<team> <SYM> <LONG|SHORT> <stop> [target] [@limit]", "desc": "เข้าไม้ paper — ระบบคิดขนาดให้เอง (risk 1% ของ equity ทีม) stop บังคับ, stop แคบกว่า 1% ถูกปฏิเสธ ใส่ @ราคา เพื่อวาง limit แทน market" },
+    { "name": "tt-modify", "args": "<team> <posId> [stop=X] [target=Y]", "desc": "ปรับไม้ — stop ขยับได้ทางรัดเท่านั้น (กันทุน/ล็อกกำไร) ถ่าง stop ไม่ได้" },
+    { "name": "tt-close", "args": "<team> <posId>", "desc": "ปิดไม้ที่ราคาตลาด" },
+    { "name": "tt-cancel", "args": "<team> <orderId>", "desc": "ยกเลิก limit ที่ค้างอยู่" },
+    { "name": "tt-note", "args": "<team> <text>", "desc": "บันทึก journal ของทีม" },
+    { "name": "tt-amend", "args": "<team> <text>", "desc": "แก้ธรรมนูญทีม (บันทึกลง history เสมอ) — ทีมที่โดนพักเพราะ drawdown ต้อง amend ก่อนถึงเทรดต่อได้" },
+    { "name": "tt-cycle", "args": "<team> [retro]", "desc": "สั่งรอบตัดสินใจทีมทันที (ปกติวิ่งเองทุก 4 ชม.) — retro = ทบทวนสัปดาห์" },
+    { "name": "tt-health", "args": "", "desc": "สถานะ arena: loops, ทีมไหนพัก, เหรียญที่ใช้" }
+  ],
+  "needsKeys": [],
+  "enabled": true
+}
