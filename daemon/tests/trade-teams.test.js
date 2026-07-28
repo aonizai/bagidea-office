@@ -155,3 +155,75 @@ test("STRUCTURAL: index.js egress is a frozen read-only allowlist, loopback only
   for (const forbidden of ['"order"', '"autotrade"', '"stoploss"', '"cancel"', '"close"', '"pause"', '"leverage"'])
     assert.ok(!src.includes(`callBinance(${forbidden}`), `must never call binance ${forbidden}`);
 });
+
+/* ---- red-team regressions (adversarial review 2026-07-28) ---- */
+
+test("RED: NaN stop/target through modify is rejected, never written", () => {
+  const b = mk();
+  E.placeOrder(b, { symbol: "AAA", side: "LONG", riskUsd: 50, stop: 98 }, 100, T);
+  const id = b.positions[0].id;
+  assert.match(E.modifyPosition(b, id, { stop: Number("1.2.3") }, 100).reject, /stop-invalid/);
+  assert.match(E.modifyPosition(b, id, { target: NaN }, 100).reject, /target-invalid/);
+  assert.ok(Number.isFinite(b.positions[0].stop), "stop must stay a number");
+});
+
+test("RED: a limit on the wrong side of the mark is not a resting order", () => {
+  const b = mk();
+  assert.match(E.placeOrder(b, { symbol: "AAA", side: "LONG", stop: 107.8, limit: 110 }, 100, T).reject,
+    /limit-wrong-side/);
+  assert.match(E.placeOrder(b, { symbol: "AAA", side: "SHORT", stop: 92, limit: 90 }, 100, T).reject,
+    /limit-wrong-side/);
+});
+
+test("RED: stillborn limit fill settles at the STOP level — gap loss bounded near -1R", () => {
+  const b = mk();
+  E.placeOrder(b, { symbol: "AAA", side: "LONG", riskUsd: 50, stop: 93.5, limit: 95 }, 100, T);
+  const ev = E.tickBook(b, { AAA: 80 }, T + 1000).events;   // 20% gap through everything
+  const stop = ev.find((e) => e.type === "stop");
+  assert.ok(stop, "stillborn close still happens");
+  assert.ok(stop.trade.exit > 93.4, "settled at the stop level, not the gapped mark");
+  assert.ok(stop.trade.pnlR > -1.3, `bounded loss, got ${stop.trade.pnlR}R`);
+});
+
+test("RED: a scratch that rounds to -0 is a loss, not a win", () => {
+  const b = mk();
+  E.placeOrder(b, { symbol: "AAA", side: "LONG", riskUsd: 100, stop: 98 }, 100, T);
+  const r = E.manualClose(b, b.positions[0].id, 100.18014, T + 1000);
+  assert.ok(r.ok);
+  assert.equal(b.stats.wins, 0, "breakeven-ish scratch must not count as a win");
+  assert.equal(b.stats.losses, 1);
+  assert.ok(!Object.is(r.trade.pnlUsd, -0), "-0 is normalized");
+});
+
+test("RED: costR carries slippage, not just fees (ratified model = both)", () => {
+  const b = mk();
+  E.placeOrder(b, { symbol: "AAA", side: "LONG", riskUsd: 100, stop: 98 }, 100, T);
+  const ev = E.tickBook(b, { AAA: 98 }, T + 1000).events;
+  const t = ev[0].trade;
+  assert.ok(t.costR >= 0.08 && t.costR <= 0.10,
+    `2% stop → fee 0.06R + slip 0.03R ≈ 0.09R, got ${t.costR}`);
+  assert.ok(t.slipUsd > 0);
+});
+
+test("RED: caps size against LIVE equity when the full mark map is supplied", () => {
+  const b = mk();
+  b.positions.push({ id: "x-9", symbol: "BBB", side: "LONG", qty: 50, entry: 100,
+    stop: 90, target: null, riskUsd: 100, openedAt: T, feePaid: 0, slipEntryUsd: 0, note: null });
+  const marks = { AAA: 100, BBB: 40 };   // BBB is -$3000 unrealized → live equity ~$7000
+  const v = E.validateOrder(b, { symbol: "AAA", side: "LONG", stop: 97 }, 100, undefined, marks);
+  assert.ok(v.ok, v.reject);
+  assert.ok(v.riskUsd <= 70.01, `risk must be 1% of LIVE equity (~$70), got ${v.riskUsd}`);
+});
+
+test("RED: drawdown rebase makes amend-unpause stick for a flat team", () => {
+  const b = mk();
+  b.cash = 5500;
+  E.tickBook(b, {}, T);
+  assert.ok(b.paused);
+  // the amend path (index) unpauses and rebases; emulate it:
+  b.paused = false; b.pausedReason = null; b.ddRebase = 5500;
+  const again = E.tickBook(b, {}, T + 30000).events;
+  assert.equal(again.length, 0, "no immediate re-pause after rebase");
+  b.cash = 4900;   // another -11% from the acknowledged base
+  assert.equal(E.tickBook(b, {}, T + 60000).events[0].type, "team-paused", "floor still exists below the rebase");
+});

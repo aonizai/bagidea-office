@@ -53,7 +53,7 @@ function seededRng(seedStr) {
 function newBook(team, cfg = CFG) {
   return {
     team, cash: cfg.startEquity, positions: [], openOrders: [],
-    paused: false, pausedReason: null,
+    paused: false, pausedReason: null, ddRebase: null,
     stats: { trades: 0, wins: 0, losses: 0, feesUsd: 0, sumCostR: 0, sumPnlR: 0 },
     seq: 0,
   };
@@ -71,7 +71,10 @@ function equityOf(book, marks) {
 
 /* ---------------------------------------------------------- validation --- */
 // o = { symbol, side, riskUsd, stop, target?, limit? } · mark = current price.
-function validateOrder(book, o, mark, cfg = CFG) {
+// `marks` (optional, red-team fix): full mark map so caps size against LIVE
+// equity — without it a team bleeding unrealized losses keeps sizing as if it
+// hadn't lost (verified 65% cap breach).
+function validateOrder(book, o, mark, cfg = CFG, marks = null) {
   if (book.paused) return { reject: "team-paused: " + (book.pausedReason || "") };
   if (!o || !o.symbol) return { reject: "no-symbol" };
   if (o.side !== "LONG" && o.side !== "SHORT") return { reject: "side must be LONG|SHORT" };
@@ -85,7 +88,11 @@ function validateOrder(book, o, mark, cfg = CFG) {
   const stopPct = Math.abs(entry - o.stop) / entry * 100;
   if (stopPct < cfg.minStopPct)
     return { reject: `cost-floor: stop ${r2(stopPct)}% < ${cfg.minStopPct}% — geometry แพ้ค่าธรรมเนียม` };
-  const equity = equityOf(book, { [o.symbol]: mark });
+  // A limit must WAIT for price (red-team fix: a limit on the wrong side of
+  // the mark is an instant fill at a self-chosen price, not a resting order).
+  if (Number.isFinite(o.limit) && (long ? o.limit >= mark : o.limit <= mark))
+    return { reject: "limit-wrong-side: limit ต้องรอราคา (LONG ต่ำกว่า mark / SHORT สูงกว่า mark) — อยากเข้าเลยใช้ market" };
+  const equity = equityOf(book, { ...(marks || {}), [o.symbol]: mark });
   const riskCap = cfg.maxRiskPctPerTrade / 100 * equity;
   const riskUsd = Math.min(Number(o.riskUsd) || riskCap, riskCap);
   if (riskUsd <= 0) return { reject: "risk-invalid" };
@@ -108,8 +115,8 @@ function fillWithSlip(side, price, cfg) {
 }
 
 // Open at market (or record a resting limit order).
-function placeOrder(book, o, mark, nowMs, cfg = CFG) {
-  const v = validateOrder(book, o, mark, cfg);
+function placeOrder(book, o, mark, nowMs, cfg = CFG, marks = null) {
+  const v = validateOrder(book, o, mark, cfg, marks);
   if (v.reject) return { reject: v.reject };
   const id = book.team.slice(0, 2) + "-" + (++book.seq);
   if (Number.isFinite(o.limit)) {
@@ -125,28 +132,34 @@ function placeOrder(book, o, mark, nowMs, cfg = CFG) {
   book.stats.feesUsd = r2(book.stats.feesUsd + fee);
   const p = { id, symbol: o.symbol, side: o.side, qty: r6(qty), entry: r6(fill),
     stop: o.stop, target: o.target ?? null, riskUsd: v.riskUsd,
-    openedAt: nowMs, feePaid: r2(fee), note: o.note || null };
+    openedAt: nowMs, feePaid: r2(fee), slipEntryUsd: r2(Math.abs(fill - mark) * qty),
+    note: o.note || null };
   book.positions.push(p);
   return { ok: true, position: p };
 }
 
 // Close helper: returns the trade record and mutates the book.
-function settleClose(book, p, exitPrice, reason, nowMs, cfg) {
+// exitRef = the raw level before exit slip (mark/target/stop) so costR can
+// carry the slippage cost too (red team: fee-only costR hid 1/3 of friction).
+function settleClose(book, p, exitPrice, exitRef, reason, nowMs, cfg) {
   const gross = p.side === "LONG" ? (exitPrice - p.entry) * p.qty : (p.entry - exitPrice) * p.qty;
   const fee = p.qty * exitPrice * cfg.feePct / 100;
   book.cash += gross - fee;
   book.positions = book.positions.filter((x) => x.id !== p.id);
-  const pnlUsd = r2(gross - fee - p.feePaid);
+  let pnlUsd = r2(gross - fee - p.feePaid);
+  if (pnlUsd === 0) pnlUsd = 0;                       // normalize -0 (it is a loss boundary, not a win)
+  const slipUsd = r2((p.slipEntryUsd || 0) + Math.abs(exitPrice - exitRef) * p.qty);
   const pnlR = p.riskUsd > 0 ? r2(pnlUsd / p.riskUsd) : null;
-  const costR = p.riskUsd > 0 ? r2((fee + p.feePaid) / p.riskUsd) : null;
+  const costR = p.riskUsd > 0 ? r2((fee + p.feePaid + slipUsd) / p.riskUsd) : null;
   book.stats.trades++;
   book.stats.feesUsd = r2(book.stats.feesUsd + fee);
-  if (pnlUsd >= 0) book.stats.wins++; else book.stats.losses++;
+  // A scratch is not a win — desk convention: a win requires positive PnL.
+  if (pnlUsd > 0) book.stats.wins++; else book.stats.losses++;
   if (costR != null) book.stats.sumCostR = r2(book.stats.sumCostR + costR);
   if (pnlR != null) book.stats.sumPnlR = r2(book.stats.sumPnlR + pnlR);
   return { id: p.id, team: book.team, symbol: p.symbol, side: p.side, qty: p.qty,
     entry: p.entry, exit: r6(exitPrice), stop: p.stop, target: p.target,
-    riskUsd: p.riskUsd, pnlUsd, pnlR, costR, fees: r2(fee + p.feePaid),
+    riskUsd: p.riskUsd, pnlUsd, pnlR, costR, fees: r2(fee + p.feePaid), slipUsd,
     reason, openedAt: p.openedAt, closedAt: nowMs, note: p.note };
 }
 
@@ -162,13 +175,17 @@ function tickBook(book, marks, nowMs, cfg = CFG) {
     if (!crossed) continue;
     book.openOrders = book.openOrders.filter((x) => x.id !== w.id);
     // If the same tick already sits beyond the stop, the fill is stillborn:
-    // open and stop out at the mark in one motion (pessimistic, no free pass).
+    // open and stop out in one motion — settled AT THE STOP LEVEL, not the
+    // mark (red team: with 30s point marks a gap through both limit and stop
+    // settled at the mark books an unbounded loss on a 1%-risk order; on a
+    // real book the resting limit fills earlier in the move and the stop
+    // executes near its level, so ~-1R-and-costs is the honest model here).
     const res = placeOrderFilledLimit(book, w, m, nowMs, cfg);
     events.push({ type: "limit-fill", team: book.team, order: w, result: res });
     if (res.position) {
       const stopHit = w.side === "LONG" ? m <= w.stop : m >= w.stop;
       if (stopHit) events.push({ type: "stop", team: book.team,
-        trade: settleClose(book, res.position, fillWithSlip(w.side === "LONG" ? "SHORT" : "LONG", m, cfg), "stop", nowMs, cfg) });
+        trade: settleClose(book, res.position, fillWithSlip(w.side === "LONG" ? "SHORT" : "LONG", w.stop, cfg), w.stop, "stop", nowMs, cfg) });
     }
   }
   for (const p of book.positions.slice()) {
@@ -179,15 +196,21 @@ function tickBook(book, marks, nowMs, cfg = CFG) {
     const tgtHit = p.target != null && (long ? m >= p.target : m <= p.target);
     if (stopHit) {           // stop wins ties by construction (checked first)
       const exit = fillWithSlip(long ? "SHORT" : "LONG", m, cfg);
-      events.push({ type: "stop", team: book.team, trade: settleClose(book, p, exit, "stop", nowMs, cfg) });
+      events.push({ type: "stop", team: book.team, trade: settleClose(book, p, exit, m, "stop", nowMs, cfg) });
     } else if (tgtHit) {     // favorable gaps pay only the target level
       const exit = fillWithSlip(long ? "SHORT" : "LONG", p.target, cfg);
-      events.push({ type: "target", team: book.team, trade: settleClose(book, p, exit, "target", nowMs, cfg) });
+      events.push({ type: "target", team: book.team, trade: settleClose(book, p, exit, p.target, "target", nowMs, cfg) });
     }
   }
-  // drawdown circuit: a team at -40% stands down until it amends its charter
+  // Drawdown circuit: a team at -40% stands down until it amends its charter.
+  // ddRebase (set when an amendment un-pauses) moves the floor 10% below the
+  // acknowledged equity — otherwise a flat team below the absolute floor gets
+  // re-paused 30s after every amendment, forever (red-team finding).
   const eq = equityOf(book, marks);
-  if (!book.paused && eq < cfg.drawdownPauseAt * cfg.startEquity) {
+  const floor = book.ddRebase != null
+    ? book.ddRebase * 0.9
+    : cfg.drawdownPauseAt * cfg.startEquity;
+  if (!book.paused && eq < floor) {
     book.paused = true;
     book.pausedReason = `drawdown ${r2((1 - eq / cfg.startEquity) * 100)}% — ต้อง amend ธรรมนูญก่อน resume`;
     events.push({ type: "team-paused", team: book.team, reason: book.pausedReason });
@@ -204,7 +227,7 @@ function placeOrderFilledLimit(book, w, mark, nowMs, cfg) {
   book.stats.feesUsd = r2(book.stats.feesUsd + fee);
   const p = { id: w.id, symbol: w.symbol, side: w.side, qty: r6(qty), entry: r6(fill),
     stop: w.stop, target: w.target, riskUsd: w.riskUsd, openedAt: nowMs,
-    feePaid: r2(fee), note: w.note };
+    feePaid: r2(fee), slipEntryUsd: r2(Math.abs(fill - w.limit) * qty), note: w.note };
   book.positions.push(p);
   return { ok: true, position: p };
 }
@@ -214,7 +237,7 @@ function manualClose(book, posId, mark, nowMs, cfg = CFG) {
   if (!p) return { reject: "no-position: " + posId };
   if (!Number.isFinite(mark)) return { reject: "no-mark" };
   const exit = fillWithSlip(p.side === "LONG" ? "SHORT" : "LONG", mark, cfg);
-  return { ok: true, trade: settleClose(book, p, exit, "manual", nowMs, cfg) };
+  return { ok: true, trade: settleClose(book, p, exit, mark, "manual", nowMs, cfg) };
 }
 
 // Anti-cheat modify: a level the mark has already crossed is rejected.
@@ -223,6 +246,12 @@ function modifyPosition(book, posId, changes, mark, cfg = CFG) {
   if (!p) return { reject: "no-position: " + posId };
   if (!Number.isFinite(mark)) return { reject: "no-mark" };
   const long = p.side === "LONG";
+  // NaN fail-closed (red team: stop=1.2.3 → NaN sails past every comparison
+  // guard and produces an unstoppable position that survives persistence).
+  if (changes.stop != null && !Number.isFinite(changes.stop))
+    return { reject: "stop-invalid: ต้องเป็นตัวเลข" };
+  if (changes.target != null && changes.target !== null && !Number.isFinite(changes.target))
+    return { reject: "target-invalid: ต้องเป็นตัวเลขหรือ null" };
   if (changes.stop != null) {
     if (long ? changes.stop >= mark : changes.stop <= mark)
       return { reject: "stop-would-trigger-now — ใช้ close ถ้าต้องการออก" };
