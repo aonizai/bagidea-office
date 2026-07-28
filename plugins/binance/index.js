@@ -1634,6 +1634,60 @@ module.exports = (ctx) => {
     }
   }
 
+  // Liquidity-map export (mandate: liquidity_hazard_2026_07_28, surface 4).
+  // Rides the scanner tick instead of a separate scheduler: the desk owns the
+  // data, so the map lives and dies with the desk process and JAVIS's
+  // staleness banner stays honest. Read-only output — nothing reads it back.
+  let lastMapExportAt = 0;
+  async function exportLiquidityMap() {
+    const os = require("os");
+    const engPath = require.resolve(path.join(__dirname, "..", "smc-radar", "engine.js"));
+    try { delete require.cache[engPath]; } catch {}
+    const eng = require(engPath);
+    const fetchCandles = async (symbol, interval, limit) => {
+      const r = await req("GET", "/fapi/v1/klines", { symbol, interval, limit });
+      if (!r.ok || !Array.isArray(r.json)) return null;
+      return r.json.map((k) => ({ t: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
+        low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]), closeT: Number(k[6]) }));
+    };
+    const fmtPool = (p) => ({ side: p.side, level: p.level, bandLo: p.bandLo ?? null,
+      bandHi: p.bandHi ?? null, count: p.count ?? null, strength: p.strength,
+      swept: !!p.swept, distAtr: p.distAtr ?? null });
+    const out = { schema: "liquidity-map/v1", generated_at_ms: Date.now(),
+      source: "bagidea-desk smc-radar", symbols: {} };
+    for (const symbol of cfg().allowedSymbols || []) {
+      try {
+        const [c15, c1h] = await Promise.all([
+          fetchCandles(symbol, "15m", 300), fetchCandles(symbol, "1h", 200)]);
+        if (!c15) continue;
+        const x = eng.analyze(c15, c1h || [], { tf: "15m", htfTf: "1h", nowMs: Date.now() });
+        if (!x.ok) continue;
+        const pools = (x.liquidity.pools || []).filter((p) => p.strength !== "weak");
+        const refill = (nearest) => {
+          if (!nearest) return null;
+          const m = pools.find((p) => p.side === nearest.side && Math.abs(p.level - nearest.level) <= x.atr);
+          return fmtPool({ ...nearest, ...(m || {}) });
+        };
+        out.symbols[symbol] = { price: x.price, atr: x.atr, tf: "15m",
+          pools: pools.map(fmtPool),
+          nearest_above: refill(x.liquidity.nearestAbove),
+          nearest_below: refill(x.liquidity.nearestBelow) };
+      } catch { /* per-symbol failure: omit the symbol; JAVIS validation stays honest */ }
+    }
+    if (!Object.keys(out.symbols).length) return;
+    const text = JSON.stringify(out);
+    for (const f of [path.join(os.homedir(), "bagidea-dashboard-data", "liquidity-map.json"),
+                     path.join(os.homedir(), "javis-signal-observation", "liquidity-map.json")]) {
+      try {
+        fs.mkdirSync(path.dirname(f), { recursive: true });
+        const tmp = f + ".tmp-" + process.pid;
+        fs.writeFileSync(tmp, text, { mode: 0o644 });
+        fs.renameSync(tmp, f);
+      } catch (e) { ctx.log("binance: liquidity-map write failed (" + f + "): " + e.message); }
+    }
+    ctx.log("binance: liquidity-map exported (" + Object.keys(out.symbols).length + " symbols)");
+  }
+
   // Regime gate for breakout/trend auto-arm. Returns null to ALLOW, or a reason
   // string to BLOCK. r.dir is "bull"/"bear". FAIL-CLOSED: a missing regime blocks.
   async function regimeGateCheck(r) {
@@ -2751,6 +2805,12 @@ module.exports = (ctx) => {
               }
             } catch (e) { ctx.log("binance: auto-signal error: " + e.message); }
           }
+        }
+        // Refresh the JAVIS liquidity map off the scan cadence, >=25 min apart,
+        // fire-and-forget so a slow export never lengthens the scan tick.
+        if (Date.now() - lastMapExportAt > 25 * 60 * 1000) {
+          lastMapExportAt = Date.now();
+          exportLiquidityMap().catch((e) => ctx.log("binance: liquidity-map export failed: " + e.message));
         }
       } catch (e) { ctx.log("binance: scan loop error: " + e.message); }
     }, ms);
