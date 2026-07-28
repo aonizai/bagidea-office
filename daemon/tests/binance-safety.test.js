@@ -401,3 +401,58 @@ test("notionalCapPctFor: grade A gets the showcase cap, everything else the base
   assert.strictEqual(S.notionalCapPctFor(c, undefined), 40, "no grade (manual order) = base cap");
   assert.strictEqual(S.notionalCapPctFor({ maxNotionalPct: 40 }, "A"), 40, "no showcase key = no showcase");
 });
+
+/* ---- dailyLossBasisDecide (mandate: daily_loss_multibasis_2026_07_28) ---- */
+const { dailyLossBasisDecide } = require("../../plugins/binance/index.js").__safety;
+
+test("multibasis: any live basis keeps the breaker sighted; all down = blind", () => {
+  const blind = dailyLossBasisDecide({ bases: [
+    { name: "income+positions", whole: true, ok: false, dayPnl: NaN },
+    { name: "equity-snapshot", whole: true, ok: false, dayPnl: NaN },
+    { name: "local-ledger", whole: false, ok: false, dayPnl: NaN },
+  ], lossPct: 10, equityBase: 5000 });
+  assert.equal(blind.evaluable, false);
+  const sighted = dailyLossBasisDecide({ bases: [
+    { name: "income+positions", whole: true, ok: false, dayPnl: NaN },
+    { name: "equity-snapshot", whole: true, ok: true, dayPnl: -100 },
+  ], lossPct: 10, equityBase: 5000 });
+  assert.equal(sighted.evaluable, true);
+  assert.equal(sighted.tripped, false);
+});
+
+test("multibasis: the WORST basis decides — conservative OR", () => {
+  const d = dailyLossBasisDecide({ bases: [
+    { name: "income+positions", whole: true, ok: true, dayPnl: -100 },
+    { name: "equity-snapshot", whole: true, ok: true, dayPnl: -520 },
+  ], lossPct: 10, equityBase: 5000 });
+  assert.equal(d.tripped, true, "-520 breaches the -500 limit even though income says -100");
+  assert.equal(d.worst, "equity-snapshot");
+});
+
+test("multibasis: local-ledger alone arms the trip but never the entry gate", () => {
+  const d = dailyLossBasisDecide({ bases: [
+    { name: "income+positions", whole: true, ok: false, dayPnl: NaN },
+    { name: "equity-snapshot", whole: true, ok: false, dayPnl: NaN },
+    { name: "local-ledger", whole: false, ok: true, dayPnl: -600 },
+  ], lossPct: 10, equityBase: 5000 });
+  assert.equal(d.evaluable, true);
+  assert.equal(d.tripped, true, "the monitor may trip on desk-only data");
+  assert.equal(d.wholeAccount, false, "the entry gate must stay closed on desk-only data");
+});
+
+test("multibasis: trip boundary is dayPnl <= -limit, byte-identical to the old rule", () => {
+  const at = (pnl) => dailyLossBasisDecide({ bases: [
+    { name: "income+positions", whole: true, ok: true, dayPnl: pnl },
+  ], lossPct: 10, equityBase: 5000 }).tripped;
+  assert.equal(at(-499.99), false);
+  assert.equal(at(-500), true);
+  assert.equal(at(-500.01), true);
+});
+
+test("multibasis: no equity base = not evaluable (percent of nothing is noise)", () => {
+  const d = dailyLossBasisDecide({ bases: [
+    { name: "income+positions", whole: true, ok: true, dayPnl: -100 },
+  ], lossPct: 10, equityBase: null });
+  assert.equal(d.evaluable, false);
+  assert.equal(d.reason, "no-equity-base");
+});

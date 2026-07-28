@@ -1297,22 +1297,81 @@ module.exports = (ctx) => {
    * result means: the entry path blocks (it has a trade to refuse), the monitor
    * path does not (tripping off incomplete data would write config from noise).
    */
+  const dayEqFile = path.join(ctx.dataDir, "day-equity.json");
   async function dailyLossCheck({ trip = true } = {}) {
     const c = cfg();
-    const equityBase = c.simulatedEquity || await accountEquity();
-    const { realized, unreal, complete } = await dailyPnl();
-    if (!complete) return { evaluable: false, tripped: false };
-    const dayPnl = realized + unreal;
     const sr = c.scalping ? (c.scalpingRules || {}) : {};
     const lossPct = c.scalping ? (sr.dailyLossPct || 3) : (c.dailyLossPct || 2);
-    const lossLimit = -Math.abs(equityBase * lossPct / 100);
-    if (dayPnl > lossLimit) return { evaluable: true, tripped: false, dayPnl, lossLimit };
+
+    // Three independent reads, each judged on its own — no all-or-nothing
+    // (mandate: daily_loss_multibasis_2026_07_28).
+    let prOk = false, unreal = 0;
+    try {
+      const pr = await req("GET", "/fapi/v2/positionRisk", null, true);
+      if (pr.ok && Array.isArray(pr.json)) {
+        prOk = true;
+        unreal = pr.json.reduce((s, p) => s + Number(p.unRealizedProfit || 0), 0);
+      }
+    } catch {}
+    let incomeOk = true, realized = 0;
+    try {
+      const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+      let endTime = Date.now();
+      for (let page = 0; page < 5; page++) {
+        const r = await req("GET", "/fapi/v1/income",
+          { incomeType: "REALIZED_PNL", startTime: String(dayStart.getTime()), endTime: String(endTime), limit: "1000" }, true);
+        if (!r.ok) { incomeOk = false; break; }
+        const rows = Array.isArray(r.json) ? r.json : [];
+        realized += rows.reduce((s, x) => s + Number(x.income || 0), 0);
+        if (rows.length < 1000) break;
+        endTime = rows[0].time - 1;
+      }
+    } catch { incomeOk = false; }
+    let balOk = false, bal = 0;
+    try {
+      const r = await req("GET", "/fapi/v2/balance", null, true);
+      if (r.ok && Array.isArray(r.json)) {
+        const u = r.json.find((b) => b.asset === "USDT");
+        if (u) { bal = Number(u.balance); balOk = true; }
+      }
+    } catch {}
+
+    // Day-equity baseline: captured at the first whole-account read after
+    // midnight. With it, daily loss is measurable from balance+positions alone
+    // — the income endpoint flapping no longer blinds the breaker.
+    const today = new Date().toISOString().slice(0, 10);
+    let baseline = null;
+    try { baseline = JSON.parse(fs.readFileSync(dayEqFile, "utf8")); } catch {}
+    if (balOk && prOk && (!baseline || baseline.date !== today)) {
+      baseline = { date: today, equity: bal + unreal, at: Date.now() };
+      try { writeJsonAtomic(dayEqFile, baseline); } catch {}
+    }
+
+    const equityBase = c.simulatedEquity ||
+      (balOk && prOk ? bal + unreal : null) ||
+      (baseline && baseline.equity) || null;
+    const bases = [
+      { name: "income+positions", whole: true, ok: incomeOk && prOk, dayPnl: realized + unreal },
+      { name: "equity-snapshot", whole: true,
+        ok: balOk && prOk && !!baseline && baseline.date === today,
+        dayPnl: baseline ? (bal + unreal) - baseline.equity : NaN },
+      // Desk's own exit journal (trailing 24h — can over-count yesterday's
+      // late losses, which only errs toward caution) + live unrealized.
+      { name: "local-ledger", whole: false, ok: prOk,
+        dayPnl: performanceStats(1).totalPnl + unreal },
+    ];
+    const d = dailyLossBasisDecide({ bases, lossPct, equityBase });
+    if (!d.evaluable) return { evaluable: false, tripped: false, reason: d.reason };
+    const { dayPnl, lossLimit } = d;
+    if (!d.tripped)
+      return { evaluable: true, tripped: false, wholeAccount: d.wholeAccount, dayPnl, lossLimit, basesUsed: d.basesUsed };
 
     const msg = tgAlert({
       kind: "danger", title: "Daily Loss Limit ถึงแล้ว",
       rows: [
         { label: "PnL วันนี้", value: fmtUsd(dayPnl), accent: "❌ เกิน limit" },
         { label: "Limit", value: `${lossPct}% = $${Math.abs(lossLimit).toFixed(2)}` },
+        { label: "ฐานวัด", value: d.worst },
       ],
       footer: "autoTrade ปิดอัตโนมัติ — หยุดเทรดทั้งวัน",
     });
@@ -1328,7 +1387,7 @@ module.exports = (ctx) => {
       ctx.feed(msg, "compass");
       try { ctx.relay(msg); } catch {}
     }
-    return { evaluable: true, tripped: true, msg, dayPnl, lossLimit };
+    return { evaluable: true, tripped: true, wholeAccount: d.wholeAccount, msg, dayPnl, lossLimit, basis: d.worst };
   }
 
   // Account equity (USDT balance + unrealized PnL) — the base for % limits.
@@ -2204,6 +2263,10 @@ module.exports = (ctx) => {
     const dl = await dailyLossCheck({ trip: true });
     if (!dl.evaluable)
       return "อ่าน PnL วันนี้ไม่ครบ — ประเมิน daily-loss limit ไม่ได้ จึงไม่เปิดไม้ (fail-closed)";
+    // The local ledger alone can arm the monitor trip, but entry permission
+    // needs a whole-account basis — the ledger can't see CEO/foreign PnL.
+    if (!dl.wholeAccount)
+      return "ประเมิน daily-loss ได้จาก ledger เดสก์เท่านั้น (มองไม่เห็นทั้งบัญชี) — ไม่เปิดไม้ (fail-closed)";
     if (dl.tripped) return dl.msg;
     // Loss-streak cooldown. Scalping: uses scalpingRules (3 losses/30min). Trend:
     // uses top-level cooldownAfterLosses/cooldownMin (2 losses/60min). Either way
@@ -3635,9 +3698,35 @@ module.exports.__research = {
   atr, ema, emaSeries, avgVol, swingHigh, swingLow, DEFAULTS,
 };
 
+/* ------------------------------------------------- daily-loss multibasis --
+ * Pure decider (mandate: daily_loss_multibasis_2026_07_28). The breaker used
+ * to require income AND positionRisk both up — one flapping endpoint blinded
+ * it entirely (2026-07-28 incident). Now any usable basis keeps it sighted,
+ * the WORST basis decides (conservative OR), and only a whole-account basis
+ * may open the entry gate: the local ledger cannot see CEO/foreign realized
+ * PnL, so it arms the monitor trip but never hands out entry permission.
+ * bases: [{ name, whole, ok, dayPnl }] — dayPnl in USD, negative = loss.
+ */
+function dailyLossBasisDecide({ bases, lossPct, equityBase }) {
+  const usable = (bases || []).filter((b) => b && b.ok && Number.isFinite(b.dayPnl));
+  if (!usable.length) return { evaluable: false, tripped: false, reason: "no-basis" };
+  if (!Number.isFinite(equityBase) || equityBase <= 0)
+    return { evaluable: false, tripped: false, reason: "no-equity-base" };
+  const lossLimit = -Math.abs(equityBase * (Number(lossPct) || 0) / 100);
+  const worst = usable.reduce((a, b) => (b.dayPnl < a.dayPnl ? b : a));
+  return {
+    evaluable: true,
+    wholeAccount: usable.some((b) => b.whole),
+    tripped: worst.dayPnl <= lossLimit,
+    worst: worst.name, dayPnl: worst.dayPnl, lossLimit,
+    basesUsed: usable.map((b) => b.name), reason: null,
+  };
+}
+
 module.exports.__safety = {
   parseEventAt, newsGateDecide, auditTrim, tradesTodayDecide,
   makeDedup, emergencyOutcome, exitOutcome, AUDIT_MONEY_CMDS, isScheduledEvent,
   makeClientOrderId, isDeskTagged, classifyPosition, stopCoverage, reconcileDecide,
   hwmDecide, sameDirectionDecide, costFloorDecide, notionalCapPctFor,
+  dailyLossBasisDecide,
 };
