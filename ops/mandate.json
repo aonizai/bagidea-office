@@ -57,6 +57,14 @@
       "tradeoff_stated": "Slower trades: breakeven triggers at +1R = +stop% of price, so a 3% stop means the runner must move +3% before the stop moves up — holds measured in days. Fewer trades per week. That is the deal being chosen: pay less per attempt, wait longer per attempt.",
       "explicitly_not_done": "NO backtest of deeper stops on the closed directional line — stopMult tuning is named in the reopen rules as forbidden retuning. This ruling is posted-price arithmetic applied to the practice layer, not signal research."
     },
+    "daily_loss_multibasis_2026_07_28": {
+      "date": "2026-07-28",
+      "question": "The daily-loss breaker went blind for 5 minutes when the income endpoint flapped (16:23-16:28). Owner asked for the fix. What changes?",
+      "finding": "Single point of blindness: dailyPnl() required BOTH income and positionRisk to succeed; either failing blinded the breaker entirely, even though the desk holds two independent sources of the same truth (account equity vs a persisted midnight baseline; its own exit journal).",
+      "ruling": "The breaker now evaluates THREE independent bases and trips on the WORST one (conservative OR): (1) income+positions — realized from /income + unrealized from positionRisk (the original); (2) equity-snapshot — balance+unrealized vs a day-equity baseline persisted at the first whole-account read after midnight (data/day-equity.json); (3) local-ledger — the desk's own exit journal (trailing 24h) + live unrealized. Evaluable if ANY basis is up. TIGHTENING preserved: the ENTRY gate additionally requires a whole-account basis ((1) or (2)) — the local ledger cannot see CEO/foreign realized PnL, so it may arm the monitor trip but never open the entry gate. All-bases-down still blocks entries fail-closed, exactly as before.",
+      "explicitly_unchanged": "dailyLossPct stays pinned at 10; no auto re-arm; the trip boundary (dayPnl <= -limit) is byte-identical; monitor still refuses to trip on unevaluable data.",
+      "known_imprecision_stated": "equity-snapshot includes funding/fees and any deposits (testnet faucet would skew it — rare, and only ever toward MORE caution when negative); local-ledger uses trailing-24h not calendar-day (can over-count yesterday's late losses — again only toward caution). Both recorded here so nobody later mistakes basis divergence for a bug."
+    },
     "trade_teams_2026_07_28": {
       "date": "2026-07-28",
       "question": "Owner saw a 9-team AI trading floor (Bond Crisis dashboard) and said build ours ('ลุยสร้างของเราเลย'). What exactly is being built, under what rules?",
