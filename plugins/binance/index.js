@@ -2695,11 +2695,28 @@ module.exports = (ctx) => {
           const dl = await dailyLossCheck({ trip: true });
           if (!dl.evaluable) {
             HEALTH.dailyLossUnevaluable = (HEALTH.dailyLossUnevaluable || 0) + 1;
-            if (HEALTH.dailyLossUnevaluable === 10) {
-              const m = "⚠️ ประเมิน daily-loss limit ไม่ได้ 10 รอบติด (อ่าน PnL จาก exchange ไม่สำเร็จ) — เบรกเกอร์ตาบอดอยู่";
+            const n = HEALTH.dailyLossUnevaluable;
+            // Each blind tick leaves a diagnostic trail (the 2026-07-28 incident
+            // had a 5-minute blind window with zero log lines to autopsy).
+            if (n === 1 || n === 10) ctx.log("binance: daily-loss unevaluable x" + n + (dl.reason ? " (" + dl.reason + ")" : ""));
+            // Page at 10 rounds (5 min), then RE-page every 60 (30 min) — a
+            // one-shot alert on a condition that can persist for hours is a
+            // silence bug (W5 rule). Entries stay fail-closed the whole time.
+            if (n === 10 || (n > 10 && n % 60 === 0)) {
+              const m = n === 10
+                ? "⚠️ ประเมิน daily-loss limit ไม่ได้ 10 รอบติด (อ่าน PnL จาก exchange ไม่สำเร็จ) — เบรกเกอร์ตาบอดอยู่"
+                : `⚠️ เบรกเกอร์ daily-loss ยังตาบอดต่อเนื่อง ~${Math.round(n / 2)} นาที — ทางเข้าไม้ถูกบล็อก fail-closed อยู่ · stop ฝั่ง exchange ไม่กระทบ`;
               ctx.feed(m, "compass"); try { ctx.relay(m); } catch {}
             }
-          } else HEALTH.dailyLossUnevaluable = 0;
+          } else {
+            // The ✅ pair of the blind alert — without it, "recovered" and
+            // "muted" are indistinguishable from the owner's phone (W5 rule).
+            if ((HEALTH.dailyLossUnevaluable || 0) >= 10) {
+              const m = "✅ เบรกเกอร์ daily-loss กลับมามองเห็นแล้ว (อ่าน PnL จาก exchange สำเร็จ)";
+              ctx.feed(m, "compass"); try { ctx.relay(m); } catch {}
+            }
+            HEALTH.dailyLossUnevaluable = 0;
+          }
         } catch (e) { ctx.log("binance: dailyLossCheck in monitor failed: " + e.message); }
 
         // Only a FULLY successful tick counts as alive. Setting this at the top
