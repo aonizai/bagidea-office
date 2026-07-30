@@ -15,12 +15,36 @@ const ACCEPTED_SCHEMAS = [
   "spot-accumulation/v1",
 ];
 
-const FORBIDDEN_KEYS = new Set([
-  "apikey", "apisecret", "privatekey", "private_key", "signature",
-  "signedrequest", "signed_request", "executionintent", "execution_intent",
-  "orderpayload", "order_payload", "withdraw", "withdrawal", "transfer",
-  "mnemonic", "seedphrase", "seed_phrase",
-]);
+// The snapshot mode must be stated explicitly by the producer. A missing or
+// empty field is never defaulted into a read-only attestation, and the match is
+// exact — "NOT_READ_ONLY" must not satisfy a substring test.
+const ACCEPTED_MODES = new Set(["READ_ONLY_ANALYSIS", "READ_ONLY"]);
+
+// Matched as substrings against a key normalised to letters and digits only, so
+// api_key / API-KEY / "api key" / apiKey all collapse to the same token.
+const FORBIDDEN_KEY_TOKENS = [
+  "apikey", "apisecret", "secretkey", "privatekey", "signature", "signedrequest",
+  "executionintent", "orderpayload", "withdraw", "transfer", "mnemonic",
+  "seed", "passphrase", "credential", "authorization", "accesstoken",
+  "refreshtoken", "bearertoken", "xmbxapikey",
+];
+
+// Value-side screening: a secret can arrive as a plain string under an innocent
+// key, so the shape of the value is checked as well as the key.
+const FORBIDDEN_VALUE_PATTERNS = [
+  /-----BEGIN[ A-Z]*PRIVATE KEY-----/,
+  /\bapi[_-]?key\s*[:=]\s*\S+/i,
+  /\bapi[_-]?secret\s*[:=]\s*\S+/i,
+  /\bX-MBX-APIKEY\b/i,
+  /\bAKIA[0-9A-Z]{12,}\b/,
+  /\bsk-[A-Za-z0-9]{16,}\b/,
+  /\bghp_[A-Za-z0-9]{20,}\b/,
+  /\bxox[baprs]-[A-Za-z0-9-]{10,}/,
+  /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\./,
+];
+
+const MAX_SCAN_NODES = 20000;
+const MAX_SCAN_DEPTH = 64;
 
 const DEFAULTS = {
   maxAgeSec: 1800,
@@ -28,10 +52,11 @@ const DEFAULTS = {
   pollMs: 15000,
   appUrl: "http://127.0.0.1:4173",
   deskUrl: "http://127.0.0.1:8787/plugin/binance/snapshot",
+  // Neutral, machine-independent search order. A Creator-specific path is only
+  // ever consulted when it is configured explicitly (see cfg()).
   snapshotPaths: [
+    path.join(__dirname, "data", "latest-snapshot.json"),
     path.join(os.homedir(), "javis-spot-command-center-data", "latest-snapshot.json"),
-    "E:\\JARVIS-BrainOps\\projects\\javis-spot-command-center\\data\\latest-snapshot.json",
-    "E:\\JARVIS-BrainOps\\projects\\javis-crypto-copilot\\reports\\spot-accumulation-latest.json",
   ],
 };
 
@@ -66,21 +91,45 @@ function ageSec(iso, nowMs = Date.now()) {
   return Math.max(0, Math.round((nowMs - parsed) / 1000));
 }
 
-function walkForForbiddenKeys(value, seen = new Set()) {
+function normalizeKey(key) {
+  // Unicode-fold first so fullwidth/compatibility forms cannot slip through,
+  // then drop every non-alphanumeric character (underscores included).
+  return String(key).normalize("NFKC").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function keyIsForbidden(key) {
+  const normalized = normalizeKey(key);
+  if (!normalized) return false;
+  return FORBIDDEN_KEY_TOKENS.some(token => normalized.includes(token));
+}
+
+function valueIsForbidden(value) {
+  if (typeof value !== "string" || !value) return false;
+  return FORBIDDEN_VALUE_PATTERNS.some(pattern => pattern.test(value));
+}
+
+/**
+ * Recursive credential/execution screen over keys AND values, at any depth,
+ * through arrays and objects, with cycle, depth and node bounds.
+ * Returns the offending key path, or null.
+ */
+function walkForForbiddenKeys(value, seen = new Set(), state = { nodes: 0 }, depth = 0, trail = "$") {
+  if (depth > MAX_SCAN_DEPTH) return `${trail}:DEPTH_LIMIT`;
+  if (state.nodes++ > MAX_SCAN_NODES) return `${trail}:NODE_LIMIT`;
+  if (typeof value === "string") return valueIsForbidden(value) ? `${trail}:value` : null;
   if (!value || typeof value !== "object") return null;
   if (seen.has(value)) return null;
   seen.add(value);
   if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = walkForForbiddenKeys(item, seen);
+    for (let index = 0; index < value.length; index += 1) {
+      const found = walkForForbiddenKeys(value[index], seen, state, depth + 1, `${trail}[${index}]`);
       if (found) return found;
     }
     return null;
   }
   for (const [key, child] of Object.entries(value)) {
-    const normalized = key.replace(/[-\s]/g, "").toLowerCase();
-    if (FORBIDDEN_KEYS.has(normalized)) return key;
-    const found = walkForForbiddenKeys(child, seen);
+    if (keyIsForbidden(key)) return `${trail}.${key}`;
+    const found = walkForForbiddenKeys(child, seen, state, depth + 1, `${trail}.${key}`);
     if (found) return found;
   }
   return null;
@@ -96,8 +145,13 @@ function validateSnapshot(snapshot, opts = {}) {
   if (!ACCEPTED_SCHEMAS.includes(schema)) {
     return { ok: false, reasonCode: "SCHEMA_UNSUPPORTED", safeMessage: "Spot snapshot schema is unsupported.", schema };
   }
-  const mode = String(snapshot.mode || snapshot.capability || snapshot.capability_status || "READ_ONLY_ANALYSIS").toUpperCase();
-  if (!mode.includes("READ_ONLY") || /LIVE|EXECUTION|DISPATCH|TRADING_ENABLED/.test(mode)) {
+  const declaredMode = snapshot.mode ?? snapshot.capability ?? snapshot.capability_status;
+  if (typeof declaredMode !== "string" || !declaredMode.trim()) {
+    // Absent capability is never assumed to be read-only.
+    return { ok: false, reasonCode: "CAPABILITY_NOT_DECLARED", safeMessage: "Spot snapshot does not declare a capability mode." };
+  }
+  const mode = declaredMode.trim().toUpperCase();
+  if (!ACCEPTED_MODES.has(mode)) {
     return { ok: false, reasonCode: "CAPABILITY_NOT_READ_ONLY", safeMessage: "Spot snapshot is outside the read-only capability boundary." };
   }
   const forbidden = walkForForbiddenKeys(snapshot);
@@ -384,7 +438,10 @@ function createPlugin(ctx) {
       if (req.method !== "GET") return safeJsonResponse(res, 405, { ok: false, reasonCode: "METHOD_NOT_ALLOWED" });
       const latest = readLatest();
       if (!latest.ok) return safeJsonResponse(res, 404, { ok: false, reasonCode: "SNAPSHOT_UNAVAILABLE", failures: latest.failures });
-      return safeJsonResponse(res, 200, latest.snapshot);
+      // Never echo the raw file: only the validated, allowlisted projection
+      // leaves this process, so an unexpected field in the source file can
+      // never be relayed to a caller.
+      return safeJsonResponse(res, 200, { ok: true, sourceFile: latest.fileName, ...latest.summary });
     },
     async desk(req, res) {
       if (req.method !== "GET") return safeJsonResponse(res, 405, { ok: false, reasonCode: "METHOD_NOT_ALLOWED" });
