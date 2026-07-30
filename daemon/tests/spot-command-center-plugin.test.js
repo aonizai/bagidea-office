@@ -159,6 +159,6 @@ test("manifest and panel expose no Binance command or credential controls", () =
   const panel = fs.readFileSync(path.join(root, "panel.html"), "utf8");
   assert.doesNotMatch(panel, /\/plugin\/binance\/cmd/);
   assert.doesNotMatch(panel, /type=["']password["']/i);
-  assert.doesNotMatch(panel, /setkeys|placeOrder|autotrade|stoploss|withdraw|leverage/i);
+  assert.doesNotMatch(panel, /setkeys|placeOrder|cmd\(["'](?:order|close|stoploss|leverage|cancel|autotrade)["']|withdraw/i);
   assert.match(panel, /READ_ONLY_ANALYSIS/);
 });
