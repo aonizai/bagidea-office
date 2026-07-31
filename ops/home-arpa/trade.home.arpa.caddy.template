@@ -1,0 +1,90 @@
+# TEMPLATE ONLY — copy to /etc/caddy/sites/trade.home.arpa.caddy on the desk host
+# and replace the placeholder hash. This file must never contain a real hash or
+# a plaintext password, and the deployed copy must never be committed.
+#
+# JAVIS Trading Desk — LAN-only read-only portal.
+#
+# Boundary notes:
+#   * The listener is pinned to the private LAN address. Do not port-forward it,
+#     do not publish a public DNS record, and do not replace `tls internal`.
+#   * The BagIdea daemon stays on 127.0.0.1:8787. This proxy is the only
+#     LAN-reachable entry point, and it is deny-by-default: every route that is
+#     not explicitly matched below returns 403.
+#   * No execution route is proxied. /plugin/binance/cmd is unreachable by
+#     construction because it is never matched.
+#   * Caddy 2.6.2 uses the `basicauth` directive. `basic_auth` is Caddy 2.8+.
+#
+# Generate the hash on the desk host, interactively, so no plaintext enters the
+# shell history:
+#
+#   caddy hash-password
+#
+trade.home.arpa {
+	bind {$JAVIS_LAN_BIND:192.168.10.162}
+	tls internal
+	encode zstd gzip
+
+	# ---- authentication ---------------------------------------------------
+	# Applies to every path in this site, including the root.
+	basicauth {
+		operator REPLACE_WITH_BCRYPT_HASH_FROM_caddy_hash-password
+	}
+
+	# ---- allowlisted read-only routes -------------------------------------
+	# GET/HEAD only. Any other verb falls through to the deny handler.
+	@portal_root {
+		method GET HEAD
+		path /
+	}
+	@portal_assets {
+		method GET HEAD
+		path /plugin/trading-desk-home/panel
+		path /plugin/trading-desk-home/state
+		path /plugin/trading-desk-home/health
+		path /plugin/trading-desk-home/static/*
+		path /favicon.ico
+	}
+
+	# The address bar stays at https://trade.home.arpa/ while the panel is served.
+	rewrite @portal_root /plugin/trading-desk-home/panel
+
+	reverse_proxy @portal_assets 127.0.0.1:8787 {
+		header_up Host {host}
+		header_up X-Forwarded-Proto https
+		# The upstream must never see the portal's own credentials.
+		header_up -Authorization
+	}
+	reverse_proxy @portal_root 127.0.0.1:8787 {
+		header_up Host {host}
+		header_up X-Forwarded-Proto https
+		header_up -Authorization
+	}
+
+	# ---- deny by default ---------------------------------------------------
+	# Anything not matched above — including /plugin/binance/cmd, /plugins/reload,
+	# /chat, /event, /perm/*, /registry/*, /sessions/*, /jobs, and every POST,
+	# PUT, PATCH or DELETE — never reaches the daemon.
+	respond 403 {
+		body "forbidden"
+		close
+	}
+
+	header {
+		-Server
+		Content-Security-Policy "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		Cross-Origin-Opener-Policy same-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		Cache-Control "no-store"
+	}
+
+	log {
+		output file /var/log/caddy/trade-access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format json
+	}
+}
