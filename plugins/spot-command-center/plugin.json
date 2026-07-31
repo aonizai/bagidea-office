@@ -1,0 +1,46 @@
+{
+  "id": "spot-command-center",
+  "name": "🪙 JAVIS Spot Command Center",
+  "version": "0.1.0",
+  "description": "Read-only bridge for JAVIS Spot accumulation, entry planning, portfolio valuation and rebalance snapshots. Shows combined context with the Binance Futures desk without exposing any execution command.",
+  "panel": "panel.html",
+  "window": {
+    "w": 1080,
+    "h": 820,
+    "resizable": true
+  },
+  "commands": [
+    {
+      "name": "health",
+      "args": "",
+      "desc": "Check whether a canonical JAVIS Spot snapshot exists, is valid and fresh. Read-only."
+    },
+    {
+      "name": "snapshot",
+      "args": "",
+      "desc": "Summarize the latest Spot portfolio, scanner states and analytical basket. Read-only."
+    },
+    {
+      "name": "asset",
+      "args": "<BTC|ETH|SOL|BNB|XRP>",
+      "desc": "Show one asset's allocation, scanner, entry, invalidation and rebalance context. Read-only."
+    },
+    {
+      "name": "rebalance",
+      "args": "",
+      "desc": "Show the latest analytical buy/trim baskets and projected cash floor. Does not trade."
+    },
+    {
+      "name": "combined",
+      "args": "",
+      "desc": "Show Spot analysis beside the existing Binance Futures desk snapshot. Context only; no cross-lane execution."
+    },
+    {
+      "name": "open",
+      "args": "",
+      "desc": "Return the configured local full-app URL for JAVIS Spot Command Center."
+    }
+  ],
+  "needsKeys": [],
+  "enabled": true
+}
