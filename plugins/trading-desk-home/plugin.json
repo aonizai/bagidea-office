@@ -1,0 +1,26 @@
+{
+  "id": "trading-desk-home",
+  "name": "🎛 JAVIS Trading Desk",
+  "version": "0.1.0",
+  "description": "Read-only unified browser portal for the JAVIS trading desk. Reads Futures, Spot and Performance Journal context through GET-only routes and renders no execution control.",
+  "panel": "panel.html",
+  "window": {
+    "w": 1280,
+    "h": 850,
+    "resizable": true
+  },
+  "commands": [
+    {
+      "name": "health",
+      "args": "",
+      "desc": "Read unified desk health. Read-only."
+    },
+    {
+      "name": "summary",
+      "args": "",
+      "desc": "Read unified Futures, Spot and Journal summary. Read-only."
+    }
+  ],
+  "needsKeys": [],
+  "enabled": true
+}

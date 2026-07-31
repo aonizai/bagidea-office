@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JAVIS Trading Desk</title>
+<!-- Self-contained: no CDN, no remote font, no analytics, no eval. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'">
+<style>
+:root{--bg:#060b14;--panel:rgba(12,23,37,.86);--line:#1d3355;--ink:#dbe7ff;--muted:#7f93b8;--ok:#39d98a;--warn:#ffb454;--bad:#ff6b81;--accent:#4fc3f7}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Segoe UI",system-ui,sans-serif}
+a{color:var(--accent)}
+.wrap{max-width:1240px;margin:0 auto;padding:16px}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:16px}
+h1{font-size:18px;margin:0;letter-spacing:.06em}
+.badge{display:inline-block;padding:3px 9px;border-radius:999px;border:1px solid var(--line);font:11px/1.4 ui-monospace,monospace;letter-spacing:.08em}
+.badge.ok{color:var(--ok);border-color:var(--ok)}
+.badge.warn{color:var(--warn);border-color:var(--warn)}
+.badge.bad{color:var(--bad);border-color:var(--bad)}
+.meta{color:var(--muted);font:12px ui-monospace,monospace}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+nav a,nav span{padding:5px 11px;border:1px solid var(--line);border-radius:8px;font-size:12px;text-decoration:none;color:var(--ink)}
+nav span{color:var(--muted);border-style:dashed}
+section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px}
+section h2{margin:0 0 10px;font-size:13px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{border:1px solid var(--line);border-radius:10px;padding:9px 11px}
+.kpi span{display:block;font-size:10px;letter-spacing:.09em;color:var(--muted);text-transform:uppercase}
+.kpi strong{display:block;font-size:17px;margin-top:3px;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{font-size:10px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.empty{border:1px dashed var(--line);border-radius:10px;padding:18px;text-align:center;color:var(--muted)}
+.empty strong{display:block;color:var(--warn);font:13px ui-monospace,monospace;letter-spacing:.08em;margin-bottom:5px}
+.note{color:var(--muted);font-size:12px;margin-top:8px}
+footer{color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:12px;margin-top:8px}
+.mono{font-family:ui-monospace,monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>JAVIS TRADING DESK</h1>
+      <div class="meta" id="clock">—</div>
+    </div>
+    <div style="text-align:right">
+      <span class="badge" id="capabilityBadge">READ_ONLY_DESK_PORTAL</span>
+      <span class="badge" id="stateBadge">LOADING</span>
+      <div class="meta" id="refreshMeta">ยังไม่ได้ดึงข้อมูล</div>
+    </div>
+  </header>
+
+  <nav>
+    <a href="#futures">Futures Desk</a>
+    <a href="#spot">Spot Command Center</a>
+    <a href="#journal">Performance Journal</a>
+    <a href="#health">Data Health</a>
+    <a href="#audit">Audit Status</a>
+  </nav>
+
+  <section id="futures">
+    <h2>Futures Desk · read-only context</h2>
+    <div id="futuresBody"><div class="empty"><strong>LOADING</strong>กำลังอ่านสถานะ</div></div>
+  </section>
+
+  <section id="spot">
+    <h2>Spot Command Center</h2>
+    <div id="spotBody"><div class="empty"><strong>LOADING</strong>กำลังอ่านสถานะ</div></div>
+  </section>
+
+  <section id="journal">
+    <h2>Performance Journal</h2>
+    <div id="journalBody"><div class="empty"><strong>LOADING</strong>กำลังอ่านสถานะ</div></div>
+  </section>
+
+  <section id="health">
+    <h2>Data Health &amp; Provenance</h2>
+    <div id="healthBody" class="grid"></div>
+    <div class="note" id="healthNote"></div>
+  </section>
+
+  <section id="audit">
+    <h2>Audit Status</h2>
+    <div id="auditBody"></div>
+  </section>
+
+  <footer>
+    พอร์ทัลนี้เป็น <span class="mono">READ_ONLY_DESK_PORTAL</span> — แสดงผลอย่างเดียว
+    ไม่มีปุ่มสั่งซื้อขาย ไม่สร้างคำสั่ง ไม่แตะบัญชี และไม่ส่งค่าใด ๆ ไปยังส่วนที่ทำการซื้อขาย
+    การกระทำจริงทั้งหมดทำนอกระบบนี้ด้วยมือ
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var POLL_MS = 15000, TIMEOUT_MS = 8000, MAX_BACKOFF = 120000;
+  var backoff = 0, timer = null, running = false, lastGood = null, lastGoodAt = null;
+
+  function el(id){ return document.getElementById(id); }
+  function text(node, value){ node.textContent = value; }
+  function esc(v){ return v === null || v === undefined ? "—" : String(v); }
+  function money(v, suffix){ return v === null || v === undefined ? "—" : Number(v).toLocaleString("th-TH",{minimumFractionDigits:2,maximumFractionDigits:2}) + (suffix||""); }
+  function pct(v){ return v === null || v === undefined ? "—" : Number(v).toFixed(2) + "%"; }
+
+  function bangkokNow(){
+    try { return new Intl.DateTimeFormat("th-TH",{dateStyle:"full",timeStyle:"medium",timeZone:"Asia/Bangkok"}).format(new Date()); }
+    catch(e){ return new Date().toISOString(); }
+  }
+  function tickClock(){ text(el("clock"), bangkokNow() + " (Asia/Bangkok)"); }
+
+  function badgeClass(state){
+    if (state === "HEALTHY") return "badge ok";
+    if (state === "UNAVAILABLE" || state === "BLOCKED") return "badge bad";
+    return "badge warn";
+  }
+
+  function kpi(label, value){
+    var d = document.createElement("div"); d.className = "kpi";
+    var s = document.createElement("span"); s.textContent = label;
+    var b = document.createElement("strong"); b.textContent = value;
+    d.appendChild(s); d.appendChild(b); return d;
+  }
+
+  function emptyState(code, detail){
+    var d = document.createElement("div"); d.className = "empty";
+    var s = document.createElement("strong"); s.textContent = code;
+    d.appendChild(s); d.appendChild(document.createTextNode(detail)); return d;
+  }
+
+  function renderFutures(f){
+    var host = el("futuresBody"); host.textContent = "";
+    if (!f || !f.available){
+      host.appendChild(emptyState("FUTURES " + esc(f && f.state), "อ่าน snapshot ของ Futures ไม่ได้ · " + esc(f && f.reason_code)));
+      return;
+    }
+    var grid = document.createElement("div"); grid.className = "grid";
+    grid.appendChild(kpi("Environment", esc(f.environment)));
+    grid.appendChild(kpi("Paused", f.paused ? "PAUSED" : "RUNNING"));
+    grid.appendChild(kpi("Trade enabled", f.trade_enabled ? "TRUE" : "FALSE"));
+    grid.appendChild(kpi("Auto trade", f.auto_trade ? "TRUE" : "FALSE"));
+    grid.appendChild(kpi("Equity", money(f.equity)));
+    grid.appendChild(kpi("Available", money(f.available_balance)));
+    grid.appendChild(kpi("Unrealized P&L", money(f.unrealized_pnl)));
+    grid.appendChild(kpi("Open positions", esc(f.position_count)));
+    host.appendChild(grid);
+    if (f.positions && f.positions.length){
+      var table = document.createElement("table");
+      var head = document.createElement("tr");
+      ["Symbol","Side","Qty","Entry","uPnL"].forEach(function(h){ var th=document.createElement("th"); th.textContent=h; head.appendChild(th); });
+      table.appendChild(head);
+      f.positions.forEach(function(p){
+        var tr = document.createElement("tr");
+        [esc(p.symbol), esc(p.side), esc(p.qty), esc(p.entry), money(p.unrealized_pnl)].forEach(function(v){
+          var td = document.createElement("td"); td.textContent = v; tr.appendChild(td);
+        });
+        table.appendChild(tr);
+      });
+      host.appendChild(table);
+    }
+    var note = document.createElement("div"); note.className = "note";
+    note.textContent = "แสดงผลอย่างเดียว — พอร์ทัลนี้ไม่มีปุ่มสั่งงานใด ๆ ต่อ Futures";
+    host.appendChild(note);
+  }
+
+  function renderSpot(s){
+    var host = el("spotBody"); host.textContent = "";
+    if (!s || !s.available){
+      host.appendChild(emptyState("SPOT " + esc(s && s.state),
+        "Spot Command Center ยังไม่ได้ติดตั้งบนเครื่องนี้ · สถานะตรวจสอบ " + esc(s && s.audit_status) + " · ไม่มีการแสดงข้อมูลจำลองแทนของจริง"));
+      return;
+    }
+    var grid = document.createElement("div"); grid.className = "grid";
+    grid.appendChild(kpi("Total value", money(s.total_value_thb, " THB")));
+    grid.appendChild(kpi("Cash", money(s.cash_thb, " THB")));
+    grid.appendChild(kpi("Cash weight", pct(s.cash_weight_pct)));
+    grid.appendChild(kpi("Cash floor", pct(s.cash_floor_pct)));
+    grid.appendChild(kpi("Buy basket", money(s.buy_total_thb, " THB")));
+    grid.appendChild(kpi("Trim basket", money(s.trim_total_thb, " THB")));
+    grid.appendChild(kpi("Audit status", esc(s.audit_status)));
+    grid.appendChild(kpi("State", esc(s.state) + (s.stale ? " (STALE)" : "")));
+    host.appendChild(grid);
+  }
+
+  function renderJournal(j){
+    var host = el("journalBody"); host.textContent = "";
+    if (!j || !j.available){
+      host.appendChild(emptyState("PERFORMANCE JOURNAL " + esc(j && j.state),
+        "ยังไม่มีตัวเชื่อมข้อมูลจริง — จะไม่แสดงตัวเลขกำไรขาดทุนใด ๆ จนกว่าจะต่อของจริงได้"));
+      return;
+    }
+    var grid = document.createElement("div"); grid.className = "grid";
+    grid.appendChild(kpi("Net P&L after costs", money(j.net_pnl_after_costs)));
+    grid.appendChild(kpi("Winning days", esc(j.winning_days)));
+    grid.appendChild(kpi("Max drawdown", money(j.max_drawdown)));
+    grid.appendChild(kpi("Fees", money(j.fees)));
+    grid.appendChild(kpi("Funding", money(j.funding)));
+    host.appendChild(grid);
+  }
+
+  function renderHealth(model, stale){
+    var host = el("healthBody"); host.textContent = "";
+    host.appendChild(kpi("Portal state", esc(model.state)));
+    host.appendChild(kpi("Futures", esc(model.futures && model.futures.state)));
+    host.appendChild(kpi("Spot", esc(model.spot && model.spot.state)));
+    host.appendChild(kpi("Journal", esc(model.performance_journal && model.performance_journal.state)));
+    host.appendChild(kpi("Generated at", esc(model.generated_at)));
+    host.appendChild(kpi("Feed", stale ? "LAST KNOWN" : "CURRENT"));
+    var lines = [];
+    if (model.blockers && model.blockers.length) lines.push("Blockers: " + model.blockers.join(", "));
+    if (model.warnings && model.warnings.length) lines.push("Warnings: " + model.warnings.join(", "));
+    text(el("healthNote"), lines.join(" · "));
+  }
+
+  function renderAudit(model){
+    var host = el("auditBody"); host.textContent = "";
+    var spot = model.spot || {};
+    var verified = spot.audit_status === "VERIFIED_LOCAL";
+    var d = document.createElement("div"); d.className = "empty";
+    var s = document.createElement("strong");
+    s.textContent = "SPOT AUDIT · " + esc(spot.audit_status);
+    d.appendChild(s);
+    d.appendChild(document.createTextNode(verified
+      ? "การตรวจ P1 ผ่านครบและมีหลักฐานบันทึกแล้ว"
+      : "ยังต้องปิดงาน P1 hardening ก่อน — ห้ามตีความผลวิเคราะห์ Spot ว่าผ่านการตรวจแล้ว"));
+    host.appendChild(d);
+  }
+
+  function renderAll(model, stale){
+    text(el("stateBadge"), stale ? "STALE" : esc(model.state));
+    el("stateBadge").className = stale ? "badge warn" : badgeClass(model.state);
+    text(el("capabilityBadge"), esc(model.capability));
+    renderFutures(model.futures);
+    renderSpot(model.spot);
+    renderJournal(model.performance_journal);
+    renderHealth(model, stale);
+    renderAudit(model);
+  }
+
+  function schedule(ms){
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(poll, ms);
+  }
+
+  function poll(){
+    if (running) return;                       // never overlap requests
+    if (document.hidden) return schedule(POLL_MS);
+    running = true;
+    var controller = new AbortController();
+    var abortTimer = setTimeout(function(){ controller.abort(); }, TIMEOUT_MS);
+    // Same-origin relative URL: works identically behind the reverse proxy.
+    fetch("state", { method: "GET", credentials: "same-origin", cache: "no-store", signal: controller.signal })
+      .then(function(res){ if (!res.ok) throw new Error("status"); return res.json(); })
+      .then(function(model){
+        lastGood = model; lastGoodAt = new Date();
+        backoff = 0;
+        renderAll(model, false);
+        text(el("refreshMeta"), "อัปเดตล่าสุด " + lastGoodAt.toLocaleTimeString("th-TH",{hour12:false}));
+        schedule(POLL_MS);
+      })
+      .catch(function(){
+        backoff = backoff ? Math.min(backoff * 2, MAX_BACKOFF) : POLL_MS;
+        if (lastGood){
+          renderAll(lastGood, true);           // last known data is labelled, never passed off as fresh
+          text(el("refreshMeta"), "ดึงข้อมูลไม่สำเร็จ · แสดงค่าล่าสุดจาก " +
+            (lastGoodAt ? lastGoodAt.toLocaleTimeString("th-TH",{hour12:false}) : "—") +
+            " · ลองใหม่ใน " + Math.round(backoff/1000) + " วิ");
+        } else {
+          text(el("stateBadge"), "UNAVAILABLE");
+          el("stateBadge").className = "badge bad";
+          text(el("refreshMeta"), "ดึงข้อมูลไม่สำเร็จ · ลองใหม่ใน " + Math.round(backoff/1000) + " วิ");
+        }
+        schedule(backoff);
+      })
+      .then(function(){ clearTimeout(abortTimer); running = false; });
+  }
+
+  document.addEventListener("visibilitychange", function(){
+    if (!document.hidden) schedule(0);          // resume promptly when visible again
+  });
+
+  tickClock();
+  setInterval(tickClock, 1000);
+  poll();
+})();
+</script>
+</body>
+</html>
